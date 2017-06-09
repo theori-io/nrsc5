@@ -1,0 +1,18 @@
+== Dependencies ==
+
+The following packages are required:
+
+ * libao-dev
+ * libfftw3-dev
+ * rtl-sdr
+
+== Build Instructions ==
+
+$ mkdir build && cd build
+$ cmake ..
+$ make
+
+You can test the program using the included sample capture:
+
+$ xz -d < ../support/sample.xz | src/nrsc5 -r - 0
+

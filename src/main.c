@@ -191,7 +191,7 @@ int main(int argc, char *argv[])
         if (err) ERR_FAIL("rtlsdr_set_center_freq error: %d\n", err);
         err = rtlsdr_reset_buffer(dev);
         if (err) ERR_FAIL("rtlsdr_reset_buffer error: %d\n", err);
-        err = rtlsdr_read_async(dev, input_cb, &input, 0, RADIO_BUFFER);
+        err = rtlsdr_read_async(dev, input_cb, &input, 15, RADIO_BUFFER);
         if (err) ERR_FAIL("rtlsdr error: %d\n", err);
         err = rtlsdr_close(dev);
         if (err) ERR_FAIL("rtlsdr error: %d\n", err);

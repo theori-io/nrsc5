@@ -7,6 +7,7 @@ class Nrsc5 < Formula
   depends_on "autoconf" => :build
   depends_on "automake" => :build
   depends_on "libtool" => :build
+  depends_on "git" => :build
   depends_on "librtlsdr"
   depends_on "libao"
   depends_on "fftw"

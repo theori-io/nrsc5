@@ -45,7 +45,7 @@ include_directories ("${FAAD2_PREFIX}/include")
 set (LIQUID_DSP_PREFIX "${CMAKE_BINARY_DIR}/liquid-dsp-prefix")
 ExternalProject_Add (
     liquid-dsp_external
-    GIT_REPOSITORY "https://github.com/jgaeddert/liquid-dsp.git"
+    GIT_REPOSITORY "https://github.com/awesie/liquid-dsp.git"
     PREFIX ${LIQUID_DSP_PREFIX}
 
     UPDATE_COMMAND ""

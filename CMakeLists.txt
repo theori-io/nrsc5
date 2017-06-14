@@ -12,7 +12,7 @@ if (NOT AUTOMAKE)
     message (FATAL_ERROR "Missing automake. Install autoconf package and try again.")
 endif ()
 
-find_program (LIBTOOLIZE libtoolize)
+find_program (LIBTOOLIZE NAMES libtoolize glibtoolize)
 if (NOT LIBTOOLIZE)
     message (FATAL_ERROR "Missing libtoolize. Install libtool package and try again.")
 endif ()

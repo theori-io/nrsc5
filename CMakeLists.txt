@@ -2,7 +2,7 @@ cmake_minimum_required (VERSION 3.2)
 include (ExternalProject)
 project (nrsc5 C)
 
-set (CMAKE_C_FLAGS "-O3 -msse2 -ffast-math")
+set (CMAKE_C_FLAGS "-O3 -ffast-math")
 
 find_library (AO_LIBRARY ao)
 find_library (FFTW3F_LIBRARY fftw3f)

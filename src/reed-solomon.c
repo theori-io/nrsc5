@@ -207,7 +207,7 @@ rs_decode(uint8_t msg[N])
         }
         n2 = field.exp[(N - roots[j]) % N];
         tmp = 0;
-        for(i = MIN(errdeg, D - 1) & (-1 << 1); i >= 0; i -= 2)
+        for(i = MIN(errdeg, D - 1) & ((unsigned int)-1 << 1); i >= 0; i -= 2)
         {
             if(errpoly[i + 1] != A0)
             {

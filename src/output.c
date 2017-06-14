@@ -113,7 +113,7 @@ static void *output_worker(void *arg)
         ob = st->head;
         pthread_mutex_unlock(&st->mutex);
 
-        ao_play(st->dev, ob->data, AUDIO_FRAME_BYTES);
+        ao_play(st->dev, (void *)ob->data, AUDIO_FRAME_BYTES);
 
         pthread_mutex_lock(&st->mutex);
         st->head = ob->next;

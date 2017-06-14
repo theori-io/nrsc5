@@ -1,8 +1,21 @@
-cmake_minimum_required (VERSION 3.2)
+cmake_minimum_required (VERSION 2.8)
 include (ExternalProject)
 project (nrsc5 C)
 
-set (CMAKE_C_FLAGS "-O3 -ffast-math")
+find_program (AUTOCONF autoconf)
+if (NOT AUTOCONF)
+    message (FATAL_ERROR "Missing autoconf. Install autoconf package and try again.")
+endif ()
+
+find_program (AUTOMAKE automake)
+if (NOT AUTOMAKE)
+    message (FATAL_ERROR "Missing automake. Install autoconf package and try again.")
+endif ()
+
+find_program (LIBTOOLIZE libtoolize)
+if (NOT LIBTOOLIZE)
+    message (FATAL_ERROR "Missing libtoolize. Install libtool package and try again.")
+endif ()
 
 find_library (AO_LIBRARY ao)
 find_library (FFTW3F_LIBRARY fftw3f)

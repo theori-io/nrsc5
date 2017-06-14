@@ -1,3 +1,5 @@
+set (CMAKE_C_FLAGS "--std=gnu11 -O3 -ffast-math")
+
 add_executable (
     nrsc5
     acquire.c

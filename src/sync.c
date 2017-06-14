@@ -69,7 +69,7 @@ static void adjust_ref(float complex *buf, float *phases, unsigned int ref)
 
 static int find_first_block (float complex *buf, unsigned int ref)
 {
-    static const char needle[] = {
+    static const signed char needle[] = {
         0, 1, 1, 0, 0, 1, 0, -1, -1, 1, 1, 0, 0, 1, 0, -1, 0, 0, 0, 0, -1, 1, 1, 1
     };
     unsigned char data[N], prev = 0;

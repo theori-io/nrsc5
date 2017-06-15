@@ -77,7 +77,7 @@ void output_push(output_t *st, uint8_t *pkt, unsigned int len)
         output_buffer_t *ob;
 
         assert(bytes == AUDIO_FRAME_BYTES);
-        
+
         pthread_mutex_lock(&st->mutex);
         while (st->free == NULL)
             pthread_cond_wait(&st->cond, &st->mutex);
@@ -168,7 +168,7 @@ static void output_init_ao(output_t *st, int driver, const char *name)
     else
         st->dev = ao_open_live(driver, &sample_format, NULL);
     if (st->dev == NULL)
-        ERR_FAIL("Unabe to open output wav file.\n");
+        ERR_FAIL("Unable to open output wav file.\n");
 
     st->head = NULL;
     st->tail = NULL;

@@ -16,13 +16,13 @@ You can test the program using the included sample capture:
 
      $ xz -d < ../support/sample.xz | src/nrsc5 -r - 0
 
-### Building with [Homerew](https://brew.sh)
+### Building with [Homebrew](https://brew.sh)
 
      $ brew install --HEAD https://raw.githubusercontent.com/theori-io/nrsc5/master/nrsc5.rb
 
 ## Usage
 
-This was designed for use with a rtl-sdr dongle since that was our testing platform.
+This was designed for use with an RTL-SDR dongle since that was our testing platform.
 
 Options:
 

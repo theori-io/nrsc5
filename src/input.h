@@ -38,5 +38,5 @@ void input_init(input_t *st, output_t *output, unsigned int program, FILE *outfp
 void input_cb(uint8_t *, uint32_t, void *);
 void input_rate_adjust(input_t *st, float adj);
 void input_set_skip(input_t *st, unsigned int skip);
-void input_wait(input_t *st);
+void input_wait(input_t *st, int flush);
 void input_pdu_push(input_t *st, uint8_t *pdu, unsigned int len);

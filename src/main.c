@@ -170,8 +170,9 @@ int main(int argc, char *argv[])
             cnt = fread(tmp, 1, sizeof(tmp), infp);
             if (cnt > 0)
                 input_cb(tmp, cnt, &input);
-            input_wait(&input);
+            input_wait(&input, 0);
         }
+        input_wait(&input, 1);
     }
     else
     {

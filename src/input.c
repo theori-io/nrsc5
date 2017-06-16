@@ -82,9 +82,10 @@ static void *input_worker(void *arg)
         }
 
         st->used += acquire_push(&st->acq, &st->buffer[st->used], st->avail - st->used);
-        acquire_process(&st->acq);
         pthread_mutex_unlock(&st->mutex);
         pthread_cond_signal(&st->cond);
+
+        acquire_process(&st->acq);
     }
 
     return NULL;
@@ -105,12 +106,17 @@ void input_set_skip(input_t *st, unsigned int skip)
     st->skip = skip;
 }
 
-void input_wait(input_t *st)
+void input_wait(input_t *st, int flush)
 {
     pthread_mutex_lock(&st->mutex);
-    while (st->avail - st->used > K)
+    while (st->avail - st->used > (flush ? 1 : 256) * K)
         pthread_cond_wait(&st->cond, &st->mutex);
     pthread_mutex_unlock(&st->mutex);
+
+    if (flush)
+    {
+        sync_wait(&st->sync);
+    }
 }
 
 void input_cb(uint8_t *buf, uint32_t len, void *arg)

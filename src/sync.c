@@ -19,6 +19,8 @@
 #include "input.h"
 #include "sync.h"
 
+#define BUFS 16
+
 static void dump_ref(uint8_t *ref_buf)
 {
     uint32_t value = ref_buf[0];
@@ -129,18 +131,19 @@ static void adjust_data(float complex *buf, float *phases, unsigned int lower, u
 
 void sync_process(sync_t *st)
 {
+    float complex *buffer = &st->buffer[st->used * N * SYNCLEN];
     unsigned int i;
 
     for (i = 0; i < BAND_LENGTH; i += 19)
     {
-        adjust_ref(st->buffer, st->phases, i);
-        adjust_ref(st->buffer, st->phases, UB_OFFSET + i);
+        adjust_ref(buffer, st->phases, i);
+        adjust_ref(buffer, st->phases, UB_OFFSET + i);
     }
 
     // check if we lost synchronization or now have it
     if (st->ready)
     {
-        if (decode_get_block(&st->input->decode) == 0 && find_first_block(st->buffer, 0) != 0)
+        if (decode_get_block(&st->input->decode) == 0 && find_first_block(buffer, 0) != 0)
         {
             printf("lost sync!\n");
             st->ready = 0;
@@ -148,7 +151,7 @@ void sync_process(sync_t *st)
     }
     else
     {
-        int offset = find_first_block(st->buffer, 0);
+        int offset = find_first_block(buffer, 0);
         if (offset > 0)
         {
             printf("first block @ %d\n", offset);
@@ -167,8 +170,8 @@ void sync_process(sync_t *st)
     {
         for (i = 0; i < BAND_LENGTH - 1; i += 19)
         {
-            adjust_data(st->buffer, st->phases, i, i + 19);
-            adjust_data(st->buffer, st->phases, UB_OFFSET + i, UB_OFFSET + i + 19);
+            adjust_data(buffer, st->phases, i, i + 19);
+            adjust_data(buffer, st->phases, UB_OFFSET + i, UB_OFFSET + i + 19);
         }
 // #define DEMOD(x) fminf(fmaxf(15*(x), -15), 15)
 #define DEMOD(x) ((x) >= 0 ? 1 : -1)
@@ -180,7 +183,7 @@ void sync_process(sync_t *st)
                 unsigned int j;
                 for (j = 1; j < 19; j++)
                 {
-                    c = st->buffer[(i + j) * N + n];
+                    c = buffer[(i + j) * N + n];
                     decode_push(&st->input->decode, DEMOD(crealf(c)));
                     decode_push(&st->input->decode, DEMOD(cimagf(c)));
                 }
@@ -190,13 +193,13 @@ void sync_process(sync_t *st)
                 unsigned int j;
                 for (j = 1; j < 19; j++)
                 {
-                    c = st->buffer[(UB_OFFSET + i + j) * N + n];
+                    c = buffer[(UB_OFFSET + i + j) * N + n];
                     decode_push(&st->input->decode, DEMOD(crealf(c)));
                     decode_push(&st->input->decode, DEMOD(cimagf(c)));
                 }
             }
 
-            c = st->buffer[n];
+            c = buffer[n];
             st->ref_buf[n] = crealf(c) <= 0 ? 0 : 1;
             if (n == 0) dump_ref(st->ref_buf);
         }
@@ -207,21 +210,61 @@ void sync_push(sync_t *st, float complex *fftout)
 {
     unsigned int i;
     for (i = 0; i < SYNCLEN; ++i)
-        st->buffer[i * N + st->idx] = fftout[LB_START + i];
+        st->buffer[i * N + st->idx + st->buf_idx * N * SYNCLEN] = fftout[LB_START + i];
 
     if (++st->idx == N)
     {
-        sync_process(st);
         st->idx = 0;
+
+        pthread_mutex_lock(&st->mutex);
+        while ((st->buf_idx + 1) % BUFS == st->used)
+            pthread_cond_wait(&st->cond, &st->mutex);
+        st->buf_idx = (st->buf_idx + 1) % BUFS;
+        pthread_mutex_unlock(&st->mutex);
+
+        pthread_cond_signal(&st->cond);
     }
+}
+
+static void *sync_worker(void *arg)
+{
+    sync_t *st = arg;
+    while(1)
+    {
+        pthread_mutex_lock(&st->mutex);
+        while (st->buf_idx == st->used)
+            pthread_cond_wait(&st->cond, &st->mutex);
+        pthread_mutex_unlock(&st->mutex);
+
+        sync_process(st);
+
+        pthread_mutex_lock(&st->mutex);
+        st->used = (st->used + 1) % BUFS;
+        pthread_mutex_unlock(&st->mutex);
+
+        pthread_cond_signal(&st->cond);
+    }
+}
+
+void sync_wait(sync_t *st)
+{
+    pthread_mutex_lock(&st->mutex);
+    while (st->buf_idx != st->used)
+        pthread_cond_wait(&st->cond, &st->mutex);
+    pthread_mutex_unlock(&st->mutex);
 }
 
 void sync_init(sync_t *st, input_t *input)
 {
     st->input = input;
-    st->buffer = malloc(sizeof(float complex) * N * SYNCLEN);
+    st->buffer = malloc(sizeof(float complex) * N * SYNCLEN * BUFS);
     st->phases = malloc(sizeof(float) * N * SYNCLEN);
     st->ref_buf = malloc(N);
     st->ready = 0;
     st->idx = 0;
+    st->used = 0;
+
+    pthread_cond_init(&st->cond, NULL);
+    pthread_mutex_init(&st->mutex, NULL);
+    pthread_create(&st->worker_thread, NULL, sync_worker, st);
 }

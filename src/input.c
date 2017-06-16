@@ -140,7 +140,6 @@ void input_cb(uint8_t *buf, uint32_t len, void *arg)
         x[0] = CMPLXF(U8_F(buf[i * 4 + 0]), U8_F(buf[i * 4 + 1]));
         x[1] = CMPLXF(U8_F(buf[i * 4 + 2]), U8_F(buf[i * 4 + 3]));
         firdecim_crcf_execute(st->filter, x, &y);
-        // agc_crcf_execute(st->agc, y, &y);
         resamp_crcf_execute(st->resamp, y, &st->buffer[new_avail], &nw);
         new_avail += nw;
     }
@@ -165,7 +164,6 @@ void input_init(input_t *st, output_t *output, unsigned int program, FILE *outfp
     st->output = output;
     st->outfp = outfp;
 
-    st->agc = agc_crcf_create();
     st->filter = firdecim_crcf_create(2, filter_taps, sizeof(filter_taps) / sizeof(filter_taps[0]));
     st->resamp = resamp_crcf_create(1.0f, 4, 0.45f, 60.0f, 16);
 

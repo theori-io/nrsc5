@@ -17,7 +17,6 @@ typedef struct input_t
     output_t *output;
     FILE *outfp;
 
-    agc_crcf agc;
     firdecim_crcf filter;
     resamp_crcf resamp;
     float resamp_rate;

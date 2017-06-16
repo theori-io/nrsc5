@@ -78,11 +78,6 @@ void input_pdu_push(input_t *st, uint8_t *pdu, unsigned int len)
     output_push(st->output, pdu, len);
 }
 
-void input_rate_adjust(input_t *st, float adj)
-{
-    st->resamp_rate += adj;
-}
-
 void input_set_skip(input_t *st, unsigned int skip)
 {
     st->skip = skip;
@@ -125,7 +120,6 @@ void input_cb(uint8_t *buf, uint32_t len, void *arg)
         }
     }
     new_avail = st->avail;
-    resamp_crcf_set_rate(st->resamp, st->resamp_rate);
     pthread_mutex_unlock(&st->mutex);
 
     if (cnt + new_avail > INPUT_BUF_LEN)
@@ -140,8 +134,7 @@ void input_cb(uint8_t *buf, uint32_t len, void *arg)
         x[0] = CMPLXF(U8_F(buf[i * 4 + 0]), U8_F(buf[i * 4 + 1]));
         x[1] = CMPLXF(U8_F(buf[i * 4 + 2]), U8_F(buf[i * 4 + 3]));
         firdecim_crcf_execute(st->filter, x, &y);
-        resamp_crcf_execute(st->resamp, y, &st->buffer[new_avail], &nw);
-        new_avail += nw;
+        st->buffer[new_avail++] = y;
     }
 
     pthread_mutex_lock(&st->mutex);
@@ -155,7 +148,6 @@ void input_reset(input_t *st)
     st->avail = 0;
     st->used = 0;
     st->skip = 0;
-    st->resamp_rate = 1.0f;
 }
 
 void input_init(input_t *st, output_t *output, unsigned int program, FILE *outfp)
@@ -165,7 +157,6 @@ void input_init(input_t *st, output_t *output, unsigned int program, FILE *outfp
     st->outfp = outfp;
 
     st->filter = firdecim_crcf_create(2, filter_taps, sizeof(filter_taps) / sizeof(filter_taps[0]));
-    st->resamp = resamp_crcf_create(1.0f, 4, 0.45f, 60.0f, 16);
 
     input_reset(st);
 

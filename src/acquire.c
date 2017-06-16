@@ -38,13 +38,19 @@ void acquire_process(acquire_t *st)
     float complex max_v = 0;
     float angle, freqerr, max_mag = -1.0f;
     unsigned int samperr = 0, i, j;
-    unsigned int mink = 0, maxk = K;
+    unsigned int mink = 0, maxk = K - CP;
 
     if (st->idx != K * (M + 1))
         return;
 
+    if (st->samperr >= 3 && st->samperr < K-CP-4)
+    {
+        mink = st->samperr - 3;
+        maxk = st->samperr + 4;
+    }
+
     memset(st->sums, 0, sizeof(float complex) * K);
-    for (i = mink; i < maxk; ++i)
+    for (i = mink; i < maxk + CP; ++i)
     {
         for (j = 0; j < M; ++j)
             st->sums[i] += st->buffer[i + j * K] * conjf(st->buffer[i + j * K + FFT]) * st->shape[i];
@@ -80,6 +86,7 @@ void acquire_process(acquire_t *st)
         slope = ((float)samperr - window[window_size % WINDOW]) / (WINDOW * SYMBOLS);
         printf("avg: %f, slope: %f, freqerr: %f\n", avgerr, slope, freqerr);
         st->ready = 1;
+        st->samperr = avgerr;
 
         if (slope < 0)
         {
@@ -137,6 +144,7 @@ void acquire_init(acquire_t *st, input_t *input)
     st->sums = malloc(sizeof(float complex) * K);
     st->idx = 0;
     st->ready = 0;
+    st->samperr = 0;
 
     st->sintbl = malloc(sizeof(float) * CP);
     for (i = 0; i < CP; ++i)

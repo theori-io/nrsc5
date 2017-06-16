@@ -14,6 +14,7 @@ typedef struct
     float *shape;
     fftplan fft;
 
+    float samperr;
     unsigned int idx;
     int ready;
 } acquire_t;

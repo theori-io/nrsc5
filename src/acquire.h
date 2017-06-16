@@ -2,6 +2,7 @@
 
 #include <complex.h>
 #include <liquid/liquid.h>
+#include <fftw3.h>
 
 typedef struct
 {
@@ -12,7 +13,7 @@ typedef struct
     float complex *fftout;
     float *sintbl;
     float *shape;
-    fftplan fft;
+    fftwf_plan fft;
 
     float samperr;
     unsigned int idx;

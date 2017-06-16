@@ -112,7 +112,7 @@ void acquire_process(acquire_t *st)
                 st->fftin[j] = adj * st->buffer[n + samperr] * st->shape[j];
             }
 
-            fft_execute(st->fft);
+            fftwf_execute(st->fft);
             fft_shift(st->fftout, FFT);
             sync_push(&st->input->sync, st->fftout);
         }
@@ -160,5 +160,5 @@ void acquire_init(acquire_t *st, input_t *input)
 
     st->fftin = malloc(sizeof(float complex) * FFT);
     st->fftout = malloc(sizeof(float complex) * FFT);
-    st->fft = fft_create_plan(FFT, st->fftin, st->fftout, LIQUID_FFT_FORWARD, 0);
+    st->fft = fftwf_plan_dft_1d(FFT, st->fftin, st->fftout, FFTW_FORWARD, 0);
 }

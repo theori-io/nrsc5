@@ -90,12 +90,12 @@ void acquire_process(acquire_t *st)
 
         if (slope < 0)
         {
-            // TODO adjust sample rate upwards
+            input_rate_adjust(st->input, 0.0000001f);
             window_size = 0;
         }
         else if (slope > 0)
         {
-            // TODO adjust sample rate downwards
+            input_rate_adjust(st->input, -0.0000001f);
             window_size = 0;
         }
     }

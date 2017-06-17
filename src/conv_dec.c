@@ -95,7 +95,7 @@ struct vdecoder {
 
 static int16_t *vdec_malloc(size_t n)
 {
-#ifdef HAVE_SSE3
+#if defined(HAVE_SSE3) && !defined(__APPLE__)
 	return (int16_t *) memalign(SSE_ALIGN, sizeof(int16_t) * n);
 #else
 	return (int16_t *) malloc(sizeof(int16_t) * n);

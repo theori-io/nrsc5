@@ -19,6 +19,10 @@
  * Author: Tom Tsou <tom.tsou@ettus.com>
  */
 
+#ifdef __clang__
+#define __always_inline
+#endif
+
 #ifdef HAVE_SSE3
 #include <stdint.h>
 #include <emmintrin.h>

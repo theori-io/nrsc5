@@ -16,6 +16,7 @@ typedef struct
     fftwf_plan fft;
 
     float samperr;
+    float slope;
     unsigned int idx;
     int ready;
 } acquire_t;

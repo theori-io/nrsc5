@@ -22,7 +22,7 @@
 
 #define SYMBOLS 2
 #define M (N * SYMBOLS)
-#define WINDOW 16
+#define WINDOW 4
 static int window[WINDOW];
 static unsigned int window_size;
 
@@ -43,10 +43,11 @@ void acquire_process(acquire_t *st)
     if (st->idx != K * (M + 1))
         return;
 
-    if (st->samperr >= 3 && st->samperr < K-CP-4)
+    if (st->slope)
     {
-        mink = st->samperr - 3;
-        maxk = st->samperr + 4;
+        float bound = fmaxf(st->slope * 2, 3);
+        mink = fmaxf(st->samperr - bound, mink);
+        maxk = fminf(st->samperr + bound, maxk);
     }
 
     memset(st->sums, 0, sizeof(float complex) * K);
@@ -88,14 +89,14 @@ void acquire_process(acquire_t *st)
         st->ready = 1;
         st->samperr = avgerr;
 
-        if (slope < 0)
+        if (slope < -1)
         {
-            input_rate_adjust(st->input, 0.0000001f);
+            input_rate_adjust(st->input, (-slope / 32) / 2160);
             window_size = 0;
         }
-        else if (slope > 0)
+        else if (slope > 1)
         {
-            input_rate_adjust(st->input, -0.0000001f);
+            input_rate_adjust(st->input, (-slope / 32) / 2160);
             window_size = 0;
         }
     }
@@ -109,7 +110,7 @@ void acquire_process(acquire_t *st)
             {
                 int n = i * K + j;
                 float complex adj = cexpf(-I * (float)(2 * M_PI * freqerr * n / 744187.5));
-                st->fftin[j] = adj * st->buffer[n + samperr] * st->shape[j];
+                st->fftin[j] = adj * st->buffer[n + samperr];
             }
 
             fftwf_execute(st->fft);
@@ -145,6 +146,7 @@ void acquire_init(acquire_t *st, input_t *input)
     st->idx = 0;
     st->ready = 0;
     st->samperr = 0;
+    st->slope = 0;
 
     st->sintbl = malloc(sizeof(float) * CP);
     for (i = 0; i < CP; ++i)

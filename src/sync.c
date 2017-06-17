@@ -63,7 +63,7 @@ static void adjust_ref(float complex *buf, float *phases, unsigned int ref)
 
     for (int n = 0; n < N; n++)
     {
-        float item_phase = phase + slope * -(n - (n - 1.0)) / 2.0;
+        float item_phase = phase + slope * (1.0 * n) / 2.0;
         phases[ref * N + n] = item_phase;
         buf[ref * N + n] *= cexpf(-I * item_phase);
     }
@@ -123,7 +123,9 @@ static void adjust_data(float complex *buf, float *phases, unsigned int lower, u
             phases[upper * N + n] -= M_PI * 2;
         for (int k = 1; k < 19; k++)
         {
-            float complex C = 19.0f * CMPLXF(1, 1) / ((19 - k) * smag19 * cexpf(I * phases[upper * N + n]) + k * smag0 * cexpf(I * phases[lower * N + n]));
+            // average phase difference
+            float complex C = CMPLXF(19.0f, 19.0f) / ((19 - k) * smag19 * cexpf(I * phases[upper * N + n]) + k * smag0 * cexpf(I * phases[lower * N + n]));
+            // adjust sample
             buf[(lower + 19 - k) * N + n] *= C;
         }
     }

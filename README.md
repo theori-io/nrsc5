@@ -15,7 +15,7 @@ The following packages are required:
 Available build options:
 
     -DUSE_NEON=ON        Use NEON instructions. [ARM, default=OFF]
-    -DUSE_SSE=ON         Use SSE instructions. [x86, default=OFF]
+    -DUSE_SSE=ON         Use SSSE3 instructions. [x86, default=OFF]
 
 You can test the program using the included sample capture:
 

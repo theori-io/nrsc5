@@ -104,6 +104,16 @@ void input_set_skip(input_t *st, unsigned int skip)
     st->skip = skip;
 }
 
+void input_cfo_adjust(input_t *st, int cfo)
+{
+    if (cfo == 0)
+        return;
+
+    st->cfo += cfo;
+    float hz = st->cfo * 744187.5 / 2048.0;
+    printf("CFO: %f Hz (%d ppm)\n", hz, (int)round(hz * 1000000.0 / st->center));
+}
+
 void input_wait(input_t *st, int flush)
 {
     pthread_mutex_lock(&st->mutex);
@@ -162,6 +172,10 @@ void input_cb(uint8_t *buf, uint32_t len, void *arg)
 
         firdecim_q15_execute(st->filter, x, &y);
         resamp_q15_execute(st->resamp, &y, &st->buffer[new_avail], &nw);
+
+        for (int j = new_avail; j < new_avail + nw; j++)
+            st->buffer[j] *= cexpf(-I * (float)(2 * M_PI * st->cfo * st->cfo_idx++ / 2048));
+
         new_avail += nw;
     }
 
@@ -177,13 +191,16 @@ void input_reset(input_t *st)
     st->used = 0;
     st->skip = 0;
     st->resamp_rate = 1.0f;
+    st->cfo = 0;
+    st->cfo_idx = 0;
 }
 
-void input_init(input_t *st, output_t *output, unsigned int program, FILE *outfp)
+void input_init(input_t *st, output_t *output, double center, unsigned int program, FILE *outfp)
 {
     st->buffer = malloc(sizeof(float complex) * INPUT_BUF_LEN);
     st->output = output;
     st->outfp = outfp;
+    st->center = center;
 
     st->filter = firdecim_q15_create(2, filter_taps, sizeof(filter_taps) / sizeof(filter_taps[0]));
     st->resamp = resamp_q15_create(8, 0.45f, 60.0f, 16);

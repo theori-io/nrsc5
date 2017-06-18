@@ -159,7 +159,7 @@ int main(int argc, char *argv[])
         output_init_live(&output);
     }
 
-    input_init(&input, &output, program, outfp);
+    input_init(&input, &output, frequency, program, outfp);
 
     if (infp)
     {

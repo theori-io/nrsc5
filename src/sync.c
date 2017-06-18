@@ -101,6 +101,38 @@ static int find_first_block (float complex *buf, unsigned int ref)
     return -1;
 }
 
+static int find_ref (float complex *buf, unsigned int ref, unsigned int rsid)
+{
+    signed char needle[] = {
+        0, 1, 1, 0, 0, 1, 0, -1, -1, 1, rsid >> 1, rsid & 1, 0, (rsid >> 1) ^ (rsid & 1), 0, -1, -1, -1, -1, -1, -1, 1, 1, 1
+    };
+    unsigned char data[N], prev = 0;
+    for (int n = 0; n < N; n++)
+    {
+        unsigned char bit = crealf(buf[ref * N + n]) <= 0 ? 0 : 1;
+        data[n] = bit ^ prev;
+        prev = bit;
+    }
+
+    for (int n = 0; n < N; n++)
+    {
+        int i;
+        for (i = 0; i < sizeof(needle); i++)
+        {
+            // first bit of data may be wrong, so ignore
+            if ((n + i) % N == 0) continue;
+            // ignore don't care bits
+            if (needle[i] < 0) continue;
+            // test if bit is correct
+            if (needle[i] != data[(n + i) % N])
+                break;
+        }
+        if (i == sizeof(needle))
+            return n;
+    }
+    return -1;
+}
+
 static float calc_smag(float complex *buf, unsigned int ref)
 {
     float sum = 0;
@@ -133,19 +165,19 @@ static void adjust_data(float complex *buf, float *phases, unsigned int lower, u
 
 void sync_process(sync_t *st)
 {
-    float complex *buffer = &st->buffer[st->used * N * SYNCLEN];
-    unsigned int i;
+    float complex *buffer = &st->buffer[st->used * N * FFT];
+    int i;
 
     for (i = 0; i < BAND_LENGTH; i += 19)
     {
-        adjust_ref(buffer, st->phases, i);
-        adjust_ref(buffer, st->phases, UB_OFFSET + i);
+        adjust_ref(buffer, st->phases, LB_START + i);
+        adjust_ref(buffer, st->phases, UB_START + i);
     }
 
     // check if we lost synchronization or now have it
     if (st->ready)
     {
-        if (decode_get_block(&st->input->decode) == 0 && find_first_block(buffer, 0) != 0)
+        if (decode_get_block(&st->input->decode) == 0 && find_first_block(buffer, LB_START + 0) != 0)
         {
             printf("lost sync!\n");
             st->ready = 0;
@@ -153,7 +185,7 @@ void sync_process(sync_t *st)
     }
     else
     {
-        int offset = find_first_block(buffer, 0);
+        int offset = find_first_block(buffer, LB_START + 0);
         if (offset > 0)
         {
             printf("first block @ %d\n", offset);
@@ -165,6 +197,27 @@ void sync_process(sync_t *st)
             decode_reset(&st->input->decode);
             st->ready = 1;
         }
+        else
+        {
+            for (i = -300; i < 300; ++i)
+            {
+                int j, offset2;
+                adjust_ref(buffer, st->phases, LB_START + i);
+                offset = find_ref(buffer, LB_START + i, 2);
+                if (offset < 0)
+                    continue;
+                // We think we found the start. Check upperband to confirm.
+                adjust_ref(buffer, st->phases, UB_START + 19 * 10 + i);
+                offset2 = find_ref(buffer, UB_START + 19 * 10 + i, 2);
+                if (offset2 == offset)
+                {
+                    // The offsets matched, so 'i' is likely the CFO.
+                    input_set_skip(st->input, offset * K);
+                    input_cfo_adjust(st->input, i);
+                    break;
+                }
+            }
+        }
     }
 
     // if we are still synchronized
@@ -172,8 +225,8 @@ void sync_process(sync_t *st)
     {
         for (i = 0; i < BAND_LENGTH - 1; i += 19)
         {
-            adjust_data(buffer, st->phases, i, i + 19);
-            adjust_data(buffer, st->phases, UB_OFFSET + i, UB_OFFSET + i + 19);
+            adjust_data(buffer, st->phases, LB_START + i, LB_START + i + 19);
+            adjust_data(buffer, st->phases, UB_START + i, UB_START + i + 19);
         }
 // #define DEMOD(x) fminf(fmaxf(15*(x), -15), 15)
 #define DEMOD(x) ((x) >= 0 ? 1 : -1)
@@ -185,7 +238,7 @@ void sync_process(sync_t *st)
                 unsigned int j;
                 for (j = 1; j < 19; j++)
                 {
-                    c = buffer[(i + j) * N + n];
+                    c = buffer[(LB_START + i + j) * N + n];
                     decode_push(&st->input->decode, DEMOD(crealf(c)));
                     decode_push(&st->input->decode, DEMOD(cimagf(c)));
                 }
@@ -195,13 +248,13 @@ void sync_process(sync_t *st)
                 unsigned int j;
                 for (j = 1; j < 19; j++)
                 {
-                    c = buffer[(UB_OFFSET + i + j) * N + n];
+                    c = buffer[(UB_START + i + j) * N + n];
                     decode_push(&st->input->decode, DEMOD(crealf(c)));
                     decode_push(&st->input->decode, DEMOD(cimagf(c)));
                 }
             }
 
-            c = buffer[n];
+            c = buffer[LB_START + n];
             st->ref_buf[n] = crealf(c) <= 0 ? 0 : 1;
             if (n == 0) dump_ref(st->ref_buf);
         }
@@ -211,8 +264,8 @@ void sync_process(sync_t *st)
 void sync_push(sync_t *st, float complex *fftout)
 {
     unsigned int i;
-    for (i = 0; i < SYNCLEN; ++i)
-        st->buffer[i * N + st->idx + st->buf_idx * N * SYNCLEN] = fftout[LB_START + i];
+    for (i = 0; i < FFT; ++i)
+        st->buffer[i * N + st->idx + st->buf_idx * N * FFT] = fftout[i];
 
     if (++st->idx == N)
     {
@@ -259,8 +312,8 @@ void sync_wait(sync_t *st)
 void sync_init(sync_t *st, input_t *input)
 {
     st->input = input;
-    st->buffer = malloc(sizeof(float complex) * N * SYNCLEN * BUFS);
-    st->phases = malloc(sizeof(float) * N * SYNCLEN);
+    st->buffer = malloc(sizeof(float complex) * N * FFT * BUFS);
+    st->phases = malloc(sizeof(float) * N * FFT);
     st->ref_buf = malloc(N);
     st->ready = 0;
     st->idx = 0;

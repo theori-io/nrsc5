@@ -397,7 +397,7 @@ __always_inline void _sse_metrics_k5_n4(const int16_t *val,
  * before computing branch metrics to avoid register spilling.
  */
 __always_inline void _sse_metrics_k7_n2(const int16_t *val,
-					const const int16_t *out,
+					const int16_t *out,
 					int16_t *sums,
 					int16_t *paths,
 					int norm)

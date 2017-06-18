@@ -5,6 +5,10 @@
 #include <arm_neon.h>
 #endif
 
+#ifdef HAVE_SSE2
+#include <emmintrin.h>
+#endif
+
 #include "resamp_q15.h"
 
 #define WINDOW_SIZE 2048
@@ -117,7 +121,7 @@ void firpfb_q31_push(firpfb_q31 q, cint32_t x)
     q->window[q->idx++] = x;
 }
 
-#ifdef HAVE_NEON
+#if defined(HAVE_NEON)
 static cint32_t dotprod_q31(cint32_t *a, int32_t *b, int n)
 {
 #if 0
@@ -171,6 +175,66 @@ static cint32_t dotprod_q31(cint32_t *a, int32_t *b, int n)
 
     cint32_t result[2];
     vst1q_s32((int32_t*)&result, sum);
+    result[0].r += result[1].r;
+    result[0].i += result[1].i;
+
+    return result[0];
+}
+#elif defined(HAVE_SSE2)
+static cint32_t dotprod_q31(cint32_t *a, int32_t *b, int n)
+{
+    float shiftf = (float)(1 << 31);
+    __m128 s1, s2, s3, s4, h1, h2, h3, h4, p1, p2, p3, p4, sum;
+    __m128 shift = _mm_load_ps1(&shiftf);
+
+    s1 = _mm_cvtepi32_ps(_mm_loadu_si128((__m128i*)&a[0]));
+    s2 = _mm_cvtepi32_ps(_mm_loadu_si128((__m128i*)&a[2]));
+    s3 = _mm_cvtepi32_ps(_mm_loadu_si128((__m128i*)&a[4]));
+    s4 = _mm_cvtepi32_ps(_mm_loadu_si128((__m128i*)&a[6]));
+    h1 = _mm_cvtepi32_ps(_mm_loadu_si128((__m128i*)&b[0*2]));
+    h2 = _mm_cvtepi32_ps(_mm_loadu_si128((__m128i*)&b[2*2]));
+    h3 = _mm_cvtepi32_ps(_mm_loadu_si128((__m128i*)&b[4*2]));
+    h4 = _mm_cvtepi32_ps(_mm_loadu_si128((__m128i*)&b[6*2]));
+    s1 = _mm_div_ps(s1, shift);
+    s2 = _mm_div_ps(s2, shift);
+    s3 = _mm_div_ps(s3, shift);
+    s4 = _mm_div_ps(s4, shift);
+    h1 = _mm_div_ps(h1, shift);
+    h2 = _mm_div_ps(h2, shift);
+    h3 = _mm_div_ps(h3, shift);
+    h4 = _mm_div_ps(h4, shift);
+    p1 = _mm_mul_ps(s1, h1);
+    p2 = _mm_mul_ps(s2, h2);
+    p3 = _mm_mul_ps(s3, h3);
+    p4 = _mm_mul_ps(s4, h4);
+    sum = _mm_add_ps(_mm_add_ps(p1, p2), _mm_add_ps(p3, p4));
+
+    s1 = _mm_cvtepi32_ps(_mm_loadu_si128((__m128i*)&a[8]));
+    s2 = _mm_cvtepi32_ps(_mm_loadu_si128((__m128i*)&a[10]));
+    s3 = _mm_cvtepi32_ps(_mm_loadu_si128((__m128i*)&a[12]));
+    s4 = _mm_cvtepi32_ps(_mm_loadu_si128((__m128i*)&a[14]));
+    h1 = _mm_cvtepi32_ps(_mm_loadu_si128((__m128i*)&b[8*2]));
+    h2 = _mm_cvtepi32_ps(_mm_loadu_si128((__m128i*)&b[10*2]));
+    h3 = _mm_cvtepi32_ps(_mm_loadu_si128((__m128i*)&b[12*2]));
+    h4 = _mm_cvtepi32_ps(_mm_loadu_si128((__m128i*)&b[14*2]));
+    s1 = _mm_div_ps(s1, shift);
+    s2 = _mm_div_ps(s2, shift);
+    s3 = _mm_div_ps(s3, shift);
+    s4 = _mm_div_ps(s4, shift);
+    h1 = _mm_div_ps(h1, shift);
+    h2 = _mm_div_ps(h2, shift);
+    h3 = _mm_div_ps(h3, shift);
+    h4 = _mm_div_ps(h4, shift);
+    p1 = _mm_mul_ps(s1, h1);
+    p2 = _mm_mul_ps(s2, h2);
+    p3 = _mm_mul_ps(s3, h3);
+    p4 = _mm_mul_ps(s4, h4);
+    sum = _mm_add_ps(_mm_add_ps(p1, p2), sum);
+    sum = _mm_add_ps(_mm_add_ps(p3, p4), sum);
+
+    sum = _mm_mul_ps(sum, shift);
+    cint32_t result[2];
+    _mm_storeu_si128((__m128i*)result, _mm_cvtps_epi32(sum));
     result[0].r += result[1].r;
     result[0].i += result[1].i;
 

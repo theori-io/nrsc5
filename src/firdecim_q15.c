@@ -5,6 +5,10 @@
 #include <arm_neon.h>
 #endif
 
+#ifdef HAVE_SSE2
+#include <emmintrin.h>
+#endif
+
 #include "firdecim_q15.h"
 
 #define WINDOW_SIZE 2048

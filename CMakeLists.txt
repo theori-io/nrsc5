@@ -2,6 +2,9 @@ cmake_minimum_required (VERSION 2.8)
 include (ExternalProject)
 project (nrsc5 C)
 
+option (USE_NEON "Use NEON instructions")
+option (USE_SSE "Use SSE3 instructions")
+
 find_program (AUTOCONF autoconf)
 if (NOT AUTOCONF)
     message (FATAL_ERROR "Missing autoconf. Install autoconf package and try again.")

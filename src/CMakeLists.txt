@@ -1,9 +1,15 @@
-set (CMAKE_C_FLAGS "--std=gnu11 -O3 -ffast-math")
+add_compile_options (--std=gnu11 -O3 -ffast-math)
 
-if (CMAKE_SYSTEM_PROCESSOR MATCHES "armv[78].*")
-    # XXX These match with the conditional and flags in liquid-dsp/configure.ac.
-    #     If these are incorrect, you might want to change liquid-dsp too.
-    set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DHAVE_NEON -mcpu=cortex-a7 -mfloat-abi=hard -mfpu=neon-vfpv4")
+if (CMAKE_SYSTEM_PROCESSOR MATCHES "arm.*")
+    if (USE_NEON)
+        add_compile_options (-mcpu=cortex-a7 -mfloat-abi=hard -mfpu=neon-vfpv4)
+        add_definitions (-DHAVE_NEON)
+    endif()
+endif()
+if (CMAKE_SYSTEM_PROCESSOR MATCHES "x86.*")
+    if (USE_SSE)
+        add_definitions (-DHAVE_SSE2 -DHAVE_SSE3)
+    endif()
 endif()
 
 add_executable (

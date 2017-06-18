@@ -9,8 +9,13 @@ The following packages are required:
 ### Build Instructions
 
      $ mkdir build && cd build
-     $ cmake ..
+     $ cmake [options] ..
      $ make
+
+Available build options:
+
+    -DUSE_NEON=ON        Use NEON instructions. [ARM, default=OFF]
+    -DUSE_SSE=ON         Use SSE instructions. [x86, default=OFF]
 
 You can test the program using the included sample capture:
 

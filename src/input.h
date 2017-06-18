@@ -8,8 +8,10 @@
 
 #include "acquire.h"
 #include "decode.h"
+#include "firdecim_q15.h"
 #include "frame.h"
 #include "output.h"
+#include "resamp_q15.h"
 #include "sync.h"
 
 typedef struct input_t
@@ -17,8 +19,8 @@ typedef struct input_t
     output_t *output;
     FILE *outfp;
 
-    firdecim_crcf filter;
-    resamp_crcf resamp;
+    firdecim_q15 filter;
+    resamp_q15 resamp;
     float resamp_rate;
     float complex *buffer;
     unsigned int avail, used, skip;

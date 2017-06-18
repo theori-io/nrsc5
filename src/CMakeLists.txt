@@ -16,6 +16,9 @@ add_executable (
     output.c
     sync.c
 
+    firdecim_q15.c
+    resamp_q15.c
+
     conv_dec.c
 
     reed-solomon.c

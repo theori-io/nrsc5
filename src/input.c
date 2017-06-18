@@ -20,10 +20,6 @@
 #include "defines.h"
 #include "input.h"
 
-#include "firdecim_q15.c"
-
-firdecim_q15 testfir;
-
 static float filter_taps[] = {
 -0.006910541036924275,
 -0.013268228805145532,
@@ -145,7 +141,7 @@ void input_cb(uint8_t *buf, uint32_t len, void *arg)
         }
     }
     new_avail = st->avail;
-    resamp_crcf_set_rate(st->resamp, st->resamp_rate);
+    resamp_q15_set_rate(st->resamp, st->resamp_rate);
     pthread_mutex_unlock(&st->mutex);
 
     if (cnt + new_avail > INPUT_BUF_LEN)
@@ -156,23 +152,17 @@ void input_cb(uint8_t *buf, uint32_t len, void *arg)
 #define U8_Q15(x) ( ((int16_t)(x) - 127) << 8 )
     for (i = 0; i < cnt; i++)
     {
-    #if 0
-        float complex x[2], y;
         unsigned int nw;
-        x[0] = CMPLXF(U8_F(buf[i * 4 + 0]), U8_F(buf[i * 4 + 1]));
-        x[1] = CMPLXF(U8_F(buf[i * 4 + 2]), U8_F(buf[i * 4 + 3]));
-        firdecim_crcf_execute(st->filter, x, &y);
-        resamp_crcf_execute(st->resamp, y, &st->buffer[new_avail], &nw);
-        new_avail += nw;
-    #else
         cint16_t x[2], y;
+
         x[0].r = U8_Q15(buf[i * 4 + 0]);
         x[0].i = U8_Q15(buf[i * 4 + 1]);
         x[1].r = U8_Q15(buf[i * 4 + 2]);
         x[1].i = U8_Q15(buf[i * 4 + 3]);
-        firdecim_q15_execute(testfir, x, &y);
-        st->buffer[new_avail++] = cq15_to_cf(y);
-    #endif
+
+        firdecim_q15_execute(st->filter, x, &y);
+        resamp_q15_execute(st->resamp, &y, &st->buffer[new_avail], &nw);
+        new_avail += nw;
     }
 
     pthread_mutex_lock(&st->mutex);
@@ -195,8 +185,8 @@ void input_init(input_t *st, output_t *output, unsigned int program, FILE *outfp
     st->output = output;
     st->outfp = outfp;
 
-    st->filter = firdecim_crcf_create(2, filter_taps, sizeof(filter_taps) / sizeof(filter_taps[0]));
-    st->resamp = resamp_crcf_create(1.0f, 4, 0.45f, 60.0f, 32);
+    st->filter = firdecim_q15_create(2, filter_taps, sizeof(filter_taps) / sizeof(filter_taps[0]));
+    st->resamp = resamp_q15_create(8, 0.45f, 60.0f, 16);
 
     input_reset(st);
 

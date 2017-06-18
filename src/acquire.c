@@ -22,7 +22,7 @@
 
 #define SYMBOLS 2
 #define M (N * SYMBOLS)
-#define WINDOW 4
+#define WINDOW 16
 static int window[WINDOW];
 static unsigned int window_size;
 
@@ -42,13 +42,6 @@ void acquire_process(acquire_t *st)
 
     if (st->idx != K * (M + 1))
         return;
-
-    if (st->slope)
-    {
-        float bound = fmaxf(st->slope * 2, 3);
-        mink = fmaxf(st->samperr - bound, mink);
-        maxk = fminf(st->samperr + bound, maxk);
-    }
 
     memset(st->sums, 0, sizeof(float complex) * K);
     for (i = mink; i < maxk + CP; ++i)
@@ -88,15 +81,16 @@ void acquire_process(acquire_t *st)
         printf("avg: %f, slope: %f, freqerr: %f\n", avgerr, slope, freqerr);
         st->ready = 1;
         st->samperr = avgerr;
+        st->slope = slope;
 
         if (slope < -1)
         {
-            input_rate_adjust(st->input, (-slope / 32) / 2160);
+            input_rate_adjust(st->input, (-slope / N) / K);
             window_size = 0;
         }
         else if (slope > 1)
         {
-            input_rate_adjust(st->input, (-slope / 32) / 2160);
+            input_rate_adjust(st->input, (-slope / N) / K);
             window_size = 0;
         }
     }
@@ -146,7 +140,7 @@ void acquire_init(acquire_t *st, input_t *input)
     st->idx = 0;
     st->ready = 0;
     st->samperr = 0;
-    st->slope = 0;
+    st->slope = INFINITY;
 
     st->sintbl = malloc(sizeof(float) * CP);
     for (i = 0; i < CP; ++i)

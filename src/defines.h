@@ -1,7 +1,10 @@
 #pragma once
 
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <complex.h>
+#include <math.h>
 
 #define ERR(x,...) fprintf(stderr, x, ##__VA_ARGS__)
 #define ERR_FAIL(x,...) do { fprintf(stderr, x, ##__VA_ARGS__); exit(1); } while (0)
@@ -21,3 +24,20 @@
 #define UB_OFFSET (UB_START - LB_START)
 #define SYNCLEN (UB_OFFSET + BAND_LENGTH)
 #define FRAME_LEN 146176
+
+typedef struct {
+    int16_t r, i;
+} cint16_t;
+
+static inline cint16_t cf_to_cq15(float complex x)
+{
+    cint16_t cq15;
+    cq15.r = crealf(x) * 32767.0f;
+    cq15.i = cimagf(x) * 32767.0f;
+    return cq15;
+}
+
+static inline float complex cq15_to_cf(cint16_t cq15)
+{
+    return CMPLXF((float)cq15.r / 32767.0f, (float)cq15.i / 32767.0f);
+}

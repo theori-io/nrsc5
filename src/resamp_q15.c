@@ -1,6 +1,9 @@
-#include <arm_neon.h>
 #include <assert.h>
 #include <liquid/liquid.h>
+
+#ifdef HAVE_NEON
+#include <arm_neon.h>
+#endif
 
 #include "resamp_q15.h"
 
@@ -114,6 +117,7 @@ void firpfb_q31_push(firpfb_q31 q, cint32_t x)
     q->window[q->idx++] = x;
 }
 
+#ifdef HAVE_NEON
 static cint32_t dotprod_q31(cint32_t *a, int32_t *b, int n)
 {
 #if 0
@@ -172,6 +176,15 @@ static cint32_t dotprod_q31(cint32_t *a, int32_t *b, int n)
 
     return result[0];
 }
+#else
+static cint32_t dotprod_q31(cint32_t *a, int32_t *b, int n)
+{
+    float complex sum = 0;
+    for (int i = 0; i < n; ++i)
+        sum += cq31_to_cf(a[i]) * ((float)b[i * 2] / 2147483647.0f);
+    return cf_to_cq31(sum);
+}
+#endif
 
 void firpfb_q31_execute(firpfb_q31 q, unsigned int f, cint32_t *y)
 {
@@ -218,6 +231,7 @@ void firpfb_q15_push(firpfb_q15 q, cint16_t x)
     q->window[q->idx++] = x;
 }
 
+#ifdef HAVE_NEON
 static cint16_t dotprod_q15(cint16_t *a, int16_t *b, int n)
 {
     int16x8_t s1 = vqrdmulhq_s16(vld1q_s16((int16_t *)&a[0]), vld1q_s16(&b[0*2]));
@@ -244,6 +258,18 @@ static cint16_t dotprod_q15(cint16_t *a, int16_t *b, int n)
 
     return result[0];
 }
+#else
+static cint16_t dotprod_q15(cint16_t *a, int16_t *b, int n)
+{
+    cint16_t sum = { 0 };
+    for (int i = 0; i < n; ++i)
+    {
+        sum.r += (a[i].r * b[i * 2]) >> 15;
+        sum.i += (a[i].i * b[i * 2]) >> 15;
+    }
+    return sum;
+}
+#endif
 
 void firpfb_q15_execute(firpfb_q15 q, unsigned int f, cint16_t *y)
 {

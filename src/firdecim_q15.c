@@ -1,6 +1,9 @@
-#include <arm_neon.h>
 #include <assert.h>
 #include <stdint.h>
+
+#ifdef HAVE_NEON
+#include <arm_neon.h>
+#endif
 
 #include "firdecim_q15.h"
 
@@ -50,17 +53,9 @@ static void push(firdecim_q15 q, cint16_t x)
     q->window[q->idx++] = x;
 }
 
+#ifdef HAVE_NEON
 static cint16_t dotprod(cint16_t *a, int16_t *b, int n)
 {
-#if 0
-    cint16_t sum = { 0 };
-    for (int i = 0; i < n; ++i)
-    {
-        sum.r += (a[i].r * b[i]) >> 15;
-        sum.i += (a[i].i * b[i]) >> 15;
-    }
-    return sum;
-#endif
     int16x8_t s1 = vqdmulhq_s16(vld1q_s16((int16_t *)&a[0]), vld1q_s16(&b[0*2]));
     int16x8_t s2 = vqdmulhq_s16(vld1q_s16((int16_t *)&a[4]), vld1q_s16(&b[4*2]));
     int16x8_t s3 = vqdmulhq_s16(vld1q_s16((int16_t *)&a[8]), vld1q_s16(&b[8*2]));
@@ -83,6 +78,18 @@ static cint16_t dotprod(cint16_t *a, int16_t *b, int n)
 
     return result[0];
 }
+#else
+static cint16_t dotprod(cint16_t *a, int16_t *b, int n)
+{
+    cint16_t sum = { 0 };
+    for (int i = 0; i < n; ++i)
+    {
+        sum.r += (a[i].r * b[i * 2]) >> 15;
+        sum.i += (a[i].i * b[i * 2]) >> 15;
+    }
+    return sum;
+}
+#endif
 
 void firdecim_q15_execute(firdecim_q15 q, const cint16_t *x, cint16_t *y)
 {

@@ -63,7 +63,7 @@ static void adjust_ref(float complex *buf, float *phases, unsigned int ref)
 
     for (int n = 0; n < N; n++)
     {
-        float item_phase = phase + slope * (1.0 * n) / 2.0;
+        float item_phase = phase + slope * (n - ((N-1)/2));
         phases[ref * N + n] = item_phase;
         buf[ref * N + n] *= cexpf(-I * item_phase);
     }

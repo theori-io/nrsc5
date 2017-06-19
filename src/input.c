@@ -58,12 +58,17 @@ static float filter_taps[] = {
 static void *input_worker(void *arg)
 {
     input_t *st = arg;
+    int cfo_used = 0;
 
     while (1)
     {
         pthread_mutex_lock(&st->mutex);
         while (st->avail - st->used < K)
             pthread_cond_wait(&st->cond, &st->mutex);
+
+        // CFO is modified in sync, and is expected to be "immediately" applied
+        for (int j = st->used + cfo_used; j < st->avail; j++)
+            st->buffer[j] *= cexpf(-I * (float)(2 * M_PI * st->cfo * st->cfo_idx++ / 2048));
 
         if (st->skip)
         {
@@ -80,6 +85,7 @@ static void *input_worker(void *arg)
         }
 
         st->used += acquire_push(&st->acq, &st->buffer[st->used], st->avail - st->used);
+        cfo_used = st->avail - st->used;
         pthread_mutex_unlock(&st->mutex);
         pthread_cond_signal(&st->cond);
 
@@ -101,7 +107,7 @@ void input_rate_adjust(input_t *st, float adj)
 
 void input_set_skip(input_t *st, unsigned int skip)
 {
-    st->skip = skip;
+    st->skip += skip;
 }
 
 void input_cfo_adjust(input_t *st, int cfo)
@@ -172,9 +178,6 @@ void input_cb(uint8_t *buf, uint32_t len, void *arg)
 
         firdecim_q15_execute(st->filter, x, &y);
         resamp_q15_execute(st->resamp, &y, &st->buffer[new_avail], &nw);
-
-        for (int j = new_avail; j < new_avail + nw; j++)
-            st->buffer[j] *= cexpf(-I * (float)(2 * M_PI * st->cfo * st->cfo_idx++ / 2048));
 
         new_avail += nw;
     }

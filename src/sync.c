@@ -179,8 +179,11 @@ void sync_process(sync_t *st)
     {
         if (decode_get_block(&st->input->decode) == 0 && find_first_block(buffer, LB_START + 0) != 0)
         {
-            printf("lost sync!\n");
-            st->ready = 0;
+            if (find_first_block(buffer, UB_START + 19 * 10) != 0)
+            {
+                printf("lost sync (%d, %d)!\n", find_first_block(buffer, LB_START), find_first_block(buffer, UB_START + 19*10));
+                st->ready = 0;
+            }
         }
     }
     else
@@ -188,16 +191,16 @@ void sync_process(sync_t *st)
         int offset = find_first_block(buffer, LB_START + 0);
         if (offset > 0)
         {
-            printf("first block @ %d\n", offset);
+            printf("First block @ %d\n", offset);
             input_set_skip(st->input, offset * K);
         }
         else if (offset == 0)
         {
-            printf("synchronized!\n");
+            printf("Synchronized!\n");
             decode_reset(&st->input->decode);
             st->ready = 1;
         }
-        else
+        else if (st->cfo_wait == 0)
         {
             for (i = -300; i < 300; ++i)
             {
@@ -214,9 +217,18 @@ void sync_process(sync_t *st)
                     // The offsets matched, so 'i' is likely the CFO.
                     input_set_skip(st->input, offset * K);
                     input_cfo_adjust(st->input, i);
+
+                    // Wait until the buffers have cleared before measuring again.
+                    st->cfo_wait = (st->buf_idx + 2 - st->used) % BUFS;
+                    printf("Wait: %d\n", st->cfo_wait);
                     break;
                 }
             }
+        }
+        else
+        {
+            // Decrease wait counter.
+            st->cfo_wait--;
         }
     }
 
@@ -318,6 +330,7 @@ void sync_init(sync_t *st, input_t *input)
     st->ready = 0;
     st->idx = 0;
     st->used = 0;
+    st->cfo_wait = 0;
 
     pthread_cond_init(&st->cond, NULL);
     pthread_mutex_init(&st->mutex, NULL);

@@ -13,6 +13,7 @@ typedef struct
     unsigned int buf_idx;
     unsigned int used;
     int ready;
+    int cfo_wait;
 
     pthread_t worker_thread;
     pthread_cond_t cond;

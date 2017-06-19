@@ -36,7 +36,7 @@ static inline float normf(float complex v)
 void acquire_process(acquire_t *st)
 {
     float complex max_v = 0;
-    float angle, freqerr, max_mag = -1.0f;
+    float angle, max_mag = -1.0f;
     unsigned int samperr = 0, i, j;
     unsigned int mink = 0, maxk = K - CP;
 
@@ -68,7 +68,12 @@ void acquire_process(acquire_t *st)
     }
 
     angle = cargf(max_v);
-    freqerr = (-744187.5 / (2 * M_PI * FFT)) * angle;
+    if (abs((int)samperr - (int)window[(window_size-1) % WINDOW]) > FFT/2)
+    {
+        // clear the window if we "rolled over"
+        window_size = 0;
+    }
+
     window[window_size % WINDOW] = samperr;
     if (++window_size > WINDOW)
     {
@@ -78,21 +83,34 @@ void acquire_process(acquire_t *st)
             sum += window[i];
         avgerr = sum / (float)WINDOW;
         slope = ((float)samperr - window[window_size % WINDOW]) / (WINDOW * SYMBOLS);
-        printf("avg: %f, slope: %f, freqerr: %f\n", avgerr, slope, freqerr);
         st->ready = 1;
         st->samperr = avgerr;
         st->slope = slope;
 
-        if (slope < -1)
+        if ((window_size % WINDOW) == 0)
+            printf("Avg: %f, slope: %f\n", avgerr, slope);
+
+        // avoid adjusting the rate too much
+        if (fabsf(slope) > 1.0)
         {
+            printf("Avg: %f, slope: %f (adjust)\n", avgerr, slope);
+
             input_rate_adjust(st->input, (-slope / N) / K);
+
+            // clear the window so we don't overadjust
             window_size = 0;
         }
-        else if (slope > 1)
+        // we don't want the samperr to go < 0
+        else if (slope < 0)
         {
-            input_rate_adjust(st->input, (-slope / N) / K);
+            input_rate_adjust(st->input, (-slope / N / 8) / K);
             window_size = 0;
         }
+
+        // skip samples instead of having samperr > FFT
+        // NB adjustment must be greater than FFT/2
+        if (samperr > 7*FFT/8)
+            input_set_skip(st->input, 6*FFT/8);
     }
 
     if (st->ready)
@@ -103,7 +121,7 @@ void acquire_process(acquire_t *st)
             for (j = 0; j < FFT; ++j)
             {
                 int n = i * K + j;
-                float complex adj = cexpf(-I * (float)(2 * M_PI * freqerr * n / 744187.5));
+                float complex adj = cexpf(-I * (float)(-angle * n / FFT));
                 st->fftin[j] = adj * st->buffer[n + samperr];
             }
 

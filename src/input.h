@@ -26,6 +26,7 @@ typedef struct input_t
     double center;
     unsigned int avail, used, skip;
     int cfo, cfo_idx;
+    float complex cfo_tbl[2048];
 
     pthread_t worker_thread;
     pthread_cond_t cond;

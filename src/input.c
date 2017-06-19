@@ -68,7 +68,7 @@ static void *input_worker(void *arg)
 
         // CFO is modified in sync, and is expected to be "immediately" applied
         for (int j = st->used + cfo_used; j < st->avail; j++)
-            st->buffer[j] *= cexpf(-I * (float)(2 * M_PI * st->cfo * st->cfo_idx++ / 2048));
+            st->buffer[j] *= st->cfo_tbl[st->cfo_idx++ % 2048];
 
         if (st->skip)
         {
@@ -118,6 +118,9 @@ void input_cfo_adjust(input_t *st, int cfo)
     st->cfo += cfo;
     float hz = st->cfo * 744187.5 / 2048.0;
     printf("CFO: %f Hz (%d ppm)\n", hz, (int)round(hz * 1000000.0 / st->center));
+
+    for (int i = 0; i < 2048; ++i)
+        st->cfo_tbl[i] *= cexpf(-I * (float)(2 * M_PI * st->cfo * i / 2048));
 }
 
 void input_wait(input_t *st, int flush)
@@ -196,6 +199,8 @@ void input_reset(input_t *st)
     st->resamp_rate = 1.0f;
     st->cfo = 0;
     st->cfo_idx = 0;
+    for (int i = 0; i < 2048; ++i)
+        st->cfo_tbl[i] = 1;
 }
 
 void input_init(input_t *st, output_t *output, double center, unsigned int program, FILE *outfp)

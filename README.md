@@ -37,6 +37,7 @@ Options:
                                          (0, 1, 2, or 3)
        -d device-index                 rtl-sdr device
        -g gain                         rtl-sdr gain (0.1 dB)
+                                         (automatic gain selection if not specified)
        -p ppm-error                    rtl-sdr ppm error
        -r samples-input                read samples from input file
        -w samples-output               write samples to output file

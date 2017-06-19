@@ -15,6 +15,10 @@ typedef struct
     int ready;
     int cfo_wait;
 
+    int mer_cnt;
+    float error_lb;
+    float error_ub;
+
     pthread_t worker_thread;
     pthread_cond_t cond;
     pthread_mutex_t mutex;

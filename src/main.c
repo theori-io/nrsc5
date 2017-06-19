@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <complex.h>
+#include <limits.h>
 #include <math.h>
 #include <pthread.h>
 #include <string.h>
@@ -30,6 +31,46 @@
 
 #define RADIO_BUFFER (512 * 1024)
 
+static int gain_list[128];
+static int gain_index, gain_count;
+
+// signal and noise are squared magnitudes
+static int snr_callback(void *arg, float snr, float signal, float noise)
+{
+    static int best_gain;
+    static float best_snr;
+    static float cur_avg;
+    static float cur_cnt;
+    rtlsdr_dev_t *dev = arg;
+
+    if (gain_count == 0)
+        return 0;
+
+    // choose the best gain level
+    if (snr >= best_snr)
+    {
+        best_gain = gain_index;
+        best_snr = snr;
+    }
+
+    printf("Gain: %0.1f dB, CNR: %f dB\n", gain_list[gain_index] / 10.0, 10 * log10f(snr));
+
+    if (gain_index + 1 >= gain_count || snr < best_snr * 0.5)
+    {
+        printf("Best gain: %d\n", gain_list[best_gain]);
+        gain_index = best_gain;
+        gain_count = 0;
+        rtlsdr_cancel_async(dev);
+        return 0;
+    }
+    else
+    {
+        gain_index++;
+        rtlsdr_cancel_async(dev);
+    }
+    return 1;
+}
+
 static void help(const char *progname)
 {
     fprintf(stderr, "Usage: %s [-d device-index] [-g gain] [-p ppm-error] [-r samples-input] [-w samples-output] [-o audio-output -f adts|wav] frequency program\n", progname); 
@@ -37,7 +78,7 @@ static void help(const char *progname)
 
 int main(int argc, char *argv[])
 {
-    int err, opt, device_index = 0, gain = 240, ppm_error = 0;
+    int err, opt, device_index = 0, gain = INT_MIN, ppm_error = 0;
     unsigned int count, i, frequency = 0, program = 0;
     char *input_name = NULL, *output_name = NULL, *audio_name = NULL, *format_name = NULL;
     FILE *infp = NULL, *outfp = NULL;
@@ -184,16 +225,38 @@ int main(int argc, char *argv[])
         if (err) ERR_FAIL("rtlsdr_set_sample_rate error: %d\n", err);
         err = rtlsdr_set_tuner_gain_mode(dev, 1);
         if (err) ERR_FAIL("rtlsdr_set_tuner_gain_mode error: %d\n", err);
-        err = rtlsdr_set_tuner_gain(dev, gain);
-        if (err) ERR_FAIL("rtlsdr_set_tuner_gain error: %d\n", err);
         err = rtlsdr_set_freq_correction(dev, ppm_error);
         if (err && err != -2) ERR_FAIL("rtlsdr_set_freq_correction error: %d\n", err);
         err = rtlsdr_set_center_freq(dev, frequency);
         if (err) ERR_FAIL("rtlsdr_set_center_freq error: %d\n", err);
-        err = rtlsdr_reset_buffer(dev);
-        if (err) ERR_FAIL("rtlsdr_reset_buffer error: %d\n", err);
-        err = rtlsdr_read_async(dev, input_cb, &input, 15, RADIO_BUFFER);
-        if (err) ERR_FAIL("rtlsdr error: %d\n", err);
+
+        if (gain == INT_MIN)
+        {
+            gain_count = rtlsdr_get_tuner_gains(dev, gain_list);
+            if (gain_count > 0)
+            {
+                input_set_snr_callback(&input, snr_callback, dev);
+                err = rtlsdr_set_tuner_gain(dev, gain_list[0]);
+                if (err) ERR_FAIL("rtlsdr_set_tuner_gain error: %d\n", err);
+            }
+        }
+        else
+        {
+            err = rtlsdr_set_tuner_gain(dev, gain);
+            if (err) ERR_FAIL("rtlsdr_set_tuner_gain error: %d\n", err);
+        }
+
+        while (1)
+        {
+            err = rtlsdr_reset_buffer(dev);
+            if (err) ERR_FAIL("rtlsdr_reset_buffer error: %d\n", err);
+
+            err = rtlsdr_read_async(dev, input_cb, &input, 15, RADIO_BUFFER);
+            if (err) ERR_FAIL("rtlsdr error: %d\n", err);
+
+            // if we got here, it is to change the gain
+            rtlsdr_set_tuner_gain(dev, gain_list[gain_index]);
+        }
         err = rtlsdr_close(dev);
         if (err) ERR_FAIL("rtlsdr error: %d\n", err);
     }

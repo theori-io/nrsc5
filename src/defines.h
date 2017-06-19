@@ -25,6 +25,9 @@
 #define SYNCLEN (UB_OFFSET + BAND_LENGTH)
 #define FRAME_LEN 146176
 
+#define U8_F(x) ( (((float)(x)) - 127) / 128 )
+#define U8_Q15(x) ( ((int16_t)(x) - 127) << 8 )
+
 typedef struct {
     int16_t r, i;
 } cint16_t;
@@ -40,4 +43,11 @@ static inline cint16_t cf_to_cq15(float complex x)
 static inline float complex cq15_to_cf(cint16_t cq15)
 {
     return CMPLXF((float)cq15.r / 32767.0f, (float)cq15.i / 32767.0f);
+}
+
+static inline float normf(float complex v)
+{
+    float realf = crealf(v);
+    float imagf = cimagf(v);
+    return realf * realf + imagf * imagf;
 }

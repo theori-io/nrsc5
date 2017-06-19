@@ -26,13 +26,6 @@
 static int window[WINDOW];
 static unsigned int window_size;
 
-static inline float normf(float complex v)
-{
-    float realf = crealf(v);
-    float imagf = cimagf(v);
-    return realf * realf + imagf * imagf;
-}
-
 void acquire_process(acquire_t *st)
 {
     float complex max_v = 0;
@@ -88,12 +81,12 @@ void acquire_process(acquire_t *st)
         st->slope = slope;
 
         if ((window_size % WINDOW) == 0)
-            printf("Avg: %f, slope: %f\n", avgerr, slope);
+            printf("Timing offset: %f, slope: %f\n", avgerr, slope);
 
         // avoid adjusting the rate too much
         if (fabsf(slope) > 1.0)
         {
-            printf("Avg: %f, slope: %f (adjust)\n", avgerr, slope);
+            printf("Timing offset: %f, slope: %f (adjust)\n", avgerr, slope);
 
             input_rate_adjust(st->input, (-slope / N) / K);
 

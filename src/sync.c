@@ -220,7 +220,6 @@ void sync_process(sync_t *st)
 
                     // Wait until the buffers have cleared before measuring again.
                     st->cfo_wait = (st->buf_idx + 2 - st->used) % BUFS;
-                    printf("Wait: %d\n", st->cfo_wait);
                     break;
                 }
             }
@@ -240,7 +239,47 @@ void sync_process(sync_t *st)
             adjust_data(buffer, st->phases, LB_START + i, LB_START + i + 19);
             adjust_data(buffer, st->phases, UB_START + i, UB_START + i + 19);
         }
-// #define DEMOD(x) fminf(fmaxf(15*(x), -15), 15)
+
+        // Calculate modulation error
+        float error_lb = 0, error_ub = 0;
+        for (int n = 0; n < N; n++)
+        {
+            float complex c, ideal;
+            for (i = 0; i < BAND_LENGTH - 1; i += 19)
+            {
+                unsigned int j;
+                for (j = 1; j < 19; j++)
+                {
+                    c = buffer[(LB_START + i + j) * N + n];
+                    ideal = CMPLXF(crealf(c) >= 0 ? 1 : -1, cimagf(c) >= 0 ? 1 : -1);
+                    error_lb += normf(ideal - c);
+
+                    c = buffer[(UB_START + i + j) * N + n];
+                    ideal = CMPLXF(crealf(c) >= 0 ? 1 : -1, cimagf(c) >= 0 ? 1 : -1);
+                    error_ub += normf(ideal - c);
+                }
+            }
+        }
+
+        st->error_lb += error_lb;
+        st->error_ub += error_ub;
+
+        // Display average MER for each sideband
+        if (++st->mer_cnt == 16)
+        {
+            float signal = 2 * N * 180 * st->mer_cnt;
+            printf("MER: %f dB (lower), %f dB (upper)\n", signal / st->error_lb, signal / st->error_ub);
+            st->mer_cnt = 0;
+            st->error_lb = 0;
+            st->error_ub = 0;
+        }
+
+        // Soft demod based on MER for each sideband
+        float mer_lb = 2 * N * 180 / error_lb;
+        float mer_ub = 2 * N * 180 / error_ub;
+        float mult_lb = fmaxf(fminf(mer_lb * 10, 63), 1);
+        float mult_ub = fmaxf(fminf(mer_ub * 10, 63), 1);
+
 #define DEMOD(x) ((x) >= 0 ? 1 : -1)
         for (int n = 0; n < N; n++)
         {
@@ -251,8 +290,8 @@ void sync_process(sync_t *st)
                 for (j = 1; j < 19; j++)
                 {
                     c = buffer[(LB_START + i + j) * N + n];
-                    decode_push(&st->input->decode, DEMOD(crealf(c)));
-                    decode_push(&st->input->decode, DEMOD(cimagf(c)));
+                    decode_push(&st->input->decode, DEMOD(crealf(c)) * mult_lb);
+                    decode_push(&st->input->decode, DEMOD(cimagf(c)) * mult_lb);
                 }
             }
             for (i = 0; i < BAND_LENGTH - 1; i += 19)
@@ -261,8 +300,8 @@ void sync_process(sync_t *st)
                 for (j = 1; j < 19; j++)
                 {
                     c = buffer[(UB_START + i + j) * N + n];
-                    decode_push(&st->input->decode, DEMOD(crealf(c)));
-                    decode_push(&st->input->decode, DEMOD(cimagf(c)));
+                    decode_push(&st->input->decode, DEMOD(crealf(c)) * mult_ub);
+                    decode_push(&st->input->decode, DEMOD(cimagf(c)) * mult_ub);
                 }
             }
 
@@ -331,6 +370,9 @@ void sync_init(sync_t *st, input_t *input)
     st->idx = 0;
     st->used = 0;
     st->cfo_wait = 0;
+    st->mer_cnt = 0;
+    st->error_lb = 0;
+    st->error_ub = 0;
 
     pthread_cond_init(&st->cond, NULL);
     pthread_mutex_init(&st->mutex, NULL);

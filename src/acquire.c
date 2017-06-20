@@ -40,7 +40,7 @@ void acquire_process(acquire_t *st)
     for (i = mink; i < maxk + CP; ++i)
     {
         for (j = 0; j < M; ++j)
-            st->sums[i] += st->buffer[i + j * K] * conjf(st->buffer[i + j * K + FFT]) * st->shape[i];
+            st->sums[i] += st->buffer[i + j * K] * conjf(st->buffer[i + j * K + FFT]);
     }
 
     for (i = mink; i < maxk - 1; ++i)
@@ -156,14 +156,6 @@ void acquire_init(acquire_t *st, input_t *input)
     st->sintbl = malloc(sizeof(float) * CP);
     for (i = 0; i < CP; ++i)
         st->sintbl[i] = sinf(i * M_PI / CP);
-
-    st->shape = malloc(sizeof(float) * (CP + FFT));
-    for (i = 0; i < CP; ++i)
-        st->shape[i] = cosf(M_PI * (CP - i) / 224.0);
-    for (; i < FFT; ++i)
-        st->shape[i] = 1;
-    for (; i < FFT + CP; ++i)
-        st->shape[i] = cosf(M_PI * (FFT - i) / 224.0);
 
     st->fftin = malloc(sizeof(float complex) * FFT);
     st->fftout = malloc(sizeof(float complex) * FFT);

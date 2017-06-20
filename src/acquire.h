@@ -12,7 +12,6 @@ typedef struct
     float complex *fftin;
     float complex *fftout;
     float *sintbl;
-    float *shape;
     fftwf_plan fft;
 
     float samperr;

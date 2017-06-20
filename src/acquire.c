@@ -25,6 +25,7 @@
 #define WINDOW 16
 static int window[WINDOW];
 static unsigned int window_size;
+static float prev_angle = INFINITY;
 
 void acquire_process(acquire_t *st)
 {
@@ -60,7 +61,17 @@ void acquire_process(acquire_t *st)
         }
     }
 
+    // limited to (-pi, pi)
     angle = cargf(max_v);
+    if (isfinite(prev_angle))
+    {
+        if (prev_angle > M_PI*15/16 && angle < -M_PI*15/16)
+            angle += M_PI * 2;
+        else if (prev_angle < -M_PI*15/16 && angle > M_PI*15/16)
+            angle -= M_PI * 2;
+    }
+    prev_angle = angle;
+
     if (abs((int)samperr - (int)window[(window_size-1) % WINDOW]) > FFT/2)
     {
         // clear the window if we "rolled over"

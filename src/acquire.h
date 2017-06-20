@@ -4,6 +4,8 @@
 #include <liquid/liquid.h>
 #include <fftw3.h>
 
+#define ACQ_WINDOW 16
+
 typedef struct
 {
     struct input_t *input;
@@ -18,6 +20,9 @@ typedef struct
     float slope;
     unsigned int idx;
     int ready;
+    int window[ACQ_WINDOW];
+    unsigned int window_size;
+    float prev_angle;
 } acquire_t;
 
 void acquire_process(acquire_t *st);

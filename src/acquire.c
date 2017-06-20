@@ -22,10 +22,6 @@
 
 #define SYMBOLS 2
 #define M (N * SYMBOLS)
-#define WINDOW 16
-static int window[WINDOW];
-static unsigned int window_size;
-static float prev_angle = INFINITY;
 
 void acquire_process(acquire_t *st)
 {
@@ -63,35 +59,36 @@ void acquire_process(acquire_t *st)
 
     // limited to (-pi, pi)
     angle = cargf(max_v);
-    if (isfinite(prev_angle))
+    if (isfinite(st->prev_angle))
     {
-        if (prev_angle > M_PI*15/16 && angle < -M_PI*15/16)
+        if (st->prev_angle > M_PI*15/16 && angle < -M_PI*15/16)
             angle += M_PI * 2;
-        else if (prev_angle < -M_PI*15/16 && angle > M_PI*15/16)
+        else if (st->prev_angle < -M_PI*15/16 && angle > M_PI*15/16)
             angle -= M_PI * 2;
     }
-    prev_angle = angle;
+    st->prev_angle = angle;
 
-    if (abs((int)samperr - (int)window[(window_size-1) % WINDOW]) > FFT/2)
+    // compare with previous timing offset
+    if (abs((int)samperr - (int)st->window[(st->window_size-1) % ACQ_WINDOW]) > FFT/2)
     {
         // clear the window if we "rolled over"
-        window_size = 0;
+        st->window_size = 0;
     }
 
-    window[window_size % WINDOW] = samperr;
-    if (++window_size > WINDOW)
+    st->window[st->window_size % ACQ_WINDOW] = samperr;
+    if (++st->window_size > ACQ_WINDOW)
     {
         float avgerr, slope;
         int sum = 0;
-        for (i = 0; i < WINDOW; i++)
-            sum += window[i];
-        avgerr = sum / (float)WINDOW;
-        slope = ((float)samperr - window[window_size % WINDOW]) / (WINDOW * SYMBOLS);
+        for (i = 0; i < ACQ_WINDOW; i++)
+            sum += st->window[i];
+        avgerr = sum / (float)ACQ_WINDOW;
+        slope = ((float)samperr - st->window[st->window_size % ACQ_WINDOW]) / (ACQ_WINDOW * SYMBOLS);
         st->ready = 1;
         st->samperr = avgerr;
         st->slope = slope;
 
-        if ((window_size % WINDOW) == 0)
+        if ((st->window_size % ACQ_WINDOW) == 0)
             printf("Timing offset: %f, slope: %f\n", avgerr, slope);
 
         // avoid adjusting the rate too much
@@ -102,13 +99,13 @@ void acquire_process(acquire_t *st)
             input_rate_adjust(st->input, (-slope / N) / K);
 
             // clear the window so we don't overadjust
-            window_size = 0;
+            st->window_size = 0;
         }
         // we don't want the samperr to go < 0
         else if (slope < 0)
         {
             input_rate_adjust(st->input, (-slope / N / 8) / K);
-            window_size = 0;
+            st->window_size = 0;
         }
 
         // skip samples instead of having samperr > FFT
@@ -163,6 +160,7 @@ void acquire_init(acquire_t *st, input_t *input)
     st->ready = 0;
     st->samperr = 0;
     st->slope = INFINITY;
+    st->prev_angle = INFINITY;
 
     st->sintbl = malloc(sizeof(float) * CP);
     for (i = 0; i < CP; ++i)

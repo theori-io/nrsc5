@@ -157,13 +157,13 @@ static void measure_snr(input_t *st, uint8_t *buf, uint32_t len)
     {
         // noise bands are the frequncies near our signal
         float noise_lo = 0;
-        for (i = 16; i < 23; i++)
+        for (i = 19; i < 23; i++)
             noise_lo += st->snr_power[i];
-        noise_lo /= 7;
+        noise_lo /= 4;
         float noise_hi = 0;
-        for (i = 41; i < 48; i++)
+        for (i = 41; i < 45; i++)
             noise_hi += st->snr_power[i];
-        noise_hi /= 7;
+        noise_hi /= 4;
         // signal bands are the frequencies in our signal
         float signal_lo = (st->snr_power[24] + st->snr_power[25]) / 2;
         float signal_hi = (st->snr_power[39] + st->snr_power[40]) / 2;

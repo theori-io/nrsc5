@@ -30,17 +30,11 @@
 #include "input.h"
 
 #define RADIO_BUFCNT (8)
-#define RADIO_BUFFER (1024 * 1024)
+#define RADIO_BUFFER (512 * 1024)
 
 static int gain_list[128];
 static int gain_index, gain_count;
 
-static uint8_t *rtlsdr_buffers[RADIO_BUFCNT];
-static int rtlsdr_lengths[RADIO_BUFCNT];
-static int rtlsdr_bufidx;
-static int rtlsdr_bufused;
-pthread_cond_t rtlsdr_cond;
-pthread_mutex_t rtlsdr_mutex;
 pthread_mutex_t rtlsdr_usb_mutex;
 
 // signal and noise are squared magnitudes
@@ -72,6 +66,7 @@ static int snr_callback(void *arg, float snr, float signal, float noise)
 
         pthread_mutex_lock(&rtlsdr_usb_mutex);
         rtlsdr_set_tuner_gain(dev, gain_list[gain_index]);
+        rtlsdr_reset_buffer(dev);
         pthread_mutex_unlock(&rtlsdr_usb_mutex);
         return 0;
     }
@@ -81,28 +76,10 @@ static int snr_callback(void *arg, float snr, float signal, float noise)
 
         pthread_mutex_lock(&rtlsdr_usb_mutex);
         rtlsdr_set_tuner_gain(dev, gain_list[gain_index]);
+        rtlsdr_reset_buffer(dev);
         pthread_mutex_unlock(&rtlsdr_usb_mutex);
     }
     return 1;
-}
-
-static void *rtlsdr_worker(void *arg)
-{
-    while (1)
-    {
-        pthread_mutex_lock(&rtlsdr_mutex);
-        while (rtlsdr_bufidx == rtlsdr_bufused)
-            pthread_cond_wait(&rtlsdr_cond, &rtlsdr_mutex);
-        pthread_mutex_unlock(&rtlsdr_mutex);
-
-        input_cb(rtlsdr_buffers[rtlsdr_bufused], rtlsdr_lengths[rtlsdr_bufused], arg);
-
-        pthread_mutex_lock(&rtlsdr_mutex);
-        rtlsdr_bufused = (rtlsdr_bufused + 1) % RADIO_BUFCNT;
-        pthread_mutex_unlock(&rtlsdr_mutex);
-
-        pthread_cond_signal(&rtlsdr_cond);
-    }
 }
 
 static void help(const char *progname)
@@ -251,6 +228,7 @@ int main(int argc, char *argv[])
     }
     else
     {
+        uint8_t *buf = malloc(128 * 1024);
         pthread_t thread;
         rtlsdr_dev_t *dev;
 
@@ -284,36 +262,25 @@ int main(int argc, char *argv[])
         err = rtlsdr_reset_buffer(dev);
         if (err) ERR_FAIL("rtlsdr_reset_buffer error: %d\n", err);
 
-        for (int i = 0; i < RADIO_BUFCNT; ++i)
-            rtlsdr_buffers[i] = malloc(RADIO_BUFFER);
-
-        pthread_cond_init(&rtlsdr_cond, NULL);
-        pthread_mutex_init(&rtlsdr_mutex, NULL);
         pthread_mutex_init(&rtlsdr_usb_mutex, NULL);
-        pthread_create(&thread, NULL, rtlsdr_worker, &input);
 
-        while (1)
+        // special loop for modifying gain (we can't use async transfers)
+        while (gain_count)
         {
             // use a smaller buffer during auto gain
-            int len = gain_count ? RADIO_BUFFER / 16 : RADIO_BUFFER;
-
-            pthread_mutex_lock(&rtlsdr_mutex);
-            while ((rtlsdr_bufidx + 1) % RADIO_BUFCNT == rtlsdr_bufused)
-                pthread_cond_wait(&rtlsdr_cond, &rtlsdr_mutex);
-            pthread_mutex_unlock(&rtlsdr_mutex);
+            int len = 128 * 1024;
 
             pthread_mutex_lock(&rtlsdr_usb_mutex);
-            err = rtlsdr_read_sync(dev, rtlsdr_buffers[rtlsdr_bufidx], len, &len);
+            err = rtlsdr_read_sync(dev, buf, len, &len);
             if (err) ERR_FAIL("rtlsdr_read_sync error: %d\n", err);
             pthread_mutex_unlock(&rtlsdr_usb_mutex);
 
-            pthread_mutex_lock(&rtlsdr_mutex);
-            rtlsdr_lengths[rtlsdr_bufidx] = len;
-            rtlsdr_bufidx = (rtlsdr_bufidx + 1) % RADIO_BUFCNT;
-            pthread_mutex_unlock(&rtlsdr_mutex);
-
-            pthread_cond_signal(&rtlsdr_cond);
+            input_cb(buf, len, &input);
         }
+        free(buf);
+
+        err = rtlsdr_read_async(dev, input_cb, &input, RADIO_BUFCNT, RADIO_BUFFER);
+        if (err) ERR_FAIL("rtlsdr_read_async error: %d\n", err);
         err = rtlsdr_close(dev);
         if (err) ERR_FAIL("rtlsdr error: %d\n", err);
     }

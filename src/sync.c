@@ -31,7 +31,7 @@ static void dump_ref(uint8_t *ref_buf)
 
 static void calc_phase(float complex *buf, unsigned int ref, float *out_phase, float *out_slope)
 {
-    float phase, slope, item_phase;
+    float phase, slope;
     float complex sum;
 
     sum = 0;
@@ -47,17 +47,16 @@ static void calc_phase(float complex *buf, unsigned int ref, float *out_phase, f
     }
     slope = cargf(sum) * 0.5;
 
-    item_phase = phase + slope * -(N - 1.0) / 2.0;
-    if (crealf(buf[ref * N] * cexpf(-I * item_phase)) >= 0)
-        *out_phase = M_PI + phase;
-    else
-        *out_phase = phase;
-
+    *out_phase = phase;
     *out_slope = slope;
 }
 
 static void adjust_ref(float complex *buf, float *phases, unsigned int ref)
 {
+    // sync bits (after DBPSK)
+    static const signed char sync[] = {
+        -1, 1, -1, -1, -1, 1, 1
+    };
     float phase, slope;
     calc_phase(buf, ref, &phase, &slope);
 
@@ -66,6 +65,20 @@ static void adjust_ref(float complex *buf, float *phases, unsigned int ref)
         float item_phase = phase + slope * (n - ((N-1)/2));
         phases[ref * N + n] = item_phase;
         buf[ref * N + n] *= cexpf(-I * item_phase);
+    }
+
+    // compare to sync bits
+    float x = 0;
+    for (int n = 0; n < sizeof(sync); n++)
+        x += crealf(buf[ref * N + n]) * sync[n];
+    if (x < 0)
+    {
+        // adjust phase by pi to compensate
+        for (int n = 0; n < N; n++)
+        {
+            phases[ref * N + n] += M_PI;
+            buf[ref * N + n] *= -1;
+        }
     }
 }
 
@@ -136,6 +149,7 @@ static int find_ref (float complex *buf, unsigned int ref, unsigned int rsid)
 static float calc_smag(float complex *buf, unsigned int ref)
 {
     float sum = 0;
+    // phase was already corrected, so imaginary component is zero
     for (int n = 0; n < N; n++)
         sum += fabsf(crealf(buf[ref * N + n]));
     return sum / N;
@@ -149,16 +163,12 @@ static void adjust_data(float complex *buf, float *phases, unsigned int lower, u
 
     for (int n = 0; n < N; n++)
     {
-        if (phases[lower * N + n] - phases[upper * N + n] > M_PI)
-            phases[upper * N + n] += M_PI * 2;
-        if (phases[lower * N + n] - phases[upper * N + n] < M_PI)
-            phases[upper * N + n] -= M_PI * 2;
         for (int k = 1; k < 19; k++)
         {
             // average phase difference
-            float complex C = CMPLXF(19.0f, 19.0f) / ((19 - k) * smag19 * cexpf(I * phases[upper * N + n]) + k * smag0 * cexpf(I * phases[lower * N + n]));
+            float complex C = CMPLXF(19,19) / (k * smag19 * cexpf(I * phases[upper * N + n]) + (19 - k) * smag0 * cexpf(I * phases[lower * N + n]));
             // adjust sample
-            buf[(lower + 19 - k) * N + n] *= C;
+            buf[(lower + k) * N + n] *= C;
         }
     }
 }

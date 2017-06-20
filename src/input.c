@@ -146,7 +146,7 @@ static void measure_snr(input_t *st, uint8_t *buf, uint32_t len)
         for (i = 0; i < 64; i++)
             st->snr_fft_in[i] = CMPLXF(U8_F(buf[(i+j-64) * 2 + 0]), U8_F(buf[(i+j-64) * 2 + 1])) * pow(sinf(M_PI*i/63),2);
         fftwf_execute(st->snr_fft);
-        fft_shift(st->snr_fft_out, 64);
+        fftshift(st->snr_fft_out, 64);
 
         for (i = 0; i < 64; i++)
             st->snr_power[i] += normf(st->snr_fft_out[i]);

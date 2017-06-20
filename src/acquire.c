@@ -127,7 +127,7 @@ void acquire_process(acquire_t *st)
             }
 
             fftwf_execute(st->fft);
-            fft_shift(st->fftout, FFT);
+            fftshift(st->fftout, FFT);
             sync_push(&st->input->sync, st->fftout);
         }
     }

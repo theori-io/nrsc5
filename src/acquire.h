@@ -1,7 +1,6 @@
 #pragma once
 
 #include <complex.h>
-#include <liquid/liquid.h>
 #include <fftw3.h>
 
 #define ACQ_WINDOW 16

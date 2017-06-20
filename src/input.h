@@ -3,7 +3,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <complex.h>
-#include <liquid/liquid.h>
 #include <pthread.h>
 
 #include "acquire.h"

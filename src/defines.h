@@ -51,3 +51,20 @@ static inline float normf(float complex v)
     float imagf = cimagf(v);
     return realf * realf + imagf * imagf;
 }
+
+static inline void fftshift(float complex *x, unsigned int size)
+{
+    int i, h = size / 2;
+    for (i = 0; i < h; i += 4)
+    {
+        float complex t1 = x[i], t2 = x[i+1], t3 = x[i+2], t4 = x[i+3];
+        x[i] = x[i + h];
+        x[i+1] = x[i+1 + h];
+        x[i+2] = x[i+2 + h];
+        x[i+3] = x[i+3 + h];
+        x[i + h] = t1;
+        x[i+1 + h] = t2;
+        x[i+2 + h] = t3;
+        x[i+3 + h] = t4;
+    }
+}

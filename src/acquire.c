@@ -69,26 +69,26 @@ void acquire_process(acquire_t *st)
     st->prev_angle = angle;
 
     // compare with previous timing offset
-    if (abs((int)samperr - (int)st->window[(st->window_size-1) % ACQ_WINDOW]) > FFT/2)
+    if (abs((int)samperr - (int)st->history[(st->history_size-1) % ACQ_HISTORY]) > FFT/2)
     {
-        // clear the window if we "rolled over"
-        st->window_size = 0;
+        // clear the history if we "rolled over"
+        st->history_size = 0;
     }
 
-    st->window[st->window_size % ACQ_WINDOW] = samperr;
-    if (++st->window_size > ACQ_WINDOW)
+    st->history[st->history_size % ACQ_HISTORY] = samperr;
+    if (++st->history_size > ACQ_HISTORY)
     {
         float avgerr, slope;
         int sum = 0;
-        for (i = 0; i < ACQ_WINDOW; i++)
-            sum += st->window[i];
-        avgerr = sum / (float)ACQ_WINDOW;
-        slope = ((float)samperr - st->window[st->window_size % ACQ_WINDOW]) / (ACQ_WINDOW * SYMBOLS);
+        for (i = 0; i < ACQ_HISTORY; i++)
+            sum += st->history[i];
+        avgerr = sum / (float)ACQ_HISTORY;
+        slope = ((float)samperr - st->history[st->history_size % ACQ_HISTORY]) / (ACQ_HISTORY * SYMBOLS);
         st->ready = 1;
         st->samperr = avgerr;
         st->slope = slope;
 
-        if ((st->window_size % ACQ_WINDOW) == 0)
+        if ((st->history_size % ACQ_HISTORY) == 0)
             printf("Timing offset: %f, slope: %f\n", avgerr, slope);
 
         // avoid adjusting the rate too much
@@ -98,14 +98,14 @@ void acquire_process(acquire_t *st)
 
             input_rate_adjust(st->input, (-slope / N) / K);
 
-            // clear the window so we don't overadjust
-            st->window_size = 0;
+            // clear the history so we don't overadjust
+            st->history_size = 0;
         }
         // we don't want the samperr to go < 0
         else if (slope < 0)
         {
             input_rate_adjust(st->input, (-slope / N / 8) / K);
-            st->window_size = 0;
+            st->history_size = 0;
         }
 
         // skip samples instead of having samperr > FFT
@@ -119,11 +119,14 @@ void acquire_process(acquire_t *st)
         for (i = 0; i < M; ++i)
         {
             int j;
-            for (j = 0; j < FFT; ++j)
+            for (j = 0; j < K; ++j)
             {
                 int n = i * K + j;
-                float complex adj = cexpf(-I * (float)(-angle * n / FFT));
-                st->fftin[j] = adj * st->buffer[n + samperr];
+                float complex adj = st->buffer[n + samperr] * cexpf(-I * (float)(-angle * n / FFT));
+                if (j < FFT)
+                    st->fftin[j] = st->shape[j] * adj;
+                else
+                    st->fftin[j - FFT] += st->shape[j] * adj;
             }
 
             fftwf_execute(st->fft);
@@ -162,9 +165,19 @@ void acquire_init(acquire_t *st, input_t *input)
     st->slope = INFINITY;
     st->prev_angle = INFINITY;
 
-    st->sintbl = malloc(sizeof(float) * CP);
-    for (i = 0; i < CP; ++i)
-        st->sintbl[i] = sinf(i * M_PI / CP);
+    st->shape = malloc(sizeof(float) * K);
+    for (i = 0; i < K; ++i)
+    {
+        // The first CP samples overlap with last CP samples. Due to ISI, we
+        // don't want to use the samples on the edges of our symbol.
+        // We use the identity: sin^2 x + cos^2 x = 1.
+        if (i < CP)
+            st->shape[i] = powf(sinf(M_PI / 2 * i / CP), 2);
+        else if (i < FFT)
+            st->shape[i] = 1;
+        else
+            st->shape[i] = powf(cosf(M_PI / 2 * (i - FFT) / CP), 2);
+    }
 
     st->fftin = malloc(sizeof(float complex) * FFT);
     st->fftout = malloc(sizeof(float complex) * FFT);

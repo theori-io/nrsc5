@@ -3,7 +3,7 @@
 #include <complex.h>
 #include <fftw3.h>
 
-#define ACQ_WINDOW 16
+#define ACQ_HISTORY 16
 
 typedef struct
 {
@@ -12,15 +12,15 @@ typedef struct
     float complex *sums;
     float complex *fftin;
     float complex *fftout;
-    float *sintbl;
+    float *shape;
     fftwf_plan fft;
 
     float samperr;
     float slope;
     unsigned int idx;
     int ready;
-    int window[ACQ_WINDOW];
-    unsigned int window_size;
+    int history[ACQ_HISTORY];
+    unsigned int history_size;
     float prev_angle;
 } acquire_t;
 

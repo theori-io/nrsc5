@@ -277,8 +277,10 @@ void sync_process(sync_t *st)
         // Display average MER for each sideband
         if (++st->mer_cnt == 16)
         {
-            float signal = 2 * N * 180 * st->mer_cnt;
-            printf("MER: %f dB (lower), %f dB (upper)\n", signal / st->error_lb, signal / st->error_ub);
+            float signal = 2 * N * DATA_PER_BAND * st->mer_cnt;
+            float mer_db_lb = 10 * log10f(sqrtf(signal) / sqrtf(st->error_lb));
+            float mer_db_ub = 10 * log10f(sqrtf(signal) / sqrtf(st->error_ub));
+            printf("MER: %f dB (lower), %f dB (upper)\n", mer_db_lb, mer_db_ub);
             st->mer_cnt = 0;
             st->error_lb = 0;
             st->error_ub = 0;

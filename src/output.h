@@ -9,6 +9,7 @@
 typedef enum
 {
     OUTPUT_ADTS,
+    OUTPUT_HDC,
     OUTPUT_WAV,
     OUTPUT_LIVE
 } output_method_t;
@@ -36,5 +37,6 @@ typedef struct
 void output_push(output_t *st, uint8_t *pkt, unsigned int len);
 void output_reset(output_t *st);
 void output_init_adts(output_t *st, const char *name);
+void output_init_hdc(output_t *st, const char *name);
 void output_init_wav(output_t *st, const char *name);
 void output_init_live(output_t *st);

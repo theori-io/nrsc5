@@ -93,7 +93,7 @@ static void log_lock(void *udata, int lock)
 
 static void help(const char *progname)
 {
-    fprintf(stderr, "Usage: %s [-q] [-l log-level] [-d device-index] [-g gain] [-p ppm-error] [-r samples-input] [-w samples-output] [-o audio-output -f adts|wav] frequency program\n", progname);
+    fprintf(stderr, "Usage: %s [-q] [-l log-level] [-d device-index] [-g gain] [-p ppm-error] [-r samples-input] [-w samples-output] [-o audio-output -f adts|hdc|wav] frequency program\n", progname);
 }
 
 int main(int argc, char *argv[])
@@ -218,6 +218,10 @@ int main(int argc, char *argv[])
         else if (strcmp(format_name, "adts") == 0)
         {
             output_init_adts(&output, audio_name);
+        }
+        else if (strcmp(format_name, "hdc") == 0)
+        {
+            output_init_hdc(&output, audio_name);
         }
         else
         {

@@ -16,6 +16,7 @@
 #include <assert.h>
 #include <string.h>
 
+#include "bitreader.h"
 #include "bitwriter.h"
 #include "defines.h"
 #include "output.h"
@@ -27,6 +28,8 @@ static ao_sample_format sample_format = {
     AO_FMT_LITTLE,
     "L,R"
 };
+
+void hdc_to_aac(bitreader_t *br, bitwriter_t *bw);
 
 static void write_adts_header(FILE *fp, unsigned int len)
 {
@@ -55,6 +58,22 @@ static void write_adts_header(FILE *fp, unsigned int len)
 
 static void dump_adts(FILE *fp, uint8_t *pkt, unsigned int len)
 {
+    uint8_t tmp[1024];
+    bitreader_t br;
+    bitwriter_t bw;
+
+    br_init(&br, pkt, len);
+    bw_init(&bw, tmp);
+    hdc_to_aac(&br, &bw);
+    len = bw_flush(&bw);
+
+    write_adts_header(fp, len);
+    fwrite(tmp, len, 1, fp);
+    fflush(fp);
+}
+
+static void dump_hdc(FILE *fp, uint8_t *pkt, unsigned int len)
+{
     write_adts_header(fp, len);
     fwrite(pkt, len, 1, fp);
     fflush(fp);
@@ -68,6 +87,11 @@ void output_push(output_t *st, uint8_t *pkt, unsigned int len)
     if (st->method == OUTPUT_ADTS)
     {
         dump_adts(st->outfp, pkt, len);
+        return;
+    }
+    else if (st->method == OUTPUT_HDC)
+    {
+        dump_hdc(st->outfp, pkt, len);
         return;
     }
 
@@ -166,6 +190,18 @@ void output_init_adts(output_t *st, const char *name)
         st->outfp = fopen(name, "wb");
     if (st->outfp == NULL)
         FATAL_EXIT("Unable to open output adts file.");
+}
+
+void output_init_hdc(output_t *st, const char *name)
+{
+    st->method = OUTPUT_HDC;
+
+    if (strcmp(name, "-") == 0)
+        st->outfp = stdout;
+    else
+        st->outfp = fopen(name, "wb");
+    if (st->outfp == NULL)
+        FATAL_EXIT("Unable to open output adts-hdc file.");
 }
 
 static void output_init_ao(output_t *st, int driver, const char *name)

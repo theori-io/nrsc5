@@ -18,6 +18,7 @@ add_executable (
     acquire.c
     decode.c
     frame.c
+    hdc_to_aac.c
     input.c
     main.c
     output.c

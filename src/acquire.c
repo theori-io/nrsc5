@@ -65,6 +65,7 @@ void acquire_process(acquire_t *st)
             angle += M_PI * 2;
         else if (st->prev_angle < -M_PI*15/16 && angle > M_PI*15/16)
             angle -= M_PI * 2;
+        angle = 0.5 * st->prev_angle + 0.5 * angle;
     }
     st->prev_angle = angle;
 

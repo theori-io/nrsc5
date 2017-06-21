@@ -13,6 +13,10 @@ if (CMAKE_SYSTEM_PROCESSOR MATCHES "(i[456]|x)86.*")
     endif()
 endif()
 
+if (USE_COLOR)
+    add_compile_options (-DLOG_USE_COLOR)
+endif()
+
 add_executable (
     nrsc5
     acquire.c

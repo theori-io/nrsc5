@@ -11,9 +11,11 @@ The following packages are required:
      $ mkdir build && cd build
      $ cmake [options] ..
      $ make
+     $ sudo make install
 
 Available build options:
 
+    -DUSE_COLOR=ON       Colorize log output. [default=OFF]
     -DUSE_NEON=ON        Use NEON instructions. [ARM, default=OFF]
     -DUSE_SSE=ON         Use SSSE3 instructions. [x86, default=OFF]
 
@@ -42,11 +44,17 @@ Options:
        -r samples-input                read samples from input file
        -w samples-output               write samples to output file
        -o audio-output                 write audio to output file
-       -f adts|wav                     audio format: adts or wav
-                                         (adts playback requires modified faad2)
+       -f adts|hdc|wav                 audio format: adts, hdc, or wav
+                                         (hdc playback requires modified faad2)
+       -q                              disable log output
+       -l log-level                    set log level
+                                         (1 = DEBUG, 2 = INFO, 3 = WARN)
 
 Examples:
 
      $ nrsc5 -p 63 -g 490 -w samples1071 107100000 0
 
      $ nrsc5 -r samples1071 0
+
+     $ nrsc5 -o - -f adts 90500000 0 | mplayer -
+

@@ -71,7 +71,7 @@ static void dump_ber(float cber)
     count += 1;
     if (cber < min) min = cber;
     if (cber > max) max = cber;
-    printf("BER: %f, avg: %f, min: %f, max: %f\n", cber, sum / count, min, max);
+    log_info("BER: %f, avg: %f, min: %f, max: %f", cber, sum / count, min, max);
 }
 
 void decode_process(decode_t *st)
@@ -109,7 +109,7 @@ void decode_reset(decode_t *st)
 void decode_init(decode_t *st, struct input_t *input)
 {
     st->input = input;
-    st->buffer = malloc(720 * N * 16);
+    st->buffer = malloc(720 * BLKSZ * 16);
     st->viterbi = malloc(FRAME_LEN * 3);
     st->scrambler = malloc(FRAME_LEN);
 

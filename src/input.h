@@ -7,6 +7,7 @@
 
 #include "acquire.h"
 #include "decode.h"
+#include "defines.h"
 #include "firdecim_q15.h"
 #include "frame.h"
 #include "output.h"
@@ -27,7 +28,7 @@ typedef struct input_t
     double center;
     unsigned int avail, used, skip;
     int cfo, cfo_idx;
-    float complex cfo_tbl[2048];
+    float complex cfo_tbl[FFT];
 
     fftwf_plan snr_fft;
     float complex snr_fft_in[64];

@@ -21,23 +21,23 @@
 #include "input.h"
 
 #define SYMBOLS 2
-#define M (N * SYMBOLS)
+#define M (BLKSZ * SYMBOLS)
 
 void acquire_process(acquire_t *st)
 {
     float complex max_v = 0;
     float angle, max_mag = -1.0f;
     unsigned int samperr = 0, i, j;
-    unsigned int mink = 0, maxk = K - CP;
+    unsigned int mink = 0, maxk = FFT;
 
-    if (st->idx != K * (M + 1))
+    if (st->idx != FFTCP * (M + 1))
         return;
 
-    memset(st->sums, 0, sizeof(float complex) * K);
+    memset(st->sums, 0, sizeof(float complex) * FFTCP);
     for (i = mink; i < maxk + CP; ++i)
     {
         for (j = 0; j < M; ++j)
-            st->sums[i] += st->buffer[i + j * K] * conjf(st->buffer[i + j * K + FFT]);
+            st->sums[i] += st->buffer[i + j * FFTCP] * conjf(st->buffer[i + j * FFTCP + FFT]);
     }
 
     for (i = mink; i < maxk - 1; ++i)
@@ -46,7 +46,7 @@ void acquire_process(acquire_t *st)
         float complex v = 0;
 
         for (j = 0; j < CP; ++j)
-            v += st->sums[(i + j) % K];
+            v += st->sums[(i + j) % FFTCP];
 
         mag = normf(v);
         if (mag > max_mag)
@@ -90,14 +90,14 @@ void acquire_process(acquire_t *st)
         st->slope = slope;
 
         if ((st->history_size % ACQ_HISTORY) == 0)
-            printf("Timing offset: %f, slope: %f\n", avgerr, slope);
+            log_debug("Timing offset: %f, slope: %f", avgerr, slope);
 
         // avoid adjusting the rate too much
         if (fabsf(slope) > 1.0)
         {
-            printf("Timing offset: %f, slope: %f (adjust)\n", avgerr, slope);
+            log_info("Timing offset: %f, slope: %f (adjust)", avgerr, slope);
 
-            input_rate_adjust(st->input, (-slope / N) / K);
+            input_rate_adjust(st->input, (-slope / BLKSZ) / FFTCP);
 
             // clear the history so we don't overadjust
             st->history_size = 0;
@@ -105,7 +105,7 @@ void acquire_process(acquire_t *st)
         // we don't want the samperr to go < 0
         else if (slope < 0)
         {
-            input_rate_adjust(st->input, (-slope / N / 8) / K);
+            input_rate_adjust(st->input, (-slope / BLKSZ / 8) / FFTCP);
             st->history_size = 0;
         }
 
@@ -120,9 +120,9 @@ void acquire_process(acquire_t *st)
         for (i = 0; i < M; ++i)
         {
             int j;
-            for (j = 0; j < K; ++j)
+            for (j = 0; j < FFTCP; ++j)
             {
-                int n = i * K + j;
+                int n = i * FFTCP + j;
                 float complex adj = st->buffer[n + samperr] * cexpf(-I * (float)(-angle * n / FFT));
                 if (j < FFT)
                     st->fftin[j] = st->shape[j] * adj;
@@ -136,13 +136,13 @@ void acquire_process(acquire_t *st)
         }
     }
 
-    memmove(&st->buffer[0], &st->buffer[st->idx - K], sizeof(float complex) * K);
-    st->idx = K;
+    memmove(&st->buffer[0], &st->buffer[st->idx - FFTCP], sizeof(float complex) * FFTCP);
+    st->idx = FFTCP;
 }
 
 unsigned int acquire_push(acquire_t *st, float complex *buf, unsigned int length)
 {
-    unsigned int needed = K - st->idx % K;
+    unsigned int needed = FFTCP - st->idx % FFTCP;
 
     if (length < needed)
         return 0;
@@ -158,16 +158,16 @@ void acquire_init(acquire_t *st, input_t *input)
     int i;
 
     st->input = input;
-    st->buffer = malloc(sizeof(float complex) * K * (M + 1));
-    st->sums = malloc(sizeof(float complex) * K);
+    st->buffer = malloc(sizeof(float complex) * FFTCP * (M + 1));
+    st->sums = malloc(sizeof(float complex) * FFTCP);
     st->idx = 0;
     st->ready = 0;
     st->samperr = 0;
     st->slope = INFINITY;
     st->prev_angle = INFINITY;
 
-    st->shape = malloc(sizeof(float) * K);
-    for (i = 0; i < K; ++i)
+    st->shape = malloc(sizeof(float) * FFTCP);
+    for (i = 0; i < FFTCP; ++i)
     {
         // The first CP samples overlap with last CP samples. Due to ISI, we
         // don't want to use the samples on the edges of our symbol.

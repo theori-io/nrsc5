@@ -30,6 +30,8 @@ add_executable (
 
     reed-solomon.c
     galois.c
+
+    log.c
 )
 target_link_libraries (
     nrsc5

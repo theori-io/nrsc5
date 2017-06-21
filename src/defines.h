@@ -5,24 +5,32 @@
 #include <stdlib.h>
 #include <complex.h>
 #include <math.h>
+#include "log.h"
 
-#define ERR(x,...) fprintf(stderr, x, ##__VA_ARGS__)
-#define ERR_FAIL(x,...) do { fprintf(stderr, x, ##__VA_ARGS__); exit(1); } while (0)
+#define FATAL_EXIT(x,...) do { log_fatal(x, ##__VA_ARGS__); exit(1); } while (0)
 
-#define INPUT_BUF_LEN (2160 * 512)
+// FFT length in samples
 #define FFT 2048
+// cyclic preflex length in samples
 #define CP 112
-#define K (FFT + CP)
-#define N 32
+#define FFTCP (FFT + CP)
+// OFDM symbols per L1 block
+#define BLKSZ 32
+// number of reference subcarriers per sideband
 #define REF_PER_BAND 11
+// number of data subcarriers per sideband
 #define DATA_PER_BAND 180
+// number of subcarriers per sideband
 #define BAND_LENGTH (REF_PER_BAND + DATA_PER_BAND)
+// total number of data subcarriers
 #define TOTAL_DATA (DATA_PER_BAND * 2)
+// total number of reference subcarriers
 #define TOTAL_REF (REF_PER_BAND * 2)
+// index of first lower sideband subcarrier
 #define LB_START (1024 - 546)
+// index of first upper sideband subcarrier
 #define UB_START (1024 + 356)
-#define UB_OFFSET (UB_START - LB_START)
-#define SYNCLEN (UB_OFFSET + BAND_LENGTH)
+// bytes per L1 frame
 #define FRAME_LEN 146176
 
 #define U8_F(x) ( (((float)(x)) - 127) / 128 )

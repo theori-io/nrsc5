@@ -26,7 +26,7 @@ static void dump_ref(uint8_t *ref_buf)
     uint32_t value = ref_buf[0];
     for (int i = 1; i < 32; i++)
         value = (value << 1) | (ref_buf[i - 1] ^ ref_buf[i]);
-    // printf("REF %08X\n", value);
+    // log_debug("REF %08X", value);
 }
 
 static void calc_phase(float complex *buf, unsigned int ref, float *out_phase, float *out_slope)
@@ -35,14 +35,14 @@ static void calc_phase(float complex *buf, unsigned int ref, float *out_phase, f
     float complex sum;
 
     sum = 0;
-    for (int r = 0; r < N; r++)
-        sum += buf[ref * N + r] * buf[ref * N + r];
+    for (int r = 0; r < BLKSZ; r++)
+        sum += buf[ref * BLKSZ + r] * buf[ref * BLKSZ + r];
     phase = cargf(sum) * 0.5;
 
     sum = 0;
-    for (int r = 1; r < N; r++)
+    for (int r = 1; r < BLKSZ; r++)
     {
-        float complex tmp = conjf(buf[ref * N + r - 1]) * buf[ref * N + r];
+        float complex tmp = conjf(buf[ref * BLKSZ + r - 1]) * buf[ref * BLKSZ + r];
         sum += tmp * tmp;
     }
     slope = cargf(sum) * 0.5;
@@ -60,24 +60,24 @@ static void adjust_ref(float complex *buf, float *phases, unsigned int ref)
     float phase, slope;
     calc_phase(buf, ref, &phase, &slope);
 
-    for (int n = 0; n < N; n++)
+    for (int n = 0; n < BLKSZ; n++)
     {
-        float item_phase = phase + slope * (n - ((N-1)/2));
-        phases[ref * N + n] = item_phase;
-        buf[ref * N + n] *= cexpf(-I * item_phase);
+        float item_phase = phase + slope * (n - ((BLKSZ-1)/2));
+        phases[ref * BLKSZ + n] = item_phase;
+        buf[ref * BLKSZ + n] *= cexpf(-I * item_phase);
     }
 
     // compare to sync bits
     float x = 0;
     for (int n = 0; n < sizeof(sync); n++)
-        x += crealf(buf[ref * N + n]) * sync[n];
+        x += crealf(buf[ref * BLKSZ + n]) * sync[n];
     if (x < 0)
     {
         // adjust phase by pi to compensate
-        for (int n = 0; n < N; n++)
+        for (int n = 0; n < BLKSZ; n++)
         {
-            phases[ref * N + n] += M_PI;
-            buf[ref * N + n] *= -1;
+            phases[ref * BLKSZ + n] += M_PI;
+            buf[ref * BLKSZ + n] *= -1;
         }
     }
 }
@@ -87,25 +87,25 @@ static int find_first_block (float complex *buf, unsigned int ref)
     static const signed char needle[] = {
         0, 1, 1, 0, 0, 1, 0, -1, -1, 1, 1, 0, 0, 1, 0, -1, 0, 0, 0, 0, -1, 1, 1, 1
     };
-    unsigned char data[N], prev = 0;
-    for (int n = 0; n < N; n++)
+    unsigned char data[BLKSZ], prev = 0;
+    for (int n = 0; n < BLKSZ; n++)
     {
-        unsigned char bit = crealf(buf[ref * N + n]) <= 0 ? 0 : 1;
+        unsigned char bit = crealf(buf[ref * BLKSZ + n]) <= 0 ? 0 : 1;
         data[n] = bit ^ prev;
         prev = bit;
     }
 
-    for (int n = 0; n < N; n++)
+    for (int n = 0; n < BLKSZ; n++)
     {
         int i;
         for (i = 0; i < sizeof(needle); i++)
         {
             // first bit of data may be wrong, so ignore
-            if ((n + i) % N == 0) continue;
+            if ((n + i) % BLKSZ == 0) continue;
             // ignore don't care bits
             if (needle[i] < 0) continue;
             // test if bit is correct
-            if (needle[i] != data[(n + i) % N])
+            if (needle[i] != data[(n + i) % BLKSZ])
                 break;
         }
         if (i == sizeof(needle))
@@ -119,25 +119,25 @@ static int find_ref (float complex *buf, unsigned int ref, unsigned int rsid)
     signed char needle[] = {
         0, 1, 1, 0, 0, 1, 0, -1, -1, 1, rsid >> 1, rsid & 1, 0, (rsid >> 1) ^ (rsid & 1), 0, -1, -1, -1, -1, -1, -1, 1, 1, 1
     };
-    unsigned char data[N], prev = 0;
-    for (int n = 0; n < N; n++)
+    unsigned char data[BLKSZ], prev = 0;
+    for (int n = 0; n < BLKSZ; n++)
     {
-        unsigned char bit = crealf(buf[ref * N + n]) <= 0 ? 0 : 1;
+        unsigned char bit = crealf(buf[ref * BLKSZ + n]) <= 0 ? 0 : 1;
         data[n] = bit ^ prev;
         prev = bit;
     }
 
-    for (int n = 0; n < N; n++)
+    for (int n = 0; n < BLKSZ; n++)
     {
         int i;
         for (i = 0; i < sizeof(needle); i++)
         {
             // first bit of data may be wrong, so ignore
-            if ((n + i) % N == 0) continue;
+            if ((n + i) % BLKSZ == 0) continue;
             // ignore don't care bits
             if (needle[i] < 0) continue;
             // test if bit is correct
-            if (needle[i] != data[(n + i) % N])
+            if (needle[i] != data[(n + i) % BLKSZ])
                 break;
         }
         if (i == sizeof(needle))
@@ -150,9 +150,9 @@ static float calc_smag(float complex *buf, unsigned int ref)
 {
     float sum = 0;
     // phase was already corrected, so imaginary component is zero
-    for (int n = 0; n < N; n++)
-        sum += fabsf(crealf(buf[ref * N + n]));
-    return sum / N;
+    for (int n = 0; n < BLKSZ; n++)
+        sum += fabsf(crealf(buf[ref * BLKSZ + n]));
+    return sum / BLKSZ;
 }
 
 static void adjust_data(float complex *buf, float *phases, unsigned int lower, unsigned int upper)
@@ -161,21 +161,21 @@ static void adjust_data(float complex *buf, float *phases, unsigned int lower, u
     smag0 = calc_smag(buf, lower);
     smag19 = calc_smag(buf, upper);
 
-    for (int n = 0; n < N; n++)
+    for (int n = 0; n < BLKSZ; n++)
     {
         for (int k = 1; k < 19; k++)
         {
             // average phase difference
-            float complex C = CMPLXF(19,19) / (k * smag19 * cexpf(I * phases[upper * N + n]) + (19 - k) * smag0 * cexpf(I * phases[lower * N + n]));
+            float complex C = CMPLXF(19,19) / (k * smag19 * cexpf(I * phases[upper * BLKSZ + n]) + (19 - k) * smag0 * cexpf(I * phases[lower * BLKSZ + n]));
             // adjust sample
-            buf[(lower + k) * N + n] *= C;
+            buf[(lower + k) * BLKSZ + n] *= C;
         }
     }
 }
 
 void sync_process(sync_t *st)
 {
-    float complex *buffer = &st->buffer[st->used * N * FFT];
+    float complex *buffer = &st->buffer[st->used * BLKSZ * FFT];
     int i;
 
     for (i = 0; i < BAND_LENGTH; i += 19)
@@ -191,7 +191,7 @@ void sync_process(sync_t *st)
         {
             if (find_first_block(buffer, UB_START + 19 * 10) != 0)
             {
-                printf("lost sync (%d, %d)!\n", find_first_block(buffer, LB_START), find_first_block(buffer, UB_START + 19*10));
+                log_debug("lost sync (%d, %d)!", find_first_block(buffer, LB_START), find_first_block(buffer, UB_START + 19*10));
                 st->ready = 0;
             }
         }
@@ -201,12 +201,12 @@ void sync_process(sync_t *st)
         int offset = find_first_block(buffer, LB_START + 0);
         if (offset > 0)
         {
-            printf("First block @ %d\n", offset);
-            input_set_skip(st->input, offset * K);
+            log_debug("First block @ %d", offset);
+            input_set_skip(st->input, offset * FFTCP);
         }
         else if (offset == 0)
         {
-            printf("Synchronized!\n");
+            log_info("Synchronized!");
             decode_reset(&st->input->decode);
             st->ready = 1;
         }
@@ -225,7 +225,7 @@ void sync_process(sync_t *st)
                 if (offset2 == offset)
                 {
                     // The offsets matched, so 'i' is likely the CFO.
-                    input_set_skip(st->input, offset * K);
+                    input_set_skip(st->input, offset * FFTCP);
                     input_cfo_adjust(st->input, i);
 
                     // Wait until the buffers have cleared before measuring again.
@@ -252,7 +252,7 @@ void sync_process(sync_t *st)
 
         // Calculate modulation error
         float error_lb = 0, error_ub = 0;
-        for (int n = 0; n < N; n++)
+        for (int n = 0; n < BLKSZ; n++)
         {
             float complex c, ideal;
             for (i = 0; i < BAND_LENGTH - 1; i += 19)
@@ -260,11 +260,11 @@ void sync_process(sync_t *st)
                 unsigned int j;
                 for (j = 1; j < 19; j++)
                 {
-                    c = buffer[(LB_START + i + j) * N + n];
+                    c = buffer[(LB_START + i + j) * BLKSZ + n];
                     ideal = CMPLXF(crealf(c) >= 0 ? 1 : -1, cimagf(c) >= 0 ? 1 : -1);
                     error_lb += normf(ideal - c);
 
-                    c = buffer[(UB_START + i + j) * N + n];
+                    c = buffer[(UB_START + i + j) * BLKSZ + n];
                     ideal = CMPLXF(crealf(c) >= 0 ? 1 : -1, cimagf(c) >= 0 ? 1 : -1);
                     error_ub += normf(ideal - c);
                 }
@@ -277,23 +277,23 @@ void sync_process(sync_t *st)
         // Display average MER for each sideband
         if (++st->mer_cnt == 16)
         {
-            float signal = 2 * N * DATA_PER_BAND * st->mer_cnt;
+            float signal = 2 * BLKSZ * DATA_PER_BAND * st->mer_cnt;
             float mer_db_lb = 10 * log10f(sqrtf(signal) / sqrtf(st->error_lb));
             float mer_db_ub = 10 * log10f(sqrtf(signal) / sqrtf(st->error_ub));
-            printf("MER: %f dB (lower), %f dB (upper)\n", mer_db_lb, mer_db_ub);
+            log_info("MER: %f dB (lower), %f dB (upper)", mer_db_lb, mer_db_ub);
             st->mer_cnt = 0;
             st->error_lb = 0;
             st->error_ub = 0;
         }
 
         // Soft demod based on MER for each sideband
-        float mer_lb = 2 * N * 180 / error_lb;
-        float mer_ub = 2 * N * 180 / error_ub;
+        float mer_lb = 2 * BLKSZ * DATA_PER_BAND / error_lb;
+        float mer_ub = 2 * BLKSZ * DATA_PER_BAND / error_ub;
         float mult_lb = fmaxf(fminf(mer_lb * 10, 63), 1);
         float mult_ub = fmaxf(fminf(mer_ub * 10, 63), 1);
 
 #define DEMOD(x) ((x) >= 0 ? 1 : -1)
-        for (int n = 0; n < N; n++)
+        for (int n = 0; n < BLKSZ; n++)
         {
             float complex c;
             for (i = 0; i < BAND_LENGTH - 1; i += 19)
@@ -301,7 +301,7 @@ void sync_process(sync_t *st)
                 unsigned int j;
                 for (j = 1; j < 19; j++)
                 {
-                    c = buffer[(LB_START + i + j) * N + n];
+                    c = buffer[(LB_START + i + j) * BLKSZ + n];
                     decode_push(&st->input->decode, DEMOD(crealf(c)) * mult_lb);
                     decode_push(&st->input->decode, DEMOD(cimagf(c)) * mult_lb);
                 }
@@ -311,7 +311,7 @@ void sync_process(sync_t *st)
                 unsigned int j;
                 for (j = 1; j < 19; j++)
                 {
-                    c = buffer[(UB_START + i + j) * N + n];
+                    c = buffer[(UB_START + i + j) * BLKSZ + n];
                     decode_push(&st->input->decode, DEMOD(crealf(c)) * mult_ub);
                     decode_push(&st->input->decode, DEMOD(cimagf(c)) * mult_ub);
                 }
@@ -328,9 +328,9 @@ void sync_push(sync_t *st, float complex *fftout)
 {
     unsigned int i;
     for (i = 0; i < FFT; ++i)
-        st->buffer[i * N + st->idx + st->buf_idx * N * FFT] = fftout[i];
+        st->buffer[i * BLKSZ + st->idx + st->buf_idx * BLKSZ * FFT] = fftout[i];
 
-    if (++st->idx == N)
+    if (++st->idx == BLKSZ)
     {
         st->idx = 0;
 
@@ -375,9 +375,9 @@ void sync_wait(sync_t *st)
 void sync_init(sync_t *st, input_t *input)
 {
     st->input = input;
-    st->buffer = malloc(sizeof(float complex) * N * FFT * BUFS);
-    st->phases = malloc(sizeof(float) * N * FFT);
-    st->ref_buf = malloc(N);
+    st->buffer = malloc(sizeof(float complex) * BLKSZ * FFT * BUFS);
+    st->phases = malloc(sizeof(float) * BLKSZ * FFT);
+    st->ref_buf = malloc(BLKSZ);
     st->ready = 0;
     st->idx = 0;
     st->used = 0;

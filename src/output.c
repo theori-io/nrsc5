@@ -28,7 +28,7 @@ static ao_sample_format sample_format = {
     "L,R"
 };
 
-static void dump_adts(FILE *fp, uint8_t *pkt, unsigned int len)
+static void write_adts_header(FILE *fp, unsigned int len)
 {
     uint8_t hdr[7];
     bitwriter_t bw;
@@ -51,7 +51,13 @@ static void dump_adts(FILE *fp, uint8_t *pkt, unsigned int len)
     bw_addbits(&bw, 0, 2); // 1 AAC frame per ADTS frame
 
     fwrite(hdr, 7, 1, fp);
+}
+
+static void dump_adts(FILE *fp, uint8_t *pkt, unsigned int len)
+{
+    write_adts_header(fp, len);
     fwrite(pkt, len, 1, fp);
+    fflush(fp);
 }
 
 void output_push(output_t *st, uint8_t *pkt, unsigned int len)
@@ -68,7 +74,7 @@ void output_push(output_t *st, uint8_t *pkt, unsigned int len)
     buffer = NeAACDecDecode(st->handle, &info, pkt, len);
     if (info.error > 0)
     {
-        ERR("Decode error: %s\n", NeAACDecGetErrorMessage(info.error));
+        log_error("Decode error: %s", NeAACDecGetErrorMessage(info.error));
     }
 
     if (info.error == 0 && info.samples > 0)
@@ -154,9 +160,12 @@ void output_init_adts(output_t *st, const char *name)
 {
     st->method = OUTPUT_ADTS;
 
-    st->outfp = fopen(name, "wb");
+    if (strcmp(name, "-") == 0)
+        st->outfp = stdout;
+    else
+        st->outfp = fopen(name, "wb");
     if (st->outfp == NULL)
-        ERR_FAIL("Unable to open output adts file.\n");
+        FATAL_EXIT("Unable to open output adts file.");
 }
 
 static void output_init_ao(output_t *st, int driver, const char *name)
@@ -168,7 +177,7 @@ static void output_init_ao(output_t *st, int driver, const char *name)
     else
         st->dev = ao_open_live(driver, &sample_format, NULL);
     if (st->dev == NULL)
-        ERR_FAIL("Unable to open output wav file.\n");
+        FATAL_EXIT("Unable to open output wav file.");
 
     st->head = NULL;
     st->tail = NULL;

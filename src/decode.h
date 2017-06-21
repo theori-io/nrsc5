@@ -16,12 +16,12 @@ typedef struct
 void decode_process(decode_t *st);
 static inline unsigned int decode_get_block(decode_t *st)
 {
-    return st->idx / (720 * N);
+    return st->idx / (720 * BLKSZ);
 }
 static inline void decode_push(decode_t *st, int8_t sbit)
 {
     st->buffer[st->idx] = sbit;
-    if (++st->idx == 720 * N * 16)
+    if (++st->idx == 720 * BLKSZ * 16)
     {
         decode_process(st);
         st->idx = 0;

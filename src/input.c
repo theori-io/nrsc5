@@ -20,39 +20,41 @@
 #include "defines.h"
 #include "input.h"
 
+#define INPUT_BUF_LEN (2160 * 512)
+
 static float filter_taps[] = {
--0.006910541036924275,
--0.013268228805145532,
--0.006644557670245421,
-0.018375039238181595,
-0.04259143500924495,
-0.03712705276833042,
-0.0017215227032129474,
--0.024593813581821018,
--0.009907236685353248,
-0.01767132823382834,
--0.008287758762202712,
--0.10098124598840287,
--0.17157955612468512,
--0.10926609589776617,
-0.08158909906685183,
-0.25361698433482543,
-0.25361698433482543,
-0.08158909906685183,
--0.10926609589776617,
--0.17157955612468512,
--0.10098124598840287,
--0.008287758762202712,
-0.01767132823382834,
--0.009907236685353248,
--0.024593813581821018,
-0.0017215227032129474,
-0.03712705276833042,
-0.04259143500924495,
-0.018375039238181595,
--0.006644557670245421,
--0.013268228805145532,
--0.006910541036924275
+    -0.006910541036924275,
+    -0.013268228805145532,
+    -0.006644557670245421,
+    0.018375039238181595,
+    0.04259143500924495,
+    0.03712705276833042,
+    0.0017215227032129474,
+    -0.024593813581821018,
+    -0.009907236685353248,
+    0.01767132823382834,
+    -0.008287758762202712,
+    -0.10098124598840287,
+    -0.17157955612468512,
+    -0.10926609589776617,
+    0.08158909906685183,
+    0.25361698433482543,
+    0.25361698433482543,
+    0.08158909906685183,
+    -0.10926609589776617,
+    -0.17157955612468512,
+    -0.10098124598840287,
+    -0.008287758762202712,
+    0.01767132823382834,
+    -0.009907236685353248,
+    -0.024593813581821018,
+    0.0017215227032129474,
+    0.03712705276833042,
+    0.04259143500924495,
+    0.018375039238181595,
+    -0.006644557670245421,
+    -0.013268228805145532,
+    -0.006910541036924275
 };
 
 static void *input_worker(void *arg)
@@ -63,12 +65,12 @@ static void *input_worker(void *arg)
     while (1)
     {
         pthread_mutex_lock(&st->mutex);
-        while (st->avail - st->used < K)
+        while (st->avail - st->used < FFTCP)
             pthread_cond_wait(&st->cond, &st->mutex);
 
         // CFO is modified in sync, and is expected to be "immediately" applied
         for (int j = st->used + cfo_used; j < st->avail; j++)
-            st->buffer[j] *= st->cfo_tbl[st->cfo_idx++ % 2048];
+            st->buffer[j] *= st->cfo_tbl[st->cfo_idx++ % FFT];
 
         if (st->skip)
         {
@@ -116,17 +118,17 @@ void input_cfo_adjust(input_t *st, int cfo)
         return;
 
     st->cfo += cfo;
-    float hz = st->cfo * 744187.5 / 2048.0;
-    printf("CFO: %f Hz (%d ppm)\n", hz, (int)round(hz * 1000000.0 / st->center));
+    float hz = st->cfo * 744187.5 / FFT;
+    log_info("CFO: %f Hz (%d ppm)", hz, (int)round(hz * 1000000.0 / st->center));
 
-    for (int i = 0; i < 2048; ++i)
-        st->cfo_tbl[i] *= cexpf(-I * (float)(2 * M_PI * st->cfo * i / 2048));
+    for (int i = 0; i < FFT; ++i)
+        st->cfo_tbl[i] *= cexpf(-I * (float)(2 * M_PI * st->cfo * i / FFT));
 }
 
 void input_wait(input_t *st, int flush)
 {
     pthread_mutex_lock(&st->mutex);
-    while (st->avail - st->used > (flush ? 1 : 256) * K)
+    while (st->avail - st->used > (flush ? 1 : 256) * FFTCP)
         pthread_cond_wait(&st->cond, &st->mutex);
     pthread_mutex_unlock(&st->mutex);
 
@@ -171,7 +173,7 @@ static void measure_snr(input_t *st, uint8_t *buf, uint32_t len)
         #if 0
         float snr_lo = noise_lo == 0 ? 0 : signal_lo / noise_lo;
         float snr_hi = noise_hi == 0 ? 0 : signal_hi / noise_hi;
-        printf("%f %f (SNR: %f) %f %f (SNR: %f)\n", signal_lo, noise_lo, snr_lo, signal_hi, noise_hi, snr_hi);
+        log_debug("%f %f (SNR: %f) %f %f (SNR: %f)", signal_lo, noise_lo, snr_lo, signal_hi, noise_hi, snr_hi);
         #endif
 
         float signal = (signal_lo + signal_hi) / 2 / st->snr_cnt;
@@ -221,7 +223,7 @@ void input_cb(uint8_t *buf, uint32_t len, void *arg)
     pthread_mutex_unlock(&st->mutex);
 
     if (cnt + new_avail > INPUT_BUF_LEN)
-        ERR("input buffer overflow!\n");
+        log_warn("input buffer overflow!");
     assert(len % 4 == 0);
 
     for (i = 0; i < cnt; i++)
@@ -260,7 +262,7 @@ void input_reset(input_t *st)
     st->resamp_rate = 1.0f;
     st->cfo = 0;
     st->cfo_idx = 0;
-    for (int i = 0; i < 2048; ++i)
+    for (int i = 0; i < FFT; ++i)
         st->cfo_tbl[i] = 1;
     for (int i = 0; i < 64; ++i)
         st->snr_power[i] = 0;

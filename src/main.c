@@ -56,11 +56,11 @@ static int snr_callback(void *arg, float snr, float signal, float noise)
         best_snr = snr;
     }
 
-    printf("Gain: %0.1f dB, CNR: %f dB\n", gain_list[gain_index] / 10.0, 10 * log10f(snr));
+    log_info("Gain: %0.1f dB, CNR: %f dB", gain_list[gain_index] / 10.0, 10 * log10f(snr));
 
     if (gain_index + 1 >= gain_count || snr < best_snr * 0.5)
     {
-        printf("Best gain: %d\n", gain_list[best_gain]);
+        log_debug("Best gain: %d", gain_list[best_gain]);
         gain_index = best_gain;
         gain_count = 0;
 
@@ -82,9 +82,18 @@ static int snr_callback(void *arg, float snr, float signal, float noise)
     return 1;
 }
 
+static void log_lock(void *udata, int lock)
+{
+    pthread_mutex_t *mutex = udata;
+    if (lock)
+        pthread_mutex_lock(mutex);
+    else
+        pthread_mutex_unlock(mutex);
+}
+
 static void help(const char *progname)
 {
-    fprintf(stderr, "Usage: %s [-d device-index] [-g gain] [-p ppm-error] [-r samples-input] [-w samples-output] [-o audio-output -f adts|wav] frequency program\n", progname); 
+    fprintf(stderr, "Usage: %s [-q] [-l log-level] [-d device-index] [-g gain] [-p ppm-error] [-r samples-input] [-w samples-output] [-o audio-output -f adts|wav] frequency program\n", progname);
 }
 
 int main(int argc, char *argv[])
@@ -95,8 +104,9 @@ int main(int argc, char *argv[])
     FILE *infp = NULL, *outfp = NULL;
     input_t input;
     output_t output;
+    pthread_mutex_t log_mutex;
 
-    while ((opt = getopt(argc, argv, "r:w:d:p:o:f:g:")) != -1)
+    while ((opt = getopt(argc, argv, "r:w:d:p:o:f:g:ql:")) != -1)
     {
         switch (opt)
         {
@@ -121,11 +131,21 @@ int main(int argc, char *argv[])
         case 'g':
             gain = atoi(optarg);
             break;
+        case 'q':
+            log_set_quiet(1);
+            break;
+        case 'l':
+            log_set_level(atoi(optarg));
+            break;
         default:
             help(argv[0]);
             return 0;
         }
     }
+
+    pthread_mutex_init(&log_mutex, NULL);
+    log_set_lock(log_lock);
+    log_set_udata(&log_mutex);
 
     if (input_name == NULL)
     {
@@ -140,17 +160,16 @@ int main(int argc, char *argv[])
         count = rtlsdr_get_device_count();
         if (count == 0)
         {
-            ERR("No devices found!\n");
+            log_fatal("No devices found!");
             return 1;
         }
 
         for (i = 0; i < count; ++i)
-            printf("[%d] %s\n", i, rtlsdr_get_device_name(i));
-        printf("\n");
+            log_info("[%d] %s", i, rtlsdr_get_device_name(i));
 
         if (device_index >= count)
         {
-            ERR("Selected device does not exist.\n");
+            log_fatal("Selected device does not exist.");
             return 1;
         }
     }
@@ -170,7 +189,7 @@ int main(int argc, char *argv[])
 
         if (infp == NULL)
         {
-            ERR("Unable to open input file.\n");
+            log_fatal("Unable to open input file.");
             return 1;
         }
     }
@@ -180,7 +199,7 @@ int main(int argc, char *argv[])
         outfp = fopen(output_name, "wb");
         if (outfp == NULL)
         {
-            ERR("Unable to open output file.\n");
+            log_fatal("Unable to open output file.");
             return 1;
         }
     }
@@ -189,7 +208,7 @@ int main(int argc, char *argv[])
     {
         if (format_name == NULL)
         {
-            ERR("Must specify an output format.\n");
+            log_fatal("Must specify an output format.");
             return 1;
         }
         else if (strcmp(format_name, "wav") == 0)
@@ -202,7 +221,7 @@ int main(int argc, char *argv[])
         }
         else
         {
-            ERR("Unknown output format.\n");
+            log_fatal("Unknown output format.");
             return 1;
         }
     }
@@ -233,15 +252,15 @@ int main(int argc, char *argv[])
         rtlsdr_dev_t *dev;
 
         err = rtlsdr_open(&dev, 0);
-        if (err) ERR_FAIL("rtlsdr_open error: %d\n", err);
+        if (err) FATAL_EXIT("rtlsdr_open error: %d", err);
         err = rtlsdr_set_sample_rate(dev, 1488375);
-        if (err) ERR_FAIL("rtlsdr_set_sample_rate error: %d\n", err);
+        if (err) FATAL_EXIT("rtlsdr_set_sample_rate error: %d", err);
         err = rtlsdr_set_tuner_gain_mode(dev, 1);
-        if (err) ERR_FAIL("rtlsdr_set_tuner_gain_mode error: %d\n", err);
+        if (err) FATAL_EXIT("rtlsdr_set_tuner_gain_mode error: %d", err);
         err = rtlsdr_set_freq_correction(dev, ppm_error);
-        if (err && err != -2) ERR_FAIL("rtlsdr_set_freq_correction error: %d\n", err);
+        if (err && err != -2) FATAL_EXIT("rtlsdr_set_freq_correction error: %d", err);
         err = rtlsdr_set_center_freq(dev, frequency);
-        if (err) ERR_FAIL("rtlsdr_set_center_freq error: %d\n", err);
+        if (err) FATAL_EXIT("rtlsdr_set_center_freq error: %d", err);
 
         if (gain == INT_MIN)
         {
@@ -250,17 +269,17 @@ int main(int argc, char *argv[])
             {
                 input_set_snr_callback(&input, snr_callback, dev);
                 err = rtlsdr_set_tuner_gain(dev, gain_list[0]);
-                if (err) ERR_FAIL("rtlsdr_set_tuner_gain error: %d\n", err);
+                if (err) FATAL_EXIT("rtlsdr_set_tuner_gain error: %d", err);
             }
         }
         else
         {
             err = rtlsdr_set_tuner_gain(dev, gain);
-            if (err) ERR_FAIL("rtlsdr_set_tuner_gain error: %d\n", err);
+            if (err) FATAL_EXIT("rtlsdr_set_tuner_gain error: %d", err);
         }
 
         err = rtlsdr_reset_buffer(dev);
-        if (err) ERR_FAIL("rtlsdr_reset_buffer error: %d\n", err);
+        if (err) FATAL_EXIT("rtlsdr_reset_buffer error: %d", err);
 
         pthread_mutex_init(&rtlsdr_usb_mutex, NULL);
 
@@ -272,7 +291,7 @@ int main(int argc, char *argv[])
 
             pthread_mutex_lock(&rtlsdr_usb_mutex);
             err = rtlsdr_read_sync(dev, buf, len, &len);
-            if (err) ERR_FAIL("rtlsdr_read_sync error: %d\n", err);
+            if (err) FATAL_EXIT("rtlsdr_read_sync error: %d", err);
             pthread_mutex_unlock(&rtlsdr_usb_mutex);
 
             input_cb(buf, len, &input);
@@ -280,9 +299,9 @@ int main(int argc, char *argv[])
         free(buf);
 
         err = rtlsdr_read_async(dev, input_cb, &input, RADIO_BUFCNT, RADIO_BUFFER);
-        if (err) ERR_FAIL("rtlsdr_read_async error: %d\n", err);
+        if (err) FATAL_EXIT("rtlsdr_read_async error: %d", err);
         err = rtlsdr_close(dev);
-        if (err) ERR_FAIL("rtlsdr error: %d\n", err);
+        if (err) FATAL_EXIT("rtlsdr error: %d", err);
     }
 
     return 0;

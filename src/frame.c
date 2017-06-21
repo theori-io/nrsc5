@@ -83,7 +83,7 @@ static int fix_header(uint8_t *buf)
     if (corrections >= 0)
     {
         if (corrections)
-            printf("RS corrected %d symbols\n", corrections);
+            log_debug("RS corrected %d symbols", corrections);
         memcpy(buf, hdr, 96);
         return 1;
     }
@@ -117,7 +117,7 @@ static int find_program(uint8_t *buf, int program)
 
         if (!fix_header(&buf[i]))
         {
-            ERR("failed to fix header\n");
+            log_debug("failed to fix header");
             return -1;
         }
 
@@ -155,7 +155,7 @@ void frame_process(frame_t *st)
     offset = find_program(st->buffer, st->program);
     if (offset == -1)
     {
-        ERR("unable to find program, or corrupted.\n");
+        log_error("unable to find program, or corrupted.");
         return;
     }
 
@@ -163,9 +163,9 @@ void frame_process(frame_t *st)
     parse_header(buf, &hdr);
 
     if (hdr.codec != 0)
-        ERR("unknown codec field (%d)\n", hdr.codec);
+        log_warn("unknown codec field (%d)", hdr.codec);
 
-    printf("pdu_seq: %d, seq: %d, nop: %d\n", hdr.pdu_seq, hdr.seq, hdr.nop);
+    log_debug("pdu_seq: %d, seq: %d, nop: %d", hdr.pdu_seq, hdr.seq, hdr.nop);
 
     i = 14 + sizeof(uint16_t) * hdr.nop;
     // skip extended headers
@@ -181,7 +181,7 @@ void frame_process(frame_t *st)
 
         if (crc8(&buf[i], cnt) != crc)
         {
-            ERR("crc mismatch!\n");
+            log_warn("crc mismatch!");
             st->ready = 0;
             break;
         }
@@ -196,7 +196,7 @@ void frame_process(frame_t *st)
             }
             else
             {
-                printf("ignoring partial pdu\n");
+                log_debug("ignoring partial pdu");
             }
         }
         else if (j == hdr.nop - 1 && hdr.plast)
@@ -247,7 +247,7 @@ void frame_push(frame_t *st, uint8_t *bits)
         }
     }
     
-    // printf("PCI %x\n", header);
+    // log_debug("PCI %x", header);
 
     st->pci = header;
     frame_process(st);

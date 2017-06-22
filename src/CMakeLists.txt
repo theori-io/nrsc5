@@ -1,4 +1,4 @@
-add_compile_options (--std=gnu11 -O3 -ffast-math)
+add_compile_options (--std=gnu11 -O3)
 
 if (CMAKE_SYSTEM_PROCESSOR MATCHES "arm.*")
     if (USE_NEON)

@@ -59,7 +59,7 @@ void acquire_process(acquire_t *st)
 
     // limited to (-pi, pi)
     angle = cargf(max_v);
-    if (isfinite(st->prev_angle))
+    if (st->prev_angle)
     {
         if (st->prev_angle > M_PI*15/16 && angle < -M_PI*15/16)
             angle += M_PI * 2;
@@ -163,8 +163,8 @@ void acquire_init(acquire_t *st, input_t *input)
     st->idx = 0;
     st->ready = 0;
     st->samperr = 0;
-    st->slope = INFINITY;
-    st->prev_angle = INFINITY;
+    st->slope = 0;
+    st->prev_angle = 0;
 
     st->shape = malloc(sizeof(float) * FFTCP);
     for (i = 0; i < FFTCP; ++i)

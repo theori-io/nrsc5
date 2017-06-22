@@ -21,6 +21,8 @@
 
 #define BUFS 16
 
+float prev_slope[FFT];
+
 static void dump_ref(uint8_t *ref_buf)
 {
     uint32_t value = ref_buf[0];
@@ -59,6 +61,10 @@ static void adjust_ref(float complex *buf, float *phases, unsigned int ref)
     };
     float phase, slope;
     calc_phase(buf, ref, &phase, &slope);
+
+    if (prev_slope[ref])
+        slope = slope * 0.1 + prev_slope[ref] * 0.9;
+    prev_slope[ref] = slope;
 
     for (int n = 0; n < BLKSZ; n++)
     {
@@ -198,6 +204,9 @@ void sync_process(sync_t *st)
     }
     else
     {
+        for (i = 0; i < FFT; i++)
+            prev_slope[i] = 0;
+
         int offset = find_first_block(buffer, LB_START + 0);
         if (offset > 0)
         {

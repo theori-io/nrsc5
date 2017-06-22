@@ -19,7 +19,7 @@
 #include "input.h"
 #include "sync.h"
 
-#define BUFS 16
+#define BUFS 4
 
 float prev_slope[FFT];
 
@@ -207,7 +207,12 @@ void sync_process(sync_t *st)
         for (i = 0; i < FFT; i++)
             prev_slope[i] = 0;
 
+        // First and last reference subcarriers have the same data. Try both
+        // in case one of the sidebands is too corrupted.
         int offset = find_first_block(buffer, LB_START + 0);
+        if (offset < 0)
+            offset = find_first_block(buffer, UB_START + BAND_LENGTH - 1);
+
         if (offset > 0)
         {
             log_debug("First block @ %d", offset);
@@ -224,21 +229,23 @@ void sync_process(sync_t *st)
             for (i = -300; i < 300; ++i)
             {
                 int j, offset2;
-                adjust_ref(buffer, st->phases, LB_START + i);
-                offset = find_ref(buffer, LB_START + i, 2);
+                adjust_ref(buffer, st->phases, LB_START + i + BAND_LENGTH - 1);
+                offset = find_ref(buffer, LB_START + i + BAND_LENGTH - 1, 0);
                 if (offset < 0)
                     continue;
                 // We think we found the start. Check upperband to confirm.
-                adjust_ref(buffer, st->phases, UB_START + 19 * 10 + i);
-                offset2 = find_ref(buffer, UB_START + 19 * 10 + i, 2);
+                adjust_ref(buffer, st->phases, UB_START + i);
+                offset2 = find_ref(buffer, UB_START + i, 0);
                 if (offset2 == offset)
                 {
                     // The offsets matched, so 'i' is likely the CFO.
                     input_set_skip(st->input, offset * FFTCP);
                     input_cfo_adjust(st->input, i);
 
+                    log_debug("First block @ %d", offset);
+
                     // Wait until the buffers have cleared before measuring again.
-                    st->cfo_wait = (st->buf_idx + 2 - st->used) % BUFS;
+                    st->cfo_wait = BUFS;
                     break;
                 }
             }
@@ -298,8 +305,8 @@ void sync_process(sync_t *st)
         // Soft demod based on MER for each sideband
         float mer_lb = 2 * BLKSZ * DATA_PER_BAND / error_lb;
         float mer_ub = 2 * BLKSZ * DATA_PER_BAND / error_ub;
-        float mult_lb = fmaxf(fminf(mer_lb * 10, 63), 1);
-        float mult_ub = fmaxf(fminf(mer_ub * 10, 63), 1);
+        float mult_lb = fmaxf(fminf(mer_lb * 10, 127), 1);
+        float mult_ub = fmaxf(fminf(mer_ub * 10, 127), 1);
 
 #define DEMOD(x) ((x) >= 0 ? 1 : -1)
         for (int n = 0; n < BLKSZ; n++)

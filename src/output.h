@@ -2,7 +2,10 @@
 
 #include <ao/ao.h>
 #include <neaacdec.h>
+
+#ifdef USE_THREADS
 #include <pthread.h>
+#endif
 
 #define AUDIO_FRAME_BYTES 8192
 
@@ -28,10 +31,12 @@ typedef struct
 
     ao_device *dev;
     NeAACDecHandle handle;
+#ifdef USE_THREADS
     output_buffer_t *head, *tail, *free;
     pthread_t worker_thread;
     pthread_mutex_t mutex;
     pthread_cond_t cond;
+#endif
 } output_t;
 
 void output_push(output_t *st, uint8_t *pkt, unsigned int len);

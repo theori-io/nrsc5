@@ -18,6 +18,7 @@ Available build options:
     -DUSE_COLOR=ON       Colorize log output. [default=OFF]
     -DUSE_NEON=ON        Use NEON instructions. [ARM, default=OFF]
     -DUSE_SSE=ON         Use SSSE3 instructions. [x86, default=OFF]
+    -DUSE_THREADS=ON     Enable multithreading. [default=ON]
 
 You can test the program using the included sample capture:
 

@@ -108,6 +108,7 @@ void output_push(output_t *st, uint8_t *pkt, unsigned int len)
 
         assert(bytes == AUDIO_FRAME_BYTES);
 
+#ifdef USE_THREADS
         pthread_mutex_lock(&st->mutex);
         while (st->free == NULL)
             pthread_cond_wait(&st->cond, &st->mutex);
@@ -126,9 +127,13 @@ void output_push(output_t *st, uint8_t *pkt, unsigned int len)
         st->tail = ob;
         pthread_mutex_unlock(&st->mutex);
         pthread_cond_signal(&st->cond);
+#else
+        ao_play(st->dev, (void *)buffer, AUDIO_FRAME_BYTES);
+#endif
     }
 }
 
+#ifdef USE_THREADS
 static void *output_worker(void *arg)
 {
     output_t *st = arg;
@@ -155,13 +160,14 @@ static void *output_worker(void *arg)
         pthread_cond_signal(&st->cond);
     }
 }
+#endif
 
 void output_reset(output_t *st)
 {
     unsigned long samprate = 22050;
     output_buffer_t *ob;
 
-    if (st->method == OUTPUT_ADTS)
+    if (st->method == OUTPUT_ADTS || st->method == OUTPUT_HDC)
         return;
 
     if (st->handle)
@@ -169,15 +175,20 @@ void output_reset(output_t *st)
 
     NeAACDecInitHDC(&st->handle, &samprate);
 
-    for (ob = st->head; ob && ob->next != NULL; ob = ob->next)
+#ifdef USE_THREADS
+    // find the end of the head list
+    for (ob = st->head; ob && ob->next != NULL; ob = ob->next) { }
+
+    // if the head list is non-empty, prepend to free list
+    if (ob != NULL)
     {
+        ob->next = st->free;
+        st->free = st->head;
     }
 
-    if (ob != NULL)
-        ob->next = st->free;
-    st->free = st->head;
     st->head = NULL;
     st->tail = NULL;
+#endif
 }
 
 void output_init_adts(output_t *st, const char *name)
@@ -215,11 +226,10 @@ static void output_init_ao(output_t *st, int driver, const char *name)
     if (st->dev == NULL)
         FATAL_EXIT("Unable to open output wav file.");
 
+#ifdef USE_THREADS
     st->head = NULL;
     st->tail = NULL;
     st->free = NULL;
-    st->handle = NULL;
-    output_reset(st);
 
     for (i = 0; i < 32; ++i)
     {
@@ -231,6 +241,10 @@ static void output_init_ao(output_t *st, int driver, const char *name)
     pthread_cond_init(&st->cond, NULL);
     pthread_mutex_init(&st->mutex, NULL);
     pthread_create(&st->worker_thread, NULL, output_worker, st);
+#endif
+
+    st->handle = NULL;
+    output_reset(st);
 }
 
 void output_init_wav(output_t *st, const char *name)

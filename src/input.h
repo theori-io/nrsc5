@@ -3,7 +3,9 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <complex.h>
+#ifdef USE_THREADS
 #include <pthread.h>
+#endif
 
 #include "acquire.h"
 #include "decode.h"
@@ -27,7 +29,7 @@ typedef struct input_t
     float complex *buffer;
     double center;
     unsigned int avail, used, skip;
-    int cfo, cfo_idx;
+    int cfo, cfo_idx, cfo_used;
     float complex cfo_tbl[FFT];
 
     fftwf_plan snr_fft;
@@ -38,9 +40,11 @@ typedef struct input_t
     input_snr_cb_t snr_cb;
     void *snr_cb_arg;
 
+#ifdef USE_THREADS
     pthread_t worker_thread;
     pthread_cond_t cond;
     pthread_mutex_t mutex;
+#endif
 
     acquire_t acq;
     decode_t decode;

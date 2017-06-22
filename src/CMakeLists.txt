@@ -14,7 +14,12 @@ if (CMAKE_SYSTEM_PROCESSOR MATCHES "(i[456]|x)86.*")
 endif()
 
 if (USE_COLOR)
-    add_compile_options (-DLOG_USE_COLOR)
+    add_definitions (-DLOG_USE_COLOR)
+endif()
+
+if (USE_THREADS)
+    add_definitions (-DUSE_THREADS)
+    set (THREAD_LIBRARY "pthread")
 endif()
 
 add_executable (
@@ -43,7 +48,7 @@ target_link_libraries (
     faad2
     liquid-dsp
     m
-    pthread
+    ${THREAD_LIBRARY}
     ${AO_LIBRARY}
     ${FFTW3F_LIBRARY}
     ${RTL_SDR_LIBRARY}

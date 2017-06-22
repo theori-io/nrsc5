@@ -1,7 +1,9 @@
 #pragma once
 
 #include <complex.h>
+#ifdef USE_THREADS
 #include <pthread.h>
+#endif
 
 typedef struct
 {
@@ -19,9 +21,11 @@ typedef struct
     float error_lb;
     float error_ub;
 
+#ifdef USE_THREADS
     pthread_t worker_thread;
     pthread_cond_t cond;
     pthread_mutex_t mutex;
+#endif
 } sync_t;
 
 void sync_push(sync_t *st, float complex *fft);

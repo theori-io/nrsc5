@@ -57,10 +57,34 @@ static float filter_taps[] = {
     -0.006910541036924275
 };
 
+static void input_push_to_acquire(input_t *st)
+{
+    // CFO is modified in sync, and is expected to be "immediately" applied
+    for (int j = st->used + st->cfo_used; j < st->avail; j++)
+        st->buffer[j] *= st->cfo_tbl[st->cfo_idx++ % FFT];
+
+    if (st->skip)
+    {
+        if (st->skip > st->avail - st->used)
+        {
+            st->skip -= st->avail - st->used;
+            st->used = st->avail;
+        }
+        else
+        {
+            st->used += st->skip;
+            st->skip = 0;
+        }
+    }
+
+    st->used += acquire_push(&st->acq, &st->buffer[st->used], st->avail - st->used);
+    st->cfo_used = st->avail - st->used;
+}
+
+#ifdef USE_THREADS
 static void *input_worker(void *arg)
 {
     input_t *st = arg;
-    int cfo_used = 0;
 
     while (1)
     {
@@ -68,26 +92,8 @@ static void *input_worker(void *arg)
         while (st->avail - st->used < FFTCP)
             pthread_cond_wait(&st->cond, &st->mutex);
 
-        // CFO is modified in sync, and is expected to be "immediately" applied
-        for (int j = st->used + cfo_used; j < st->avail; j++)
-            st->buffer[j] *= st->cfo_tbl[st->cfo_idx++ % FFT];
+        input_push_to_acquire(st);
 
-        if (st->skip)
-        {
-            if (st->skip > st->avail - st->used)
-            {
-                st->skip -= st->avail - st->used;
-                st->used = st->avail;
-            }
-            else
-            {
-                st->used += st->skip;
-                st->skip = 0;
-            }
-        }
-
-        st->used += acquire_push(&st->acq, &st->buffer[st->used], st->avail - st->used);
-        cfo_used = st->avail - st->used;
         pthread_mutex_unlock(&st->mutex);
         pthread_cond_signal(&st->cond);
 
@@ -96,6 +102,7 @@ static void *input_worker(void *arg)
 
     return NULL;
 }
+#endif
 
 void input_pdu_push(input_t *st, uint8_t *pdu, unsigned int len)
 {
@@ -127,6 +134,7 @@ void input_cfo_adjust(input_t *st, int cfo)
 
 void input_wait(input_t *st, int flush)
 {
+#ifdef USE_THREADS
     pthread_mutex_lock(&st->mutex);
     while (st->avail - st->used > (flush ? 1 : 256) * FFTCP)
         pthread_cond_wait(&st->cond, &st->mutex);
@@ -136,6 +144,7 @@ void input_wait(input_t *st, int flush)
     {
         sync_wait(&st->sync);
     }
+#endif
 }
 
 static void measure_snr(input_t *st, uint8_t *buf, uint32_t len)
@@ -203,7 +212,9 @@ void input_cb(uint8_t *buf, uint32_t len, void *arg)
         return;
     }
 
+#ifdef USE_THREADS
     pthread_mutex_lock(&st->mutex);
+#endif
     if (cnt + st->avail > INPUT_BUF_LEN)
     {
         if (st->avail > st->used)
@@ -220,7 +231,9 @@ void input_cb(uint8_t *buf, uint32_t len, void *arg)
     }
     new_avail = st->avail;
     resamp_q15_set_rate(st->resamp, st->resamp_rate);
+#ifdef USE_THREADS
     pthread_mutex_unlock(&st->mutex);
+#endif
 
     if (cnt + new_avail > INPUT_BUF_LEN)
         log_warn("input buffer overflow!");
@@ -242,10 +255,19 @@ void input_cb(uint8_t *buf, uint32_t len, void *arg)
         new_avail += nw;
     }
 
+#ifdef USE_THREADS
     pthread_mutex_lock(&st->mutex);
     st->avail = new_avail;
     pthread_mutex_unlock(&st->mutex);
     pthread_cond_signal(&st->cond);
+#else
+    st->avail = new_avail;
+    while (st->avail - st->used >= FFTCP)
+    {
+        input_push_to_acquire(st);
+        acquire_process(&st->acq);
+    }
+#endif
 }
 
 void input_set_snr_callback(input_t *st, input_snr_cb_t cb, void *arg)
@@ -262,6 +284,7 @@ void input_reset(input_t *st)
     st->resamp_rate = 1.0f;
     st->cfo = 0;
     st->cfo_idx = 0;
+    st->cfo_used = 0;
     for (int i = 0; i < FFT; ++i)
         st->cfo_tbl[i] = 1;
     for (int i = 0; i < 64; ++i)
@@ -284,9 +307,11 @@ void input_init(input_t *st, output_t *output, double center, unsigned int progr
 
     input_reset(st);
 
+#ifdef USE_THREADS
     pthread_cond_init(&st->cond, NULL);
     pthread_mutex_init(&st->mutex, NULL);
     pthread_create(&st->worker_thread, NULL, input_worker, st);
+#endif
 
     acquire_init(&st->acq, st);
     decode_init(&st->decode, st);

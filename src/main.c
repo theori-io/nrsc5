@@ -20,9 +20,12 @@
 #include <complex.h>
 #include <limits.h>
 #include <math.h>
-#include <pthread.h>
 #include <string.h>
 #include <unistd.h>
+
+#ifdef USE_THREADS
+#include <pthread.h>
+#endif
 
 #include <rtl-sdr.h>
 
@@ -35,7 +38,9 @@
 static int gain_list[128];
 static int gain_index, gain_count;
 
+#ifdef USE_THREADS
 pthread_mutex_t rtlsdr_usb_mutex;
+#endif
 
 // signal and noise are squared magnitudes
 static int snr_callback(void *arg, float snr, float signal, float noise)
@@ -44,10 +49,11 @@ static int snr_callback(void *arg, float snr, float signal, float noise)
     static float best_snr;
     static float cur_avg;
     static float cur_cnt;
+    int result = 0;
     rtlsdr_dev_t *dev = arg;
 
     if (gain_count == 0)
-        return 0;
+        return result;
 
     // choose the best gain level
     if (snr >= best_snr)
@@ -63,25 +69,26 @@ static int snr_callback(void *arg, float snr, float signal, float noise)
         log_debug("Best gain: %d", gain_list[best_gain]);
         gain_index = best_gain;
         gain_count = 0;
-
-        pthread_mutex_lock(&rtlsdr_usb_mutex);
-        rtlsdr_set_tuner_gain(dev, gain_list[gain_index]);
-        rtlsdr_reset_buffer(dev);
-        pthread_mutex_unlock(&rtlsdr_usb_mutex);
-        return 0;
     }
     else
     {
         gain_index++;
-
-        pthread_mutex_lock(&rtlsdr_usb_mutex);
-        rtlsdr_set_tuner_gain(dev, gain_list[gain_index]);
-        rtlsdr_reset_buffer(dev);
-        pthread_mutex_unlock(&rtlsdr_usb_mutex);
+        // continue searching
+        result = 1;
     }
-    return 1;
+
+#ifdef USE_THREADS
+    pthread_mutex_lock(&rtlsdr_usb_mutex);
+#endif
+    rtlsdr_set_tuner_gain(dev, gain_list[gain_index]);
+    rtlsdr_reset_buffer(dev);
+#ifdef USE_THREADS
+    pthread_mutex_unlock(&rtlsdr_usb_mutex);
+#endif
+    return result;
 }
 
+#ifdef USE_THREADS
 static void log_lock(void *udata, int lock)
 {
     pthread_mutex_t *mutex = udata;
@@ -90,6 +97,7 @@ static void log_lock(void *udata, int lock)
     else
         pthread_mutex_unlock(mutex);
 }
+#endif
 
 static void help(const char *progname)
 {
@@ -104,7 +112,6 @@ int main(int argc, char *argv[])
     FILE *infp = NULL, *outfp = NULL;
     input_t input;
     output_t output;
-    pthread_mutex_t log_mutex;
 
     while ((opt = getopt(argc, argv, "r:w:d:p:o:f:g:ql:")) != -1)
     {
@@ -143,9 +150,12 @@ int main(int argc, char *argv[])
         }
     }
 
+#ifdef USE_THREADS
+    pthread_mutex_t log_mutex;
     pthread_mutex_init(&log_mutex, NULL);
     log_set_lock(log_lock);
     log_set_udata(&log_mutex);
+#endif
 
     if (input_name == NULL)
     {
@@ -285,7 +295,9 @@ int main(int argc, char *argv[])
         err = rtlsdr_reset_buffer(dev);
         if (err) FATAL_EXIT("rtlsdr_reset_buffer error: %d", err);
 
+#ifdef USE_THREADS
         pthread_mutex_init(&rtlsdr_usb_mutex, NULL);
+#endif
 
         // special loop for modifying gain (we can't use async transfers)
         while (gain_count)
@@ -293,10 +305,14 @@ int main(int argc, char *argv[])
             // use a smaller buffer during auto gain
             int len = 128 * 1024;
 
+#ifdef USE_THREADS
             pthread_mutex_lock(&rtlsdr_usb_mutex);
+#endif
             err = rtlsdr_read_sync(dev, buf, len, &len);
             if (err) FATAL_EXIT("rtlsdr_read_sync error: %d", err);
+#ifdef USE_THREADS
             pthread_mutex_unlock(&rtlsdr_usb_mutex);
+#endif
 
             input_cb(buf, len, &input);
         }

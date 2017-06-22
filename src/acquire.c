@@ -180,6 +180,10 @@ void acquire_init(acquire_t *st, input_t *input)
             st->shape[i] = powf(cosf(M_PI / 2 * (i - FFT) / CP), 2);
     }
 
+    st->history_size = 0;
+    for (i = 0; i < ACQ_HISTORY; ++i)
+        st->history[i] = 0;
+
     st->fftin = malloc(sizeof(float complex) * FFT);
     st->fftout = malloc(sizeof(float complex) * FFT);
     st->fft = fftwf_plan_dft_1d(FFT, st->fftin, st->fftout, FFTW_FORWARD, 0);

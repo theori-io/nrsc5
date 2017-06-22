@@ -262,7 +262,6 @@ int main(int argc, char *argv[])
     else
     {
         uint8_t *buf = malloc(128 * 1024);
-        pthread_t thread;
         rtlsdr_dev_t *dev;
 
         err = rtlsdr_open(&dev, 0);

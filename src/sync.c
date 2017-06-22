@@ -402,6 +402,7 @@ void sync_init(sync_t *st, input_t *input)
     st->phases = malloc(sizeof(float) * BLKSZ * FFT);
     st->ref_buf = malloc(BLKSZ);
     st->ready = 0;
+    st->buf_idx = 0;
     st->idx = 0;
     st->used = 0;
     st->cfo_wait = 0;

@@ -177,13 +177,11 @@ void frame_process(frame_t *st)
     for (j = 0; j < hdr.nop; ++j)
     {
         unsigned int cnt = hdr.locations[j] - i;
-        unsigned int crc = buf[i + cnt];
-
-        if (crc8(&buf[i], cnt) != crc)
+        if (crc8(&buf[i], cnt + 1) != 0)
         {
             log_warn("crc mismatch!");
-            st->ready = 0;
-            break;
+            i += cnt + 1;
+            continue;
         }
 
         if (j == 0 && hdr.pfirst)

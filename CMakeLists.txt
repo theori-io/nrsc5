@@ -20,6 +20,7 @@ endif ()
 find_library (AO_LIBRARY ao)
 find_library (FFTW3F_LIBRARY fftw3f)
 find_library (RTL_SDR_LIBRARY rtlsdr)
+find_library (LIQUID_DSP_LIBRARY liquid-dsp)
 
 set (FAAD2_PREFIX "${CMAKE_BINARY_DIR}/faad2-prefix")
 ExternalProject_Add (
@@ -41,24 +42,5 @@ add_library (faad2 STATIC IMPORTED)
 set_property (TARGET faad2 PROPERTY IMPORTED_LOCATION "${FAAD2_PREFIX}/lib/libfaad.a")
 add_dependencies (faad2 faad2_external)
 include_directories ("${FAAD2_PREFIX}/include")
-
-set (LIQUID_DSP_PREFIX "${CMAKE_BINARY_DIR}/liquid-dsp-prefix")
-ExternalProject_Add (
-    liquid-dsp_external
-    GIT_REPOSITORY "https://github.com/awesie/liquid-dsp.git"
-    PREFIX ${LIQUID_DSP_PREFIX}
-
-    UPDATE_COMMAND ""
-    PATCH_COMMAND ./bootstrap.sh
-    CONFIGURE_COMMAND ./configure --prefix=${LIQUID_DSP_PREFIX} "CFLAGS=${CMAKE_C_FLAGS}"
-
-    BUILD_COMMAND make
-    BUILD_IN_SOURCE 1
-)
-
-add_library (liquid-dsp STATIC IMPORTED)
-set_property (TARGET liquid-dsp PROPERTY IMPORTED_LOCATION "${LIQUID_DSP_PREFIX}/lib/libliquid.a")
-add_dependencies (liquid-dsp liquid-dsp_external)
-include_directories ("${LIQUID_DSP_PREFIX}/include")
 
 add_subdirectory (src)

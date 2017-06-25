@@ -15,6 +15,7 @@
 
 #include <assert.h>
 #include <string.h>
+#include <sys/time.h>
 
 #include "bitreader.h"
 #include "bitwriter.h"
@@ -79,6 +80,26 @@ static void dump_hdc(FILE *fp, uint8_t *pkt, unsigned int len)
     fflush(fp);
 }
 
+void output_reset_buffers(output_t *st)
+{
+#ifdef USE_THREADS
+    output_buffer_t *ob;
+
+    // find the end of the head list
+    for (ob = st->head; ob && ob->next; ob = ob->next) { }
+
+    // if the head list is non-empty, prepend to free list
+    if (ob != NULL)
+    {
+        ob->next = st->free;
+        st->free = st->head;
+    }
+
+    st->head = NULL;
+    st->tail = NULL;
+#endif
+}
+
 void output_push(output_t *st, uint8_t *pkt, unsigned int len)
 {
     void *buffer;
@@ -109,9 +130,24 @@ void output_push(output_t *st, uint8_t *pkt, unsigned int len)
         assert(bytes == AUDIO_FRAME_BYTES);
 
 #ifdef USE_THREADS
+        struct timespec ts;
+        clock_gettime(CLOCK_REALTIME, &ts);
+        ts.tv_nsec += 100000000;
+        if (ts.tv_nsec >= 1000000000)
+        {
+            ts.tv_nsec -= 1000000000;
+            ts.tv_sec += 1;
+        }
+
         pthread_mutex_lock(&st->mutex);
         while (st->free == NULL)
-            pthread_cond_wait(&st->cond, &st->mutex);
+        {
+            if (pthread_cond_timedwait(&st->cond, &st->mutex, &ts) == ETIMEDOUT)
+            {
+                log_warn("Audio output timed out, dropping samples");
+                output_reset_buffers(st);
+            }
+        }
         ob = st->free;
         st->free = ob->next;
         pthread_mutex_unlock(&st->mutex);
@@ -145,15 +181,17 @@ static void *output_worker(void *arg)
         pthread_mutex_lock(&st->mutex);
         while (st->head == NULL)
             pthread_cond_wait(&st->cond, &st->mutex);
+        // unlink from head list
         ob = st->head;
+        st->head = ob->next;
+        if (st->head == NULL)
+            st->tail = NULL;
         pthread_mutex_unlock(&st->mutex);
 
         ao_play(st->dev, (void *)ob->data, AUDIO_FRAME_BYTES);
 
         pthread_mutex_lock(&st->mutex);
-        st->head = ob->next;
-        if (st->head == NULL)
-            st->tail = NULL;
+        // add to free list
         ob->next = st->free;
         st->free = ob;
         pthread_mutex_unlock(&st->mutex);
@@ -165,7 +203,6 @@ static void *output_worker(void *arg)
 void output_reset(output_t *st)
 {
     unsigned long samprate = 22050;
-    output_buffer_t *ob;
 
     if (st->method == OUTPUT_ADTS || st->method == OUTPUT_HDC)
         return;
@@ -175,20 +212,7 @@ void output_reset(output_t *st)
 
     NeAACDecInitHDC(&st->handle, &samprate);
 
-#ifdef USE_THREADS
-    // find the end of the head list
-    for (ob = st->head; ob && ob->next != NULL; ob = ob->next) { }
-
-    // if the head list is non-empty, prepend to free list
-    if (ob != NULL)
-    {
-        ob->next = st->free;
-        st->free = st->head;
-    }
-
-    st->head = NULL;
-    st->tail = NULL;
-#endif
+    output_reset_buffers(st);
 }
 
 void output_init_adts(output_t *st, const char *name)

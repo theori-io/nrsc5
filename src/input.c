@@ -236,7 +236,10 @@ void input_cb(uint8_t *buf, uint32_t len, void *arg)
 #endif
 
     if (cnt + new_avail > INPUT_BUF_LEN)
-        log_warn("input buffer overflow!");
+    {
+        log_error("input buffer overflow!");
+        return;
+    }
     assert(len % 4 == 0);
 
     for (i = 0; i < cnt; i++)

@@ -20,7 +20,7 @@ endif ()
 find_library (AO_LIBRARY ao)
 find_library (FFTW3F_LIBRARY fftw3f)
 find_library (RTL_SDR_LIBRARY rtlsdr)
-find_library (LIQUID_DSP_LIBRARY liquid-dsp)
+find_library (LIQUID_DSP_LIBRARY liquid)
 
 set (FAAD2_PREFIX "${CMAKE_BINARY_DIR}/faad2-prefix")
 ExternalProject_Add (

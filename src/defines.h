@@ -76,3 +76,5 @@ static inline void fftshift(float complex *x, unsigned int size)
         x[i+3 + h] = t4;
     }
 }
+
+float complex fast_cexpf(float x);

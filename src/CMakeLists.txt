@@ -26,6 +26,11 @@ if (USE_THREADS)
     endif()
 endif()
 
+if (USE_FAST_MATH)
+    add_compile_options (-ffast-math)
+    add_definitions (-DUSE_FAST_MATH)
+endif()
+
 add_executable (
     nrsc5
     acquire.c
@@ -39,6 +44,7 @@ add_executable (
 
     firdecim_q15.c
     resamp_q15.c
+    math.c
 
     conv_dec.c
 

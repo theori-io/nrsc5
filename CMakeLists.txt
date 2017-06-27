@@ -7,6 +7,7 @@ option (USE_COLOR "Colorize log output")
 option (USE_NEON "Use NEON instructions")
 option (USE_SSE "Use SSE3 instructions")
 option (USE_THREADS "Enable multithreading" ON)
+option (USE_FAST_MATH "Use unsafe math optimizations")
 
 find_program (AUTOCONF autoconf)
 if (NOT AUTOCONF)

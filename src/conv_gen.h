@@ -19,7 +19,6 @@
  * Author: Tom Tsou <tom.tsou@ettus.com>
  */
 
-#ifndef HAVE_SSE3
 #include <stdint.h>
 #include <string.h>
 
@@ -185,4 +184,3 @@ static void gen_metrics_k7_n4(const int8_t *seq, const int16_t *out,
 	_gen_branch_metrics_n4(64, seq, out, metrics);
 	_gen_path_metrics(64, sums, metrics, paths, norm);
 }
-#endif /* !HAVE_SSE3 */

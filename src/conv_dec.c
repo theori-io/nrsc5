@@ -24,11 +24,18 @@
 #include <malloc.h>
 #endif
 #include <string.h>
+#include <assert.h>
 #include <errno.h>
 
 #include "conv.h"
-#include "conv_gen.h"
+
+#if defined(HAVE_SSE3)
 #include "conv_sse.h"
+#elif defined(HAVE_NEON)
+#include "conv_neon.h"
+#else
+#include "conv_gen.h"
+#endif
 
 #define PARITY(X) __builtin_parity(X)
 
@@ -353,37 +360,8 @@ static struct vdecoder *alloc_vdec(const struct lte_conv_code *code)
 	dec->recursive = code->rgen ? 1 : 0;
 	dec->intrvl = INT16_MAX / (dec->n * INT8_MAX) - dec->k;
 
-	if (dec->k == 5) {
-		switch (dec->n) {
-		case 2:
-			dec->metric_func = gen_metrics_k5_n2;
-			break;
-		case 3:
-			dec->metric_func = gen_metrics_k5_n3;
-			break;
-		case 4:
-			dec->metric_func = gen_metrics_k5_n4;
-			break;
-		default:
-			goto fail;
-		}
-	} else if (dec->k == 7) {
-		switch (dec->n) {
-		case 2:
-			dec->metric_func = gen_metrics_k7_n2;
-			break;
-		case 3:
-			dec->metric_func = gen_metrics_k7_n3;
-			break;
-		case 4:
-			dec->metric_func = gen_metrics_k7_n4;
-			break;
-		default:
-			goto fail;
-		}
-	} else {
-		goto fail;
-	}
+    assert(dec->n == 3);
+    assert(dec->k == 7);
 
 	if (code->term == CONV_TERM_FLUSH)
 		dec->len = code->len + code->k - 1;
@@ -418,7 +396,7 @@ static void _conv_decode(struct vdecoder *dec, const int8_t *seq, int len)
 	struct vtrellis *trellis = dec->trellis;
 
 	for (i = 0; i < dec->len; i++) {
-		dec->metric_func(&seq[dec->n * i],
+		gen_metrics_k7_n3(&seq[dec->n * i],
 				 trellis->outputs,
 				 trellis->sums,
 				 dec->paths[i],

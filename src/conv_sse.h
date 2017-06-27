@@ -23,7 +23,6 @@
 #define __always_inline
 #endif
 
-#ifdef HAVE_SSE3
 #include <stdint.h>
 #include <emmintrin.h>
 #include <tmmintrin.h>
@@ -607,5 +606,3 @@ static void gen_metrics_k7_n4(const int8_t *val, const int16_t *out,
 
 	_sse_metrics_k7_n4(_val, out, sums, paths, norm);
 }
-
-#endif /* HAVE_SSE3 */

@@ -28,6 +28,20 @@ find_library (AO_LIBRARY ao)
 find_library (FFTW3F_LIBRARY fftw3f)
 find_library (RTL_SDR_LIBRARY rtlsdr)
 
+if (CMAKE_SYSTEM_PROCESSOR MATCHES "arm.*")
+    if (USE_NEON)
+        set (CMAKE_C_FLAGS "-mcpu=cortex-a7 -mfloat-abi=hard -mfpu=neon-vfpv4")
+        add_definitions (-DHAVE_NEON)
+    endif()
+endif()
+
+if (CMAKE_SYSTEM_PROCESSOR MATCHES "(i[456]|x)86.*")
+    if (USE_SSE)
+        set (CMAKE_C_FLAGS "-msse2 -msse3 -mssse3")
+        add_definitions (-DHAVE_SSE2 -DHAVE_SSE3)
+    endif()
+endif()
+
 set (FAAD2_PREFIX "${CMAKE_BINARY_DIR}/faad2-prefix")
 ExternalProject_Add (
     faad2_external
@@ -39,7 +53,7 @@ ExternalProject_Add (
     PATCH_COMMAND patch -p1 -i "${CMAKE_SOURCE_DIR}/support/faad2-hdc-support.patch"
     COMMAND sh ./bootstrap
 
-    CONFIGURE_COMMAND ${FAAD2_PREFIX}/src/faad2_external/configure --prefix=${FAAD2_PREFIX} --with-hdc "CFLAGS=${CMAKE_C_FLAGS}"
+    CONFIGURE_COMMAND ${FAAD2_PREFIX}/src/faad2_external/configure --prefix=${FAAD2_PREFIX} --with-hdc "CFLAGS=-O3 ${CMAKE_C_FLAGS}"
 
     BUILD_COMMAND make
 )
@@ -57,7 +71,7 @@ ExternalProject_Add (
 
     UPDATE_COMMAND ""
     PATCH_COMMAND ./bootstrap.sh
-    CONFIGURE_COMMAND ./configure --prefix=${LIQUID_DSP_PREFIX} "CFLAGS=${CMAKE_C_FLAGS}"
+    CONFIGURE_COMMAND ./configure --prefix=${LIQUID_DSP_PREFIX} "CFLAGS=-O3 ${CMAKE_C_FLAGS}"
 
     BUILD_COMMAND make
     BUILD_IN_SOURCE 1

@@ -1,18 +1,5 @@
 add_compile_options (--std=gnu11 -O3)
 
-if (CMAKE_SYSTEM_PROCESSOR MATCHES "arm.*")
-    if (USE_NEON)
-        add_compile_options (-mcpu=cortex-a7 -mfloat-abi=hard -mfpu=neon-vfpv4)
-        add_definitions (-DHAVE_NEON)
-    endif()
-endif()
-if (CMAKE_SYSTEM_PROCESSOR MATCHES "(i[456]|x)86.*")
-    if (USE_SSE)
-        add_compile_options (-msse2 -msse3 -mssse3)
-        add_definitions (-DHAVE_SSE2 -DHAVE_SSE3)
-    endif()
-endif()
-
 if (USE_COLOR)
     add_definitions (-DLOG_USE_COLOR)
 endif()

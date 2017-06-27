@@ -265,6 +265,9 @@ static void output_init_ao(output_t *st, int driver, const char *name)
     pthread_cond_init(&st->cond, NULL);
     pthread_mutex_init(&st->mutex, NULL);
     pthread_create(&st->worker_thread, NULL, output_worker, st);
+#ifdef HAVE_PTHREAD_SETNAME_NP
+    pthread_setname_np(st->worker_thread, "output");
+#endif
 #endif
 
     st->handle = NULL;

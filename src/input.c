@@ -314,6 +314,9 @@ void input_init(input_t *st, output_t *output, double center, unsigned int progr
     pthread_cond_init(&st->cond, NULL);
     pthread_mutex_init(&st->mutex, NULL);
     pthread_create(&st->worker_thread, NULL, input_worker, st);
+#ifdef HAVE_PTHREAD_SETNAME_NP
+    pthread_setname_np(st->worker_thread, "worker");
+#endif
 #endif
 
     acquire_init(&st->acq, st);

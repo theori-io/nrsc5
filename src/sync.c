@@ -414,5 +414,8 @@ void sync_init(sync_t *st, input_t *input)
     pthread_cond_init(&st->cond, NULL);
     pthread_mutex_init(&st->mutex, NULL);
     pthread_create(&st->worker_thread, NULL, sync_worker, st);
+#ifdef HAVE_PTHREAD_SETNAME_NP
+    pthread_setname_np(st->worker_thread, "sync_worker");
+#endif
 #endif
 }

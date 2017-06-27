@@ -1,4 +1,5 @@
 cmake_minimum_required (VERSION 2.8)
+include (CheckLibraryExists)
 include (ExternalProject)
 project (nrsc5 C)
 

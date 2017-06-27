@@ -18,8 +18,12 @@ if (USE_COLOR)
 endif()
 
 if (USE_THREADS)
-    add_definitions (-DUSE_THREADS)
-    set (THREAD_LIBRARY "pthread")
+    add_definitions (-D_GNU_SOURCE -DUSE_THREADS)
+    set (THREAD_LIBRARY pthread)
+    check_library_exists (${THREAD_LIBRARY} pthread_setname_np "" HAVE_PTHREAD_SETNAME_NP)
+    if (HAVE_PTHREAD_SETNAME_NP)
+        add_definitions (-DHAVE_PTHREAD_SETNAME_NP)
+    endif()
 endif()
 
 add_executable (

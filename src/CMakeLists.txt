@@ -18,12 +18,12 @@ add_executable (
 target_link_libraries (
     nrsc5
     faad2
-    liquid-dsp
     m
     pthread
     ${AO_LIBRARY}
     ${FFTW3F_LIBRARY}
     ${RTL_SDR_LIBRARY}
+    ${LIQUID_DSP_LIBRARY}
 )
 install (
     TARGETS nrsc5

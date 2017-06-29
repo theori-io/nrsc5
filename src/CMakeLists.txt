@@ -43,12 +43,12 @@ add_executable (
 )
 target_link_libraries (
     nrsc5
-    faad2
-    m
+    ${FAAD2_LIBRARY}
     ${THREAD_LIBRARY}
     ${AO_LIBRARY}
     ${FFTW3F_LIBRARY}
     ${RTL_SDR_LIBRARY}
+    m
 )
 install (
     TARGETS nrsc5

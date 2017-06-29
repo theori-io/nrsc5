@@ -1,7 +1,9 @@
 #pragma once
 
+#ifdef HAVE_FAAD2
 #include <ao/ao.h>
 #include <neaacdec.h>
+#endif
 
 #ifdef USE_THREADS
 #include <pthread.h>
@@ -29,8 +31,10 @@ typedef struct
 
     FILE *outfp;
 
+#ifdef HAVE_FAAD2
     ao_device *dev;
     NeAACDecHandle handle;
+#endif
 #ifdef USE_THREADS
     output_buffer_t *head, *tail, *free;
     pthread_t worker_thread;
@@ -43,5 +47,7 @@ void output_push(output_t *st, uint8_t *pkt, unsigned int len);
 void output_reset(output_t *st);
 void output_init_adts(output_t *st, const char *name);
 void output_init_hdc(output_t *st, const char *name);
+#ifdef HAVE_FAAD2
 void output_init_wav(output_t *st, const char *name);
 void output_init_live(output_t *st);
+#endif

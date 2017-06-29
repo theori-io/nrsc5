@@ -221,7 +221,12 @@ int main(int argc, char *argv[])
         }
         else if (strcmp(format_name, "wav") == 0)
         {
+#ifdef HAVE_FAAD2
             output_init_wav(&output, audio_name);
+#else
+            log_fatal("WAV output requires FAAD2.");
+            return 1;
+#endif
         }
         else if (strcmp(format_name, "adts") == 0)
         {
@@ -239,7 +244,12 @@ int main(int argc, char *argv[])
     }
     else
     {
+#ifdef HAVE_FAAD2
         output_init_live(&output);
+#else
+        log_fatal("Live output requires FAAD2.");
+        return 1;
+#endif
     }
 
     input_init(&input, &output, frequency, program, outfp);

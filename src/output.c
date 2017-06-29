@@ -22,6 +22,7 @@
 #include "defines.h"
 #include "output.h"
 
+#ifdef HAVE_FAAD2
 static ao_sample_format sample_format = {
     16,
     44100,
@@ -29,6 +30,7 @@ static ao_sample_format sample_format = {
     AO_FMT_LITTLE,
     "L,R"
 };
+#endif
 
 void hdc_to_aac(bitreader_t *br, bitwriter_t *bw);
 
@@ -102,9 +104,6 @@ void output_reset_buffers(output_t *st)
 
 void output_push(output_t *st, uint8_t *pkt, unsigned int len)
 {
-    void *buffer;
-    NeAACDecFrameInfo info;
-
     if (st->method == OUTPUT_ADTS)
     {
         dump_adts(st->outfp, pkt, len);
@@ -115,6 +114,10 @@ void output_push(output_t *st, uint8_t *pkt, unsigned int len)
         dump_hdc(st->outfp, pkt, len);
         return;
     }
+
+#ifdef HAVE_FAAD2
+    void *buffer;
+    NeAACDecFrameInfo info;
 
     buffer = NeAACDecDecode(st->handle, &info, pkt, len);
     if (info.error > 0)
@@ -167,9 +170,10 @@ void output_push(output_t *st, uint8_t *pkt, unsigned int len)
         ao_play(st->dev, (void *)buffer, AUDIO_FRAME_BYTES);
 #endif
     }
+#endif
 }
 
-#ifdef USE_THREADS
+#if defined(HAVE_FAAD2) && defined(USE_THREADS)
 static void *output_worker(void *arg)
 {
     output_t *st = arg;
@@ -204,6 +208,7 @@ static void *output_worker(void *arg)
 
 void output_reset(output_t *st)
 {
+#ifdef HAVE_FAAD2
     unsigned long samprate = 22050;
 
     if (st->method == OUTPUT_ADTS || st->method == OUTPUT_HDC)
@@ -215,6 +220,7 @@ void output_reset(output_t *st)
     NeAACDecInitHDC(&st->handle, &samprate);
 
     output_reset_buffers(st);
+#endif
 }
 
 void output_init_adts(output_t *st, const char *name)
@@ -241,6 +247,7 @@ void output_init_hdc(output_t *st, const char *name)
         FATAL_EXIT("Unable to open output adts-hdc file.");
 }
 
+#ifdef HAVE_FAAD2
 static void output_init_ao(output_t *st, int driver, const char *name)
 {
     unsigned int i;
@@ -291,3 +298,4 @@ void output_init_live(output_t *st)
     ao_initialize();
     output_init_ao(st, ao_default_driver_id(), NULL);
 }
+#endif

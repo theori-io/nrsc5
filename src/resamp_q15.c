@@ -11,6 +11,12 @@
 #include "firdes.h"
 #include "resamp_q15.h"
 
+#ifdef USE_FAST_MATH
+#define NUM_TAPS 8
+#else
+#define NUM_TAPS 16
+#endif
+
 #define WINDOW_SIZE 2048
 
 typedef struct {
@@ -90,7 +96,7 @@ firpfb_q31 firpfb_q31_create(unsigned int nf, const float *_h, unsigned int h_le
     q->h_len = h_len;
     q->h_sub_len = h_len / nf;
     assert(q->h_sub_len * q->nf == q->h_len);
-    assert(q->h_sub_len == 16);
+    assert(q->h_sub_len == NUM_TAPS);
 
     q->h = malloc(sizeof(int32_t) * 2 * q->h_len);
     q->window = calloc(sizeof(cint32_t), WINDOW_SIZE);
@@ -124,51 +130,17 @@ void firpfb_q31_push(firpfb_q31 q, cint32_t x)
 #if defined(HAVE_NEON)
 static cint32_t dotprod_q31(cint32_t *a, int32_t *b, int n)
 {
-#if 0
-    int64x2_t s1 = vqdmull_s32(vld1_s32((int32_t *)&a[0]), vld1_s32(&b[0*2]));
-    int64x2_t s2 = vqdmull_s32(vld1_s32((int32_t *)&a[1]), vld1_s32(&b[1*2]));
-    int64x2_t s3 = vqdmull_s32(vld1_s32((int32_t *)&a[2]), vld1_s32(&b[2*2]));
-    int64x2_t s4 = vqdmull_s32(vld1_s32((int32_t *)&a[3]), vld1_s32(&b[3*2]));
-    int64x2_t sum = vqaddq_s64(vqaddq_s64(s1, s2), vqaddq_s64(s3, s4));
-
-    s1 = vqdmull_s32(vld1_s32((int32_t *)&a[4]), vld1_s32(&b[4*2]));
-    s2 = vqdmull_s32(vld1_s32((int32_t *)&a[5]), vld1_s32(&b[5*2]));
-    s3 = vqdmull_s32(vld1_s32((int32_t *)&a[6]), vld1_s32(&b[6*2]));
-    s4 = vqdmull_s32(vld1_s32((int32_t *)&a[7]), vld1_s32(&b[7*2]));
-    sum = vqaddq_s64(vqaddq_s64(s1, s2), sum);
-    sum = vqaddq_s64(vqaddq_s64(s3, s4), sum);
-
-    cint32_t result[2];
-    vst1_s32((int32_t*)&result, vshrn_n_s64(sum, 32));
-
-    return result[0];
-#endif
-
     int32x4_t s1 = vqrdmulhq_s32(vld1q_s32((int32_t *)&a[0]), vld1q_s32(&b[0*2]));
     int32x4_t s2 = vqrdmulhq_s32(vld1q_s32((int32_t *)&a[2]), vld1q_s32(&b[2*2]));
     int32x4_t s3 = vqrdmulhq_s32(vld1q_s32((int32_t *)&a[4]), vld1q_s32(&b[4*2]));
     int32x4_t s4 = vqrdmulhq_s32(vld1q_s32((int32_t *)&a[6]), vld1q_s32(&b[6*2]));
     int32x4_t sum = vqaddq_s32(vqaddq_s32(s1, s2), vqaddq_s32(s3, s4));
 
+#if NUM_TAPS == 16
     s1 = vqrdmulhq_s32(vld1q_s32((int32_t *)&a[8]), vld1q_s32(&b[8*2]));
     s2 = vqrdmulhq_s32(vld1q_s32((int32_t *)&a[10]), vld1q_s32(&b[10*2]));
     s3 = vqrdmulhq_s32(vld1q_s32((int32_t *)&a[12]), vld1q_s32(&b[12*2]));
     s4 = vqrdmulhq_s32(vld1q_s32((int32_t *)&a[14]), vld1q_s32(&b[14*2]));
-    sum = vqaddq_s32(vqaddq_s32(s1, s2), sum);
-    sum = vqaddq_s32(vqaddq_s32(s3, s4), sum);
-
-#if 0
-    s1 = vqrdmulhq_s32(vld1q_s32((int32_t *)&a[16]), vld1q_s32(&b[16*2]));
-    s2 = vqrdmulhq_s32(vld1q_s32((int32_t *)&a[18]), vld1q_s32(&b[18*2]));
-    s3 = vqrdmulhq_s32(vld1q_s32((int32_t *)&a[20]), vld1q_s32(&b[20*2]));
-    s4 = vqrdmulhq_s32(vld1q_s32((int32_t *)&a[22]), vld1q_s32(&b[22*2]));
-    sum = vqaddq_s32(vqaddq_s32(s1, s2), sum);
-    sum = vqaddq_s32(vqaddq_s32(s3, s4), sum);
-
-    s1 = vqrdmulhq_s32(vld1q_s32((int32_t *)&a[24]), vld1q_s32(&b[24*2]));
-    s2 = vqrdmulhq_s32(vld1q_s32((int32_t *)&a[26]), vld1q_s32(&b[26*2]));
-    s3 = vqrdmulhq_s32(vld1q_s32((int32_t *)&a[28]), vld1q_s32(&b[28*2]));
-    s4 = vqrdmulhq_s32(vld1q_s32((int32_t *)&a[30]), vld1q_s32(&b[30*2]));
     sum = vqaddq_s32(vqaddq_s32(s1, s2), sum);
     sum = vqaddq_s32(vqaddq_s32(s3, s4), sum);
 #endif
@@ -304,7 +276,7 @@ static cint16_t dotprod_q15(cint16_t *a, int16_t *b, int n)
     int16x8_t s4 = vqrdmulhq_s16(vld1q_s16((int16_t *)&a[12]), vld1q_s16(&b[12*2]));
     int16x8_t sum = vqaddq_s16(vqaddq_s16(s1, s2), vqaddq_s16(s3, s4));
 
-#if 0
+#ifndef USE_FAST_MATH
     s1 = vqrdmulhq_s16(vld1q_s16((int16_t *)&a[16]), vld1q_s16(&b[16*2]));
     s2 = vqrdmulhq_s16(vld1q_s16((int16_t *)&a[20]), vld1q_s16(&b[20*2]));
     s3 = vqrdmulhq_s16(vld1q_s16((int16_t *)&a[24]), vld1q_s16(&b[24*2]));

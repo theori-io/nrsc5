@@ -252,6 +252,7 @@ int main(int argc, char *argv[])
 #endif
     }
 
+    math_init();
     input_init(&input, &output, frequency, program, outfp);
 
     if (infp)

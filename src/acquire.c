@@ -124,8 +124,10 @@ void acquire_process(acquire_t *st)
             {
                 int n = i * FFTCP + j;
                 float complex adj = fast_cexpf(angle * n / FFT);
-                if (j < FFT)
+                if (j < CP)
                     st->fftin[j] = st->shape[j] * adj * st->buffer[i * FFTCP + j + samperr];
+                else if (j < FFT)
+                    st->fftin[j] = adj * st->buffer[i * FFTCP + j + samperr];
                 else
                     st->fftin[j - FFT] += st->shape[j] * adj * st->buffer[i * FFTCP + j + samperr];
             }

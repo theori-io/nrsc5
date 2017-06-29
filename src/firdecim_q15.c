@@ -11,6 +11,12 @@
 
 #include "firdecim_q15.h"
 
+#ifdef USE_FAST_MATH
+#define NUM_TAPS 16
+#else
+#define NUM_TAPS 32
+#endif
+
 #define WINDOW_SIZE 2048
 
 struct firdecim_q15 {
@@ -33,7 +39,7 @@ firdecim_q15 firdecim_q15_create(unsigned int decim, const float * taps, unsigne
     q->idx = ntaps - 1;
 
     assert(decim == 2);
-    assert(ntaps == 32);
+    assert(ntaps == NUM_TAPS);
 
     // reverse order so we can push into the window
     // duplicate for neon
@@ -50,8 +56,8 @@ static void push(firdecim_q15 q, cint16_t x)
 {
     if (q->idx == WINDOW_SIZE)
     {
-        for (int i = 0; i < 31; i++)
-            q->window[i] = q->window[q->idx - 32 + i];
+        for (int i = 0; i < q->ntaps - 1; i++)
+            q->window[i] = q->window[q->idx - q->ntaps + i];
         q->idx = q->ntaps - 1;
     }
     q->window[q->idx++] = x;
@@ -64,15 +70,17 @@ static cint16_t dotprod(cint16_t *a, int16_t *b, int n)
     int16x8_t s2 = vqdmulhq_s16(vld1q_s16((int16_t *)&a[4]), vld1q_s16(&b[4*2]));
     int16x8_t s3 = vqdmulhq_s16(vld1q_s16((int16_t *)&a[8]), vld1q_s16(&b[8*2]));
     int16x8_t s4 = vqdmulhq_s16(vld1q_s16((int16_t *)&a[12]), vld1q_s16(&b[12*2]));
-    int16x8_t suma = vqaddq_s16(vqaddq_s16(s1, s2), vqaddq_s16(s3, s4));
+    int16x8_t sum = vqaddq_s16(vqaddq_s16(s1, s2), vqaddq_s16(s3, s4));
 
+#if NUM_TAPS == 32
     s1 = vqdmulhq_s16(vld1q_s16((int16_t *)&a[16]), vld1q_s16(&b[16*2]));
     s2 = vqdmulhq_s16(vld1q_s16((int16_t *)&a[20]), vld1q_s16(&b[20*2]));
     s3 = vqdmulhq_s16(vld1q_s16((int16_t *)&a[24]), vld1q_s16(&b[24*2]));
     s4 = vqdmulhq_s16(vld1q_s16((int16_t *)&a[28]), vld1q_s16(&b[28*2]));
-    int16x8_t sumb = vqaddq_s16(vqaddq_s16(s1, s2), vqaddq_s16(s3, s4));
+    sum = vqaddq_s16(vqaddq_s16(s1, s2), sum);
+    sum = vqaddq_s16(vqaddq_s16(s3, s4), sum);
+#endif
 
-    int16x8_t sum = vqaddq_s16(suma, sumb);
     int16x4x2_t sum2 = vuzp_s16(vget_high_s16(sum), vget_low_s16(sum));
     int16x4_t sum3 = vpadd_s16(sum2.val[0], sum2.val[1]);
     sum3 = vpadd_s16(sum3, sum3);
@@ -98,6 +106,6 @@ static cint16_t dotprod(cint16_t *a, int16_t *b, int n)
 void firdecim_q15_execute(firdecim_q15 q, const cint16_t *x, cint16_t *y)
 {
     push(q, x[0]);
-    *y = dotprod(&q->window[q->idx - 32], q->taps, 32);
+    *y = dotprod(&q->window[q->idx - q->ntaps], q->taps, q->ntaps);
     push(q, x[1]);
 }

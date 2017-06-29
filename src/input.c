@@ -22,7 +22,31 @@
 
 #define INPUT_BUF_LEN (2160 * 512)
 
+#ifdef USE_FAST_MATH
+#define RESAMP_NUM_TAPS 8
+#else
+#define RESAMP_NUM_TAPS 16
+#endif
+
 static float filter_taps[] = {
+#ifdef USE_FAST_MATH
+    0.009480611881391683,
+    -0.009307908331930475,
+    -0.04768729520351936,
+    -0.08826980074957692,
+    -0.08898671383819234,
+    -0.024601287637045763,
+    0.08064814947475386,
+    0.1614809551166628,
+    0.1614809551166628,
+    0.08064814947475386,
+    -0.024601287637045763,
+    -0.08898671383819234,
+    -0.08826980074957692,
+    -0.04768729520351936,
+    -0.009307908331930475,
+    0.009480611881391683,
+#else
     -0.006910541036924275,
     -0.013268228805145532,
     -0.006644557670245421,
@@ -55,6 +79,7 @@ static float filter_taps[] = {
     -0.006644557670245421,
     -0.013268228805145532,
     -0.006910541036924275
+#endif
 };
 
 static void input_push_to_acquire(input_t *st)
@@ -305,7 +330,7 @@ void input_init(input_t *st, output_t *output, double center, unsigned int progr
     st->snr_cb_arg = NULL;
 
     st->filter = firdecim_q15_create(2, filter_taps, sizeof(filter_taps) / sizeof(filter_taps[0]));
-    st->resamp = resamp_q15_create(8, 0.45f, 60.0f, 16);
+    st->resamp = resamp_q15_create(RESAMP_NUM_TAPS / 2, 0.45f, 60.0f, 16);
     st->snr_fft = fftwf_plan_dft_1d(64, st->snr_fft_in, st->snr_fft_out, FFTW_FORWARD, 0);
 
     input_reset(st);

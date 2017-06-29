@@ -84,7 +84,7 @@ void acquire_process(acquire_t *st)
         for (i = 0; i < ACQ_HISTORY; i++)
             sum += st->history[i];
         avgerr = sum / (float)ACQ_HISTORY;
-        slope = ((float)samperr - st->history[st->history_size % ACQ_HISTORY]) / (ACQ_HISTORY * SYMBOLS);
+        slope = ((float)samperr - avgerr) / (ACQ_HISTORY / 2 * SYMBOLS);
         st->ready = 1;
         st->samperr = avgerr;
         st->slope = slope;

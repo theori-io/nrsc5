@@ -181,6 +181,7 @@ static cint32_t dotprod_q31(cint32_t *a, int32_t *b, int n)
     p4 = _mm_mul_ps(s4, h4);
     sum = _mm_add_ps(_mm_add_ps(p1, p2), _mm_add_ps(p3, p4));
 
+#if NUM_TAPS == 16
     s1 = _mm_cvtepi32_ps(_mm_loadu_si128((__m128i*)&a[8]));
     s2 = _mm_cvtepi32_ps(_mm_loadu_si128((__m128i*)&a[10]));
     s3 = _mm_cvtepi32_ps(_mm_loadu_si128((__m128i*)&a[12]));
@@ -203,6 +204,7 @@ static cint32_t dotprod_q31(cint32_t *a, int32_t *b, int n)
     p4 = _mm_mul_ps(s4, h4);
     sum = _mm_add_ps(_mm_add_ps(p1, p2), sum);
     sum = _mm_add_ps(_mm_add_ps(p3, p4), sum);
+#endif
 
     sum = _mm_mul_ps(sum, shift);
     cint32_t result[2];

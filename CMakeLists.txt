@@ -63,23 +63,4 @@ set_property (TARGET faad2 PROPERTY IMPORTED_LOCATION "${FAAD2_PREFIX}/lib/libfa
 add_dependencies (faad2 faad2_external)
 include_directories ("${FAAD2_PREFIX}/include")
 
-set (LIQUID_DSP_PREFIX "${CMAKE_BINARY_DIR}/liquid-dsp-prefix")
-ExternalProject_Add (
-    liquid-dsp_external
-    GIT_REPOSITORY "https://github.com/awesie/liquid-dsp.git"
-    PREFIX ${LIQUID_DSP_PREFIX}
-
-    UPDATE_COMMAND ""
-    PATCH_COMMAND ./bootstrap.sh
-    CONFIGURE_COMMAND ./configure --prefix=${LIQUID_DSP_PREFIX} "CFLAGS=-O3 ${CMAKE_C_FLAGS}"
-
-    BUILD_COMMAND make
-    BUILD_IN_SOURCE 1
-)
-
-add_library (liquid-dsp STATIC IMPORTED)
-set_property (TARGET liquid-dsp PROPERTY IMPORTED_LOCATION "${LIQUID_DSP_PREFIX}/lib/libliquid.a")
-add_dependencies (liquid-dsp liquid-dsp_external)
-include_directories ("${LIQUID_DSP_PREFIX}/include")
-
 add_subdirectory (src)

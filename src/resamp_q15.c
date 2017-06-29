@@ -1,5 +1,4 @@
 #include <assert.h>
-#include <liquid/liquid.h>
 
 #ifdef HAVE_NEON
 #include <arm_neon.h>
@@ -9,6 +8,7 @@
 #include <emmintrin.h>
 #endif
 
+#include "firdes.h"
 #include "resamp_q15.h"
 
 #define WINDOW_SIZE 2048
@@ -356,7 +356,7 @@ resamp_q15 resamp_q15_create(unsigned int m, float fc, float As, unsigned npfb)
     // design filter
     unsigned int n = 2 * m * npfb + 1;
     float hf[n];
-    liquid_firdes_kaiser(n, fc / npfb, As, 0.0f, hf);
+    firdes_kaiser(n, fc / npfb, As, 0.0f, hf);
 
     // normalize filter coefficients by DC gain
     float gain=0.0f;

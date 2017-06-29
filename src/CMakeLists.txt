@@ -30,6 +30,7 @@ add_executable (
     sync.c
 
     firdecim_q15.c
+    firdes_kaiser.c
     resamp_q15.c
     math.c
 
@@ -43,7 +44,6 @@ add_executable (
 target_link_libraries (
     nrsc5
     faad2
-    liquid-dsp
     m
     ${THREAD_LIBRARY}
     ${AO_LIBRARY}

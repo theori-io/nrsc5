@@ -1,3 +1,5 @@
+#pragma once
+
 #include "defines.h"
 
 typedef struct firdecim_q15 * firdecim_q15;

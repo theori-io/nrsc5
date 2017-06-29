@@ -1,3 +1,5 @@
+#pragma once
+
 #include "defines.h"
 
 typedef struct resamp_q15 * resamp_q15;

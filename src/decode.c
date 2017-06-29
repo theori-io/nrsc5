@@ -49,7 +49,7 @@ static float calc_cber(int8_t *coded, uint8_t *decoded)
 
 static void descramble(uint8_t *buf, unsigned int length)
 {
-    const unsigned int mask = 0x201, width = 11;
+    const unsigned int width = 11;
     unsigned int i, val = 0x3ff;
     for (i = 0; i < length; i += 8)
     {
@@ -76,7 +76,7 @@ static void dump_ber(float cber)
 
 void decode_process(decode_t *st)
 {
-    const int J = 20, B = 16, C = 36, M = 1;
+    const int J = 20, B = 16, C = 36;
     const int8_t v[] = {
         10, 2, 18, 6, 14, 8, 16, 0, 12, 4,
         11, 3, 19, 7, 15, 9, 17, 1, 13, 5

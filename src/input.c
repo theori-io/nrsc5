@@ -60,7 +60,7 @@ static float filter_taps[] = {
 static void input_push_to_acquire(input_t *st)
 {
     // CFO is modified in sync, and is expected to be "immediately" applied
-    for (int j = st->used + st->cfo_used; j < st->avail; j++)
+    for (unsigned int j = st->used + st->cfo_used; j < st->avail; j++)
         st->buffer[j] *= st->cfo_tbl[st->cfo_idx++ % FFT];
 
     if (st->skip)
@@ -149,7 +149,7 @@ void input_wait(input_t *st, int flush)
 
 static void measure_snr(input_t *st, uint8_t *buf, uint32_t len)
 {
-    int i, j;
+    unsigned int i, j;
 
     // use a small FFT to calculate magnitude of frequency ranges
     for (j = 64; j <= len / 2; j += 64)

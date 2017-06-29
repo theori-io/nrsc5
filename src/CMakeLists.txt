@@ -1,4 +1,4 @@
-add_compile_options (--std=gnu11 -O3)
+add_compile_options (--std=gnu11 -O3 -Wall)
 
 if (USE_COLOR)
     add_definitions (-DLOG_USE_COLOR)

@@ -120,53 +120,6 @@ typedef struct
     } tns;
 } ics_t;
 
-static void gen_adts(uint8_t *hdr, unsigned int len)
-{
-    bitwriter_t bw;
-
-    bw_init(&bw, hdr);
-    bw_addbits(&bw, 0xFFF, 12); // sync word
-    bw_addbits(&bw, 0, 1); // MPEG-4
-    bw_addbits(&bw, 0, 2); // Layer
-    bw_addbits(&bw, 1, 1); // no CRC
-    bw_addbits(&bw, 1, 2); // AAC-LC
-    bw_addbits(&bw, 7, 4); // 22050 HZ
-    bw_addbits(&bw, 0, 1); // private bit
-    bw_addbits(&bw, 2, 3); // 2-channel configuration
-    bw_addbits(&bw, 0, 1);
-    bw_addbits(&bw, 0, 1);
-    bw_addbits(&bw, 0, 1);
-    bw_addbits(&bw, 0, 1);
-    bw_addbits(&bw, len + 7, 13); // frame length
-    bw_addbits(&bw, 0x7FF, 11); // buffer fullness (VBR)
-    bw_addbits(&bw, 0, 2); // 1 AAC frame per ADTS frame
-}
-
-static unsigned int parse_adts(uint8_t *hdr)
-{
-    unsigned int length;
-    bitreader_t br;
-
-    br_init(&br, hdr, 7);
-    br_readbits(&br, 12); // sync word
-    br_readbits(&br, 1); // MPEG-4
-    br_readbits(&br, 2); // Layer
-    br_readbits(&br, 1); // no CRC
-    br_readbits(&br, 2); // AAC-LC
-    br_readbits(&br, 4); // 22050 Hz (7)
-    br_readbits(&br, 1); // private bit
-    br_readbits(&br, 3); // 2-ch configuration
-    br_readbits(&br, 1);
-    br_readbits(&br, 1);
-    br_readbits(&br, 1);
-    br_readbits(&br, 1);
-    length = br_readbits(&br, 13) - 7;
-    br_readbits(&br, 11); // buffer fullness
-    br_readbits(&br, 2); // 1 AAC frame per ADTS frame
-
-    return length;
-}
-
 /* 1st step table */
 typedef struct
 {
@@ -234,16 +187,6 @@ static hcb_bin_pair *hcb_bin_table[] = {
 };
 
 static uint8_t hcbN[] = { 0, 5, 5, 0, 5, 0, 5, 0, 5, 0, 6, 5 };
-
-/* defines whether a huffman codebook is unsigned or not */
-/* Table 4.6.2 */
-static uint8_t unsigned_cb[] = { 0, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1, 0, 0, 0, 0,
-  /* codebook 16 to 31 */ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1
-};
-
-static int hcb_2_quad_table_size[] = { 0, 114, 86, 0, 185, 0, 0, 0, 0, 0, 0, 0 };
-static int hcb_2_pair_table_size[] = { 0, 0, 0, 0, 0, 0, 126, 0, 83, 0, 210, 373 };
-static int hcb_bin_table_size[] = { 0, 0, 0, 161, 0, 161, 0, 127, 0, 337, 0, 0 };
 
 static void huffman_scale_factor(bitreader_t *br, bitwriter_t *bw)
 {
@@ -776,7 +719,7 @@ static void parse_ics_info(bitreader_t *br, bitwriter_t *bw, ics_t *ics)
 
 static void parse_tns_data(bitreader_t *br, bitwriter_t *bw, ics_t *ics)
 {
-    uint8_t w, filt, i, start_coef_bits, coef_bits;
+    uint8_t w, i, start_coef_bits, coef_bits;
     uint8_t length_bits = 6;
     uint8_t order_bits = 5;
 
@@ -880,7 +823,6 @@ static void parse_section_data(bitreader_t *br, bitwriter_t *bw, ics_t *ics)
 static void parse_scale_factors(bitreader_t *br, bitwriter_t *bw, ics_t *ics)
 {
     uint8_t g, sfb;
-    int16_t t;
     int8_t noise_pcm_flag = 1;
 
     for (g = 0; g < ics->num_window_groups; g++)
@@ -916,7 +858,7 @@ static void parse_scale_factors(bitreader_t *br, bitwriter_t *bw, ics_t *ics)
 
 static void gen_tns_data(bitwriter_t *bw, ics_t *ics)
 {
-    uint8_t w, filt, i, start_coef_bits, coef_bits;
+    uint8_t w, i, start_coef_bits, coef_bits;
     uint8_t n_filt_bits = 2;
     uint8_t length_bits = 6;
     uint8_t order_bits = 5;
@@ -977,10 +919,8 @@ static void parse_side_info(bitreader_t *br, bitwriter_t *bw, ics_t *ics)
 static void parse_spectral_data(bitreader_t *br, bitwriter_t *bw, ics_t *ics)
 {
     uint8_t i, g;
-    uint16_t inc, k, p = 0;
-    uint8_t groups = 0;
+    uint16_t inc, k;
     uint8_t sect_cb;
-    uint8_t result;
     for(g = 0; g < ics->num_window_groups; g++)
     {
         for (i = 0; i < ics->num_sec[g]; i++)
@@ -1098,38 +1038,3 @@ void hdc_to_aac(bitreader_t *br, bitwriter_t *bw)
 {
     parse_packet(br, bw);
 }
-
-#if 0
-int main(int argc, char *argv[])
-{
-    FILE *fp = fopen(argv[1], "rb");
-    FILE *fout = fopen("test.adts", "wb");
-
-    while (1)
-    {
-        unsigned int length;
-        uint8_t hdr[7], pkt[2048], out[2048];
-
-        if (fread(hdr, 1, 7, fp) != 7)
-            break;
-
-        length = parse_adts(hdr);
-
-        if (fread(pkt, 1, length, fp) != length)
-            break;
-
-        bitreader_t br;
-        bitwriter_t bw;
-        br_init(&br, pkt, length);
-        bw_init(&bw, out);
-        parse_packet(&br, &bw);
-
-        length = bw_flush(&bw);
-        gen_adts(hdr, length);
-        fwrite(hdr, 1, 7, fout);
-        fwrite(out, 1, length, fout);
-    }
-
-    return 0;
-}
-#endif

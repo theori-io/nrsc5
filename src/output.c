@@ -197,6 +197,8 @@ static void *output_worker(void *arg)
         pthread_mutex_unlock(&st->mutex);
         pthread_cond_signal(&st->cond);
     }
+
+    return NULL;
 }
 #endif
 

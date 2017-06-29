@@ -66,7 +66,7 @@ struct resamp_q15 {
     // floating-point phase
     float tau;          // accumulated timing phase, 0 <= tau < 1
     float bf;           // soft filterbank index, bf = tau*npfb = b + mu
-    int b;              // base filterbank index, 0 <= b < npfb
+    unsigned int b;     // base filterbank index, 0 <= b < npfb
     float mu;           // fractional filterbank interpolation value, 0 <= mu < 1
     cint32_t y0;        // filterbank output at index b
     cint32_t y1;        // filterbank output at index b+1
@@ -98,9 +98,9 @@ firpfb_q31 firpfb_q31_create(unsigned int nf, const float *_h, unsigned int h_le
 
     // reverse order so we can push into the window
     // duplicate for neon
-    for (int i = 0; i < nf; ++i)
+    for (unsigned int i = 0; i < nf; ++i)
     {
-        for (int j = 0; j < q->h_sub_len; ++j)
+        for (unsigned int j = 0; j < q->h_sub_len; ++j)
         {
             q->h[(i * q->h_sub_len + j) * 2] = roundf(_h[(q->h_sub_len - 1 - j) * q->nf + i] * 2147483647.0);
             q->h[(i * q->h_sub_len + j) * 2 + 1] = roundf(_h[(q->h_sub_len - 1 - j) * q->nf + i] * 2147483647.0);
@@ -114,7 +114,7 @@ void firpfb_q31_push(firpfb_q31 q, cint32_t x)
 {
     if (q->idx == WINDOW_SIZE)
     {
-        for (int i = 0; i < q->h_sub_len - 1; i++)
+        for (unsigned int i = 0; i < q->h_sub_len - 1; i++)
             q->window[i] = q->window[q->idx - q->h_sub_len + i];
         q->idx = q->h_sub_len - 1;
     }
@@ -272,9 +272,9 @@ firpfb_q15 firpfb_q15_create(unsigned int nf, const float *_h, unsigned int h_le
 
     // reverse order so we can push into the window
     // duplicate for neon
-    for (int i = 0; i < nf; ++i)
+    for (unsigned int i = 0; i < nf; ++i)
     {
-        for (int j = 0; j < q->h_sub_len; ++j)
+        for (unsigned int j = 0; j < q->h_sub_len; ++j)
         {
             q->h[(i * q->h_sub_len + j) * 2] = _h[(q->h_sub_len - 1 - j) * q->nf + i] * 32767.0f;
             q->h[(i * q->h_sub_len + j) * 2 + 1] = _h[(q->h_sub_len - 1 - j) * q->nf + i] * 32767.0f;
@@ -288,7 +288,7 @@ void firpfb_q15_push(firpfb_q15 q, cint16_t x)
 {
     if (q->idx == WINDOW_SIZE)
     {
-        for (int i = 0; i < q->h_sub_len - 1; i++)
+        for (unsigned int i = 0; i < q->h_sub_len - 1; i++)
             q->window[i] = q->window[q->idx - q->h_sub_len+ i];
         q->idx = q->h_sub_len - 1;
     }
@@ -392,7 +392,7 @@ static void update_timing_state(resamp_q15 q)
     q->bf  = q->tau * (float)(q->npfb);
 
     // split into integer filterbank index and fractional interpolation
-    q->b   = (int)floorf(q->bf);      // base index
+    q->b   = floorf(q->bf);      // base index
     q->mu  = q->bf - (float)(q->b);   // fractional index
 }
 

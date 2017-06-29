@@ -47,8 +47,6 @@ static int snr_callback(void *arg, float snr, float signal, float noise)
 {
     static int best_gain;
     static float best_snr;
-    static float cur_avg;
-    static float cur_cnt;
     int result = 0;
     rtlsdr_dev_t *dev = arg;
 
@@ -106,8 +104,8 @@ static void help(const char *progname)
 
 int main(int argc, char *argv[])
 {
-    int err, opt, device_index = 0, gain = INT_MIN, ppm_error = 0;
-    unsigned int count, i, frequency = 0, program = 0;
+    int err, opt, gain = INT_MIN, ppm_error = 0;
+    unsigned int count, i, frequency = 0, program = 0, device_index = 0;
     char *input_name = NULL, *output_name = NULL, *audio_name = NULL, *format_name = NULL;
     FILE *infp = NULL, *outfp = NULL;
     input_t input;

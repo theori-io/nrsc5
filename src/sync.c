@@ -75,7 +75,7 @@ static void adjust_ref(float complex *buf, float *phases, unsigned int ref)
 
     // compare to sync bits
     float x = 0;
-    for (int n = 0; n < sizeof(sync); n++)
+    for (unsigned int n = 0; n < sizeof(sync); n++)
         x += crealf(buf[ref * BLKSZ + n]) * sync[n];
     if (x < 0)
     {
@@ -103,7 +103,7 @@ static int find_first_block (float complex *buf, unsigned int ref)
 
     for (int n = 0; n < BLKSZ; n++)
     {
-        int i;
+        unsigned int i;
         for (i = 0; i < sizeof(needle); i++)
         {
             // first bit of data may be wrong, so ignore
@@ -135,7 +135,7 @@ static int find_ref (float complex *buf, unsigned int ref, unsigned int rsid)
 
     for (int n = 0; n < BLKSZ; n++)
     {
-        int i;
+        unsigned int i;
         for (i = 0; i < sizeof(needle); i++)
         {
             // first bit of data may be wrong, so ignore
@@ -227,7 +227,7 @@ void sync_process(sync_t *st, float complex *buffer)
         {
             for (i = -300; i < 300; ++i)
             {
-                int j, offset2;
+                int offset2;
                 adjust_ref(buffer, st->phases, LB_START + i + BAND_LENGTH - 1);
                 offset = find_ref(buffer, LB_START + i + BAND_LENGTH - 1, 0);
                 if (offset < 0)
@@ -382,6 +382,8 @@ static void *sync_worker(void *arg)
 
         pthread_cond_signal(&st->cond);
     }
+
+    return NULL;
 }
 #endif
 

@@ -25,7 +25,7 @@ static float calc_cber(int8_t *coded, uint8_t *decoded)
 
     // tail biting
     for (i = 0; i < 6; i++)
-        r = (r >> 1) | (decoded[FRAME_LEN - 7 + i] << 6);
+        r = (r >> 1) | (decoded[FRAME_LEN - 6 + i] << 6);
 
     for (i = 0, j = 0; i < FRAME_LEN; i++)
     {

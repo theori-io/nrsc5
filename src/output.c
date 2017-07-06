@@ -22,6 +22,10 @@
 #include "defines.h"
 #include "output.h"
 
+#ifdef HAVE_ID3V2LIB
+#include <id3v2lib.h>
+#endif
+
 #ifdef HAVE_FAAD2
 static ao_sample_format sample_format = {
     16,
@@ -299,3 +303,66 @@ void output_init_live(output_t *st)
     output_init_ao(st, ao_default_driver_id(), NULL);
 }
 #endif
+
+void output_psd_push(char *psd, unsigned int len)
+{
+#ifdef HAVE_ID3V2LIB
+    // parse and remove psd header/fcs
+    ID3v2_tag *tag = load_tag_with_buffer(psd+5, len - 7);
+    if (tag == NULL)
+    {
+        log_info("invalid psd");
+        return;
+    }
+
+    ID3v2_frame *title_frame = tag_get_title(tag);
+    if (title_frame != NULL)
+    {
+        ID3v2_frame_text_content *content = parse_text_frame_content(title_frame);
+        char temp[content->size + 1];
+        memcpy(temp, content->data, content->size);
+        temp[content->size] = '\0';
+        log_info("Title: %s", temp);
+        free(content);
+        free(title_frame);
+    }
+
+    ID3v2_frame *artist_frame = tag_get_artist(tag);
+    if (artist_frame != NULL)
+    {
+        ID3v2_frame_text_content *content = parse_text_frame_content(artist_frame); 
+        char temp[content->size + 1];
+        memcpy(temp, content->data, content->size);
+        temp[content->size] = '\0';
+        log_info("Artist: %s", temp);
+        free(content);
+        free(artist_frame);
+    }
+
+    ID3v2_frame *genre_frame = tag_get_genre(tag);
+    if (genre_frame != NULL)
+    {
+        ID3v2_frame_text_content *content = parse_text_frame_content(genre_frame); 
+        char temp[content->size + 1];
+        memcpy(temp, content->data, content->size);
+        temp[content->size] = '\0';
+        log_info("Genre: %s", temp);
+        free(content);
+        free(genre_frame);
+    }
+
+    ID3v2_frame *comment_frame = tag_get_comment(tag);
+    if (comment_frame != NULL)
+    {
+        ID3v2_frame_comment_content *content = parse_comment_frame_content(comment_frame); 
+        char temp[content->text->size + 1];
+        memcpy(temp, content->text->data, content->text->size);
+        temp[content->text->size] = '\0';
+        log_info("Comment: %s", temp);
+        free(content);
+        free(comment_frame);
+    }
+
+    free(tag);
+#endif
+}

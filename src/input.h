@@ -60,3 +60,4 @@ void input_cfo_adjust(input_t *st, int cfo);
 void input_set_skip(input_t *st, unsigned int skip);
 void input_wait(input_t *st, int flush);
 void input_pdu_push(input_t *st, uint8_t *pdu, unsigned int len);
+void input_psd_push(char *psd, unsigned int len);

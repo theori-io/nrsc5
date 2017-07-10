@@ -242,15 +242,17 @@ void psd_push(uint8_t* psd, int length)
 {
     length = unescape_hdlc(psd, length);
 
-    if (length < 3 || psd[0] != 0x21)
+    if (length == 0)
     {
         // empty frames are used as padding
-        if (length > 0)
-            log_warn("invalid PSD protocol %x", psd[0]);
     }
     else if (fcs16(psd, length) != VALIDFCS16)
     {
         log_info("psd crc mismatch");
+    }
+    else if (psd[0] != 0x21)
+    {
+        log_warn("invalid PSD protocol %x", psd[0]);
     }
     else
     {

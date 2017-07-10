@@ -83,7 +83,7 @@ void math_init();
 static inline float complex fast_cexpf(float x)
 {
     extern float complex cexpf_tbl[4096];
-    return cexpf_tbl[(int)truncf(x / (2 * M_PI / 4096)) & 4095];
+    return cexpf_tbl[(int)truncf(x / (2.0f * (float)M_PI / 4096.0f)) & 4095];
 }
 #else
 static inline float complex fast_cexpf(float x)

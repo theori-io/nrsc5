@@ -33,6 +33,12 @@ void acquire_process(acquire_t *st)
     if (st->idx != FFTCP * (M + 1))
         return;
 
+    if (st->ready && fabsf(st->slope) < 1 && st->samperr > 3)
+    {
+        mink = st->samperr - 3;
+        maxk = st->samperr + 3;
+    }
+
     memset(st->sums, 0, sizeof(float complex) * FFTCP);
     for (i = mink; i < maxk + CP; ++i)
     {
@@ -68,6 +74,7 @@ void acquire_process(acquire_t *st)
         angle = 0.5 * st->prev_angle + 0.5 * angle;
     }
     st->prev_angle = angle;
+    st->samperr = samperr;
 
     // compare with previous timing offset
     if (abs((int)samperr - (int)st->history[(st->history_size-1) % ACQ_HISTORY]) > FFT/2)
@@ -86,7 +93,6 @@ void acquire_process(acquire_t *st)
         avgerr = sum / (float)ACQ_HISTORY;
         slope = ((float)samperr - avgerr) / (ACQ_HISTORY / 2 * SYMBOLS);
         st->ready = 1;
-        st->samperr = avgerr;
         st->slope = slope;
 
         if ((st->history_size % ACQ_HISTORY) == 0)
@@ -112,7 +118,10 @@ void acquire_process(acquire_t *st)
         // skip samples instead of having samperr > FFT
         // NB adjustment must be greater than FFT/2
         if (samperr > 7*FFT/8)
+        {
             input_set_skip(st->input, 6*FFT/8);
+            st->samperr = 0;
+        }
     }
 
     if (st->ready)
@@ -123,13 +132,13 @@ void acquire_process(acquire_t *st)
             for (j = 0; j < FFTCP; ++j)
             {
                 int n = i * FFTCP + j;
-                float complex adj = fast_cexpf(angle * n / FFT);
+                float complex sample = fast_cexpf(angle * n / FFT) * st->buffer[i * FFTCP + j + samperr];
                 if (j < CP)
-                    st->fftin[j] = st->shape[j] * adj * st->buffer[i * FFTCP + j + samperr];
+                    st->fftin[j] = st->shape[j] * sample;
                 else if (j < FFT)
-                    st->fftin[j] = adj * st->buffer[i * FFTCP + j + samperr];
+                    st->fftin[j] = sample;
                 else
-                    st->fftin[j - FFT] += st->shape[j] * adj * st->buffer[i * FFTCP + j + samperr];
+                    st->fftin[j - FFT] += st->shape[j] * sample;
             }
 
             fftwf_execute(st->fft);

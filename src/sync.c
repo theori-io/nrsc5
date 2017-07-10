@@ -244,7 +244,7 @@ void sync_process(sync_t *st, float complex *buffer)
                     log_debug("First block @ %d", offset);
 
                     // Wait until the buffers have cleared before measuring again.
-                    st->cfo_wait = BUFS;
+                    st->cfo_wait = 2 * BUFS;
                     break;
                 }
             }

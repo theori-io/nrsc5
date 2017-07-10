@@ -293,8 +293,8 @@ void sync_process(sync_t *st, float complex *buffer)
         if (++st->mer_cnt == 16)
         {
             float signal = 2 * BLKSZ * DATA_PER_BAND * st->mer_cnt;
-            float mer_db_lb = 10 * log10f(sqrtf(signal) / sqrtf(st->error_lb));
-            float mer_db_ub = 10 * log10f(sqrtf(signal) / sqrtf(st->error_ub));
+            float mer_db_lb = 10 * log10f(signal / st->error_lb);
+            float mer_db_ub = 10 * log10f(signal / st->error_ub);
             log_info("MER: %f dB (lower), %f dB (upper)", mer_db_lb, mer_db_ub);
             st->mer_cnt = 0;
             st->error_lb = 0;

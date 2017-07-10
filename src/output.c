@@ -304,11 +304,35 @@ void output_init_live(output_t *st)
 }
 #endif
 
-void output_psd_push(char *psd, unsigned int len)
+#ifdef HAVE_ID3V2LIB
+static void display_text_content(const char *header, ID3v2_frame *frame)
+{
+    if (frame == NULL)
+        return;
+
+    ID3v2_frame_text_content *content = parse_text_frame_content(frame);
+
+    char temp[content->size + 1];
+    memcpy(temp, content->data, content->size);
+    temp[content->size] = '\0';
+    log_info("%s: %s", header, temp);
+
+    free(content);
+}
+#endif
+
+void output_psd_push(uint8_t *psd, unsigned int len)
 {
 #ifdef HAVE_ID3V2LIB
-    // parse and remove psd header/fcs
-    ID3v2_tag *tag = load_tag_with_buffer(psd+5, len - 7);
+    uint16_t port = *(uint16_t *)psd;
+    uint16_t seq = *(uint16_t *)(psd + 2);
+    if (port != 0x5100)
+    {
+        log_warn("unknown PSD port %x %x\n", port, seq);
+        return;
+    }
+
+    ID3v2_tag *tag = load_tag_with_buffer((char *)(psd + 4), len - 4);
     if (tag == NULL)
     {
         log_info("invalid psd");
@@ -316,52 +340,20 @@ void output_psd_push(char *psd, unsigned int len)
     }
 
     ID3v2_frame *title_frame = tag_get_title(tag);
-    if (title_frame != NULL)
-    {
-        ID3v2_frame_text_content *content = parse_text_frame_content(title_frame);
-        char temp[content->size + 1];
-        memcpy(temp, content->data, content->size);
-        temp[content->size] = '\0';
-        log_info("Title: %s", temp);
-        free(content);
-        free(title_frame);
-    }
+    display_text_content("Title", title_frame);
+    free(title_frame);
 
     ID3v2_frame *artist_frame = tag_get_artist(tag);
-    if (artist_frame != NULL)
-    {
-        ID3v2_frame_text_content *content = parse_text_frame_content(artist_frame); 
-        char temp[content->size + 1];
-        memcpy(temp, content->data, content->size);
-        temp[content->size] = '\0';
-        log_info("Artist: %s", temp);
-        free(content);
-        free(artist_frame);
-    }
+    display_text_content("Artist", artist_frame);
+    free(artist_frame);
 
     ID3v2_frame *genre_frame = tag_get_genre(tag);
-    if (genre_frame != NULL)
-    {
-        ID3v2_frame_text_content *content = parse_text_frame_content(genre_frame); 
-        char temp[content->size + 1];
-        memcpy(temp, content->data, content->size);
-        temp[content->size] = '\0';
-        log_info("Genre: %s", temp);
-        free(content);
-        free(genre_frame);
-    }
+    display_text_content("Genre", genre_frame);
+    free(genre_frame);
 
     ID3v2_frame *comment_frame = tag_get_comment(tag);
-    if (comment_frame != NULL)
-    {
-        ID3v2_frame_comment_content *content = parse_comment_frame_content(comment_frame); 
-        char temp[content->text->size + 1];
-        memcpy(temp, content->text->data, content->text->size);
-        temp[content->text->size] = '\0';
-        log_info("Comment: %s", temp);
-        free(content);
-        free(comment_frame);
-    }
+    display_text_content("Comment", comment_frame);
+    free(comment_frame);
 
     free(tag);
 #endif

@@ -11,7 +11,7 @@ typedef struct
     unsigned int pci;
     int ready;
     unsigned int program;
-    char *psd_buf;
+    uint8_t *psd_buf;
     unsigned int psd_idx;
 } frame_t;
 

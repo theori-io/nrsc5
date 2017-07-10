@@ -86,15 +86,15 @@ static const uint16_t fcs_tab[] = {
     0x0840, 0x19c9, 0x2b52, 0x3adb, 0x4e64, 0x5fed, 0x6d76, 0x7cff,
     0x9489, 0x8500, 0xb79b, 0xa612, 0xd2ad, 0xc324, 0xf1bf, 0xe036,
     0x18c1, 0x0948, 0x3bd3, 0x2a5a, 0x5ee5, 0x4f6c, 0x7df7, 0x6c7e,
-    0xa50a,	0xb483,	0x8618,	0x9791,	0xe32e,	0xf2a7,	0xc03c,	0xd1b5,
-    0x2942,	0x38cb,	0x0a50,	0x1bd9,	0x6f66,	0x7eef,	0x4c74,	0x5dfd,
-    0xb58b,	0xa402,	0x9699,	0x8710,	0xf3af,	0xe226,	0xd0bd,	0xc134,
-    0x39c3,	0x284a,	0x1ad1,	0x0b58,	0x7fe7,	0x6e6e,	0x5cf5,	0x4d7c,
-    0xc60c,	0xd785,	0xe51e,	0xf497,	0x8028,	0x91a1,	0xa33a,	0xb2b3,
-    0x4a44,	0x5bcd,	0x6956,	0x78df,	0x0c60,	0x1de9,	0x2f72,	0x3efb,
-    0xd68d,	0xc704,	0xf59f,	0xe416,	0x90a9,	0x8120,	0xb3bb,	0xa232,
-    0x5ac5,	0x4b4c,	0x79d7,	0x685e,	0x1ce1,	0x0d68,	0x3ff3,	0x2e7a,
-    0xe70e,	0xf687,	0xc41c,	0xd595,	0xa12a,	0xb0a3,	0x8238,	0x93b1,
+    0xa50a, 0xb483, 0x8618, 0x9791, 0xe32e, 0xf2a7, 0xc03c, 0xd1b5,
+    0x2942, 0x38cb, 0x0a50, 0x1bd9, 0x6f66, 0x7eef, 0x4c74, 0x5dfd,
+    0xb58b, 0xa402, 0x9699, 0x8710, 0xf3af, 0xe226, 0xd0bd, 0xc134,
+    0x39c3, 0x284a, 0x1ad1, 0x0b58, 0x7fe7, 0x6e6e, 0x5cf5, 0x4d7c,
+    0xc60c, 0xd785, 0xe51e, 0xf497, 0x8028, 0x91a1, 0xa33a, 0xb2b3,
+    0x4a44, 0x5bcd, 0x6956, 0x78df, 0x0c60, 0x1de9, 0x2f72, 0x3efb,
+    0xd68d, 0xc704, 0xf59f, 0xe416, 0x90a9, 0x8120, 0xb3bb, 0xa232,
+    0x5ac5, 0x4b4c, 0x79d7, 0x685e, 0x1ce1, 0x0d68, 0x3ff3, 0x2e7a,
+    0xe70e, 0xf687, 0xc41c, 0xd595, 0xa12a, 0xb0a3, 0x8238, 0x93b1,
     0x6b46, 0x7acf, 0x4854, 0x59dd, 0x2d62, 0x3ceb, 0x0e70, 0x1ff9,
     0xf78f, 0xe606, 0xd49d, 0xc514, 0xb1ab, 0xa022, 0x92b9, 0x8330,
     0x7bc7, 0x6a4e, 0x58d5, 0x495c, 0x3de3, 0x2c6a, 0x1ef1, 0x0f78
@@ -111,11 +111,11 @@ static uint8_t crc8(uint8_t *pkt, unsigned int cnt)
     return crc;
 }
 
-static uint16_t fcs16(unsigned char *cp, int len)
+static uint16_t fcs16(uint8_t *cp, int len)
 {
     uint16_t crc = 0xFFFF;
     while (len--)
-        crc = (crc >> 8) ^ fcs_tab[(crc ^ *cp++) & 0xff];
+        crc = (crc >> 8) ^ fcs_tab[(crc ^ *cp++) & 0xFF];
     return (crc);
 }
 
@@ -191,89 +191,91 @@ static int find_program(uint8_t *buf, int program)
     return -1;
 }
 
-int find_start(char *substring, int sub_length, char *string, int string_length) 
+static int unescape_hdlc(uint8_t *data, int length)
 {
-   int i, j;
+    uint8_t *p = data;
 
-   /* Searching */
-   for (j = 0; j <= string_length - sub_length; ++j) 
-   {
-      for (i = 0; i < sub_length && substring[i] == string[i + j]; ++i);
-      if (i >= sub_length)
-         return j;
-   }
-
-   return -1;
-}
-
-void psd_push(char* psd, int length)
-{
-    if (fcs16((unsigned char*)psd, length) == VALIDFCS16)
-        input_psd_push(psd, length);
-    else
-        log_info("psd crc mismatch");
-}
-
-void parse_psd(frame_t *st, char* data, size_t length)
-{
-    char frame_start[2] = {0x7E,0x21};
-
-    // find start of new psd
-    int index = find_start(frame_start, 2, data, length);
-    if (index >= 0)
+    for (int i = 0; i < length; i++)
     {
-        // check for complete psd in one frame
-        int cur_index = 0;
-        while (cur_index >= 0)
-        {     
-            cur_index = find_start(frame_start, 2, &data[index+1], length - index - 1);
-            if (cur_index >= 0)
-            {
-                cur_index += index + 1;
-                psd_push(&data[index+1], cur_index - index - 1);
-                index = cur_index;
-                st->psd_idx = 0;
-            }
-        }
+        if (data[i] == 0x7D)
+            *p++ = data[++i] | 0x20;
+        else
+            *p++ = data[i];
     }
-   
-    if (st->psd_idx == 0)
-    {
-        // if no starting frame then continue
-        if (index < 0)
-            return;
 
-        // skip start flag
+    return p - data;
+}
+
+void psd_push(uint8_t* psd, int length)
+{
+    length = unescape_hdlc(psd, length);
+
+    if (length < 3 || psd[0] != 0x21)
+    {
+        // empty frames are used as padding
+        if (length > 0)
+            log_warn("invalid PSD protocol %x", psd[0]);
+    }
+    else if (fcs16(psd, length) != VALIDFCS16)
+    {
+        log_info("psd crc mismatch");
+    }
+    else
+    {
+        // remove protocol and fcs fields
+        input_psd_push(psd + 1, length - 2);
+    }
+}
+
+// PSD transport uses HDLC-like framing
+void parse_psd(frame_t *st, uint8_t *data, size_t length)
+{
+    uint8_t *p;
+    int index = 0;
+
+    // find "flag"
+    p = memchr(data, 0x7E, length);
+    if (p)
+    {
+        index = p - data;
+
+        // complete current psd frame
+        if (st->psd_idx)
+        {
+            if (index + st->psd_idx > 2048)
+                goto overflow;
+            memcpy(&st->psd_buf[st->psd_idx], data, index);
+            psd_push(st->psd_buf, index + st->psd_idx);
+            st->psd_idx = 0;
+        }
+
+        // skip the flag
         index++;
 
-        memcpy(st->psd_buf, &data[index], length - index);
-        st->psd_idx = length - index;
+        // check for complete psd in one frame
+        while (1)
+        {
+            p = memchr(&data[index], 0x7E, length - index);
+            if (p == NULL)
+                break;
+
+            int cur_index = p - data;
+            psd_push(&data[index], cur_index - index);
+            index = cur_index + 1;
+        }
     }
-    else
+
+    // store remaining bytes
+    if (length - index + st->psd_idx > 2048)
     {
-        int new_start_index = -1;
-
-        if (index >= 0)
-            new_start_index = st->psd_idx + index;
-
-        if (length + st->psd_idx > 2048)
-        {
-            log_error("psd buffer overflow");
-            st->psd_idx = 0;
-            return;
-        }
-
-        memcpy(&(st->psd_buf[st->psd_idx]), data, length);
-        st->psd_idx += length; 
-
-        // if we have a complete psd then verify and parse the result
-        if (new_start_index > 0)
-        {
-            psd_push(st->psd_buf, new_start_index);
-            memcpy(st->psd_buf, &data[index+1], length - index - 1);
-            st->psd_idx = length - index - 1;
-        }
+overflow:
+        log_error("psd buffer overflow");
+        st->psd_idx = 0;
+        return;
     }
+
+    memcpy(&st->psd_buf[st->psd_idx], &data[index], length - index);
+    st->psd_idx += length - index;
 }
 
 void frame_process(frame_t *st)
@@ -302,8 +304,8 @@ void frame_process(frame_t *st)
     // skip extended headers
     for (hef = hdr.hef; hef; ++i)
         hef = buf[i] >> 7;
-    
-    parse_psd(st, (char*)(&buf[i]), hdr.la_location-i+1);
+
+    parse_psd(st, &buf[i], hdr.la_location-i+1);
     i = hdr.la_location + 1;
     seq = hdr.seq;
     for (j = 0; j < hdr.nop; ++j)

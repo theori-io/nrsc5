@@ -79,7 +79,7 @@ if (USE_ID3V2LIB)
         GIT_REPOSITORY "https://github.com/larsbs/id3v2lib.git"
         PREFIX ${ID3V2LIB_PREFIX}
 
-	INSTALL_COMMAND ""
+        INSTALL_COMMAND ""
     )
 
     add_library (id3v2lib STATIC IMPORTED)

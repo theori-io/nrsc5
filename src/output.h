@@ -51,4 +51,4 @@ void output_init_hdc(output_t *st, const char *name);
 void output_init_wav(output_t *st, const char *name);
 void output_init_live(output_t *st);
 #endif
-void output_psd_push(char *psd, unsigned int len);
+void output_psd_push(uint8_t *psd, unsigned int len);

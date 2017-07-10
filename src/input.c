@@ -350,3 +350,8 @@ void input_init(input_t *st, output_t *output, double center, unsigned int progr
     frame_set_program(&st->frame, program);
     sync_init(&st->sync, st);
 }
+
+void input_psd_push(char *psd, unsigned int len)
+{
+    output_psd_push(psd, len);
+}

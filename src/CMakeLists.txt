@@ -48,6 +48,7 @@ target_link_libraries (
     ${AO_LIBRARY}
     ${FFTW3F_LIBRARY}
     ${RTL_SDR_LIBRARY}
+    ${ID3V2LIB_LIBRARY}
     m
 )
 install (

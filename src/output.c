@@ -326,7 +326,7 @@ void output_psd_push(uint8_t *psd, unsigned int len)
 #ifdef HAVE_ID3V2LIB
     uint16_t port = *(uint16_t *)psd;
     uint16_t seq = *(uint16_t *)(psd + 2);
-    if (port != 0x5100)
+    if (port != 0x5100 && !(port >= 0x5201 && port <= 0x5207))
     {
         log_warn("unknown PSD port %x %x\n", port, seq);
         return;

@@ -409,7 +409,7 @@ void frame_push(frame_t *st, uint8_t *bits, size_t length)
         uint8_t bit = bits[((i>>3)<<3) + 7 - (i & 7)];
         if (i >= start && ((i - start) % offset) == 0 && h < hbits)
         {
-            header |= bit << (hbits - h - 1);
+            header = (header << 1) | bit;
             ++h;
         }
         else

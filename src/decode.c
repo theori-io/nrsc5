@@ -89,8 +89,7 @@ void decode_process(decode_t *st)
         int k = i / (J * B);
         int row = (k * 11) % 32;
         int column = (k * 11 + k / (32*9)) % C;
-        // row bits are reveresed, hence the 719 - x
-        st->viterbi[out++] = st->buffer[(block * 32 + row) * 720 + 719 - (partition * C + column)];
+        st->viterbi[out++] = st->buffer[(block * 32 + row) * 720 + partition * C + column];
         if ((out % 6) == 5) // depuncture, [1, 1, 1, 1, 1, 0]
             st->viterbi[out++] = 0;
     }

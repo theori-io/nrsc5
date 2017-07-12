@@ -279,9 +279,9 @@ void input_cb(uint8_t *buf, uint32_t len, void *arg)
         cint16_t x[2], y;
 
         x[0].r = U8_Q15(buf[i * 4 + 0]);
-        x[0].i = U8_Q15(buf[i * 4 + 1]);
+        x[0].i = -U8_Q15(buf[i * 4 + 1]);
         x[1].r = U8_Q15(buf[i * 4 + 2]);
-        x[1].i = U8_Q15(buf[i * 4 + 3]);
+        x[1].i = -U8_Q15(buf[i * 4 + 3]);
 
         firdecim_q15_execute(st->filter, x, &y);
         resamp_q15_execute(st->resamp, &y, &st->buffer[new_avail], &nw);

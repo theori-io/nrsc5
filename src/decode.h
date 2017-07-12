@@ -9,11 +9,14 @@ typedef struct
     int8_t *buffer;
     unsigned int idx;
 
-    int8_t *viterbi;
-    uint8_t *scrambler;
+    int8_t *viterbi_p1;
+    uint8_t *scrambler_p1;
+    int8_t *viterbi_pids;
+    uint8_t *scrambler_pids;
 } decode_t;
 
-void decode_process(decode_t *st);
+void decode_process_p1(decode_t *st);
+void decode_process_pids(decode_t *st);
 static inline unsigned int decode_get_block(decode_t *st)
 {
     return st->idx / (720 * BLKSZ);
@@ -21,9 +24,13 @@ static inline unsigned int decode_get_block(decode_t *st)
 static inline void decode_push(decode_t *st, int8_t sbit)
 {
     st->buffer[st->idx] = sbit;
-    if (++st->idx == 720 * BLKSZ * 16)
+    if (++st->idx % (720 * BLKSZ) == 0)
     {
-        decode_process(st);
+        decode_process_pids(st);
+    }
+    if (st->idx == 720 * BLKSZ * 16)
+    {
+        decode_process_p1(st);
         st->idx = 0;
     }
 }

@@ -27,6 +27,7 @@ add_executable (
     input.c
     main.c
     output.c
+    pids.c
     sync.c
 
     firdecim_q15.c

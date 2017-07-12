@@ -30,8 +30,10 @@
 #define LB_START (1024 - 546)
 // index of first upper sideband subcarrier
 #define UB_START (1024 + 356)
-// bytes per L1 frame
-#define FRAME_LEN 146176
+// bits per P1 frame
+#define P1_FRAME_LEN 146176
+// bits per PIDS frame
+#define PIDS_FRAME_LEN 80
 
 #define U8_F(x) ( (((float)(x)) - 127) / 128 )
 #define U8_Q15(x) ( ((int16_t)(x) - 127) << 7 )

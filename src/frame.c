@@ -348,7 +348,7 @@ void frame_process(frame_t *st)
             if (st->ready)
                 input_pdu_push(st->input, &buf[i], cnt);
         }
-        
+
         i += cnt + 1;
     }
 }
@@ -358,7 +358,7 @@ void frame_push(frame_t *st, uint8_t *bits)
     const unsigned int start = 146152 - 30000 + 24, offset = 1248, hbits = 24;
     unsigned int i, j = 0, h = 0, header = 0, val = 0;
     uint8_t *ptr = st->buffer;
-    for (i = 0; i < 146176; ++i)
+    for (i = 0; i < P1_FRAME_LEN; ++i)
     {
         // swap bit order
         uint8_t bit = bits[((i>>3)<<3) + 7 - (i & 7)];
@@ -378,7 +378,7 @@ void frame_push(frame_t *st, uint8_t *bits)
             }
         }
     }
-    
+
     // log_debug("PCI %x", header);
 
     st->pci = header;

@@ -33,10 +33,10 @@ void acquire_process(acquire_t *st)
     if (st->idx != FFTCP * (M + 1))
         return;
 
-    if (st->ready && fabsf(st->slope) < 1 && st->samperr > 3)
+    if (st->ready && fabsf(st->slope) < 1 && st->samperr > 10)
     {
-        mink = st->samperr - 3;
-        maxk = st->samperr + 3;
+        mink = st->samperr - 10;
+        maxk = st->samperr + 10;
     }
 
     memset(st->sums, 0, sizeof(float complex) * FFTCP);

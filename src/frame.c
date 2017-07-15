@@ -23,6 +23,7 @@
 typedef struct
 {
     unsigned int codec;
+    unsigned int stream_id;
     unsigned int pdu_seq;
     unsigned int pfirst;
     unsigned int plast;
@@ -142,6 +143,7 @@ static int fix_header(uint8_t *buf)
 static void parse_header(uint8_t *buf, frame_header_t *hdr)
 {
     hdr->codec = buf[8] & 0xf;
+    hdr->stream_id = (buf[8] >> 4) & 0x3;
     hdr->pdu_seq = (buf[8] >> 6) | ((buf[9] & 1) << 2);
     hdr->pfirst = (buf[11] >> 1) & 1;
     hdr->plast = (buf[11] >> 2) & 1;
@@ -152,26 +154,56 @@ static void parse_header(uint8_t *buf, frame_header_t *hdr)
     hdr->locations = (uint16_t *)&buf[14];
 }
 
-static int find_program(uint8_t *buf, int program)
+static unsigned int calc_lc_bits(frame_header_t *hdr)
 {
-    unsigned int i;
+    switch(hdr->codec)
+    {
+    case 0:
+        return 16;
+    case 1:
+    case 2:
+    case 3:
+        if (hdr->stream_id == 0)
+            return 12;
+        else
+            return 16;
+    case 10:
+    case 13:
+        return 12;
+    default:
+        log_warn("unknown codec field (%d)", hdr->codec);
+        return 16;
+    }
+}
 
-    for (i = 0; i < 18269 - 96; )
+static unsigned int parse_location(uint8_t *buf, unsigned int lc_bits, unsigned int i)
+{
+    if (lc_bits == 16)
+        return (buf[14 + 2*i + 1] << 8) | buf[14 + 2*i];
+    else
+    {
+        if (i % 2 == 0)
+            return ((buf[14 + i/2*3 + 1] & 0xf) << 8) | buf[14 + i/2*3];
+        else
+            return (buf[14 + i/2*3 + 2] << 4) | (buf[14 + i/2*3 + 1] >> 4);
+    }
+}
+
+static int find_program(uint8_t *buf, int program, size_t length)
+{
+    unsigned int i = 0, lc_bits;
+
+    while (i < length - 96)
     {
         unsigned int start = i;
         frame_header_t hdr;
 
         if (!fix_header(&buf[i]))
-        {
-            log_debug("failed to fix header");
             return -1;
-        }
-
-        if (start == 0 && program == 0)
-            return start;
 
         parse_header(&buf[i], &hdr);
-        i += 14 + sizeof(uint16_t) * hdr.nop;
+        lc_bits = calc_lc_bits(&hdr);
+        i += 14 + ((lc_bits * hdr.nop) + 4) / 8;
 
         // inspect first extended header
         if (hdr.hef)
@@ -185,7 +217,7 @@ static int find_program(uint8_t *buf, int program)
         }
 
         // skip remaining bytes using last location
-        i = start + hdr.locations[hdr.nop - 1] + 1;
+        i = start + parse_location(buf + start, lc_bits, hdr.nop - 1) + 1;
     }
 
     return -1;
@@ -278,29 +310,23 @@ overflow:
     st->psd_idx += length - index;
 }
 
-void frame_process(frame_t *st)
+void frame_process(frame_t *st, size_t length)
 {
     int offset;
-    unsigned int i, j, hef, seq;
+    unsigned int i, j, hef, seq, lc_bits;
     uint8_t *buf;
     frame_header_t hdr;
 
-    offset = find_program(st->buffer, st->program);
+    offset = find_program(st->buffer, st->program, length);
     if (offset == -1)
-    {
-        log_error("unable to find program, or corrupted.");
         return;
-    }
 
     buf = &st->buffer[offset];
     parse_header(buf, &hdr);
 
-    if (hdr.codec != 0)
-        log_warn("unknown codec field (%d)", hdr.codec);
+    lc_bits = calc_lc_bits(&hdr);
 
-    log_debug("pdu_seq: %d, seq: %d, nop: %d", hdr.pdu_seq, hdr.seq, hdr.nop);
-
-    i = 14 + sizeof(uint16_t) * hdr.nop;
+    i = 14 + ((lc_bits * hdr.nop) + 4) / 8;
     // skip extended headers
     for (hef = hdr.hef; hef; ++i)
         hef = buf[i] >> 7;
@@ -310,7 +336,9 @@ void frame_process(frame_t *st)
     seq = hdr.seq;
     for (j = 0; j < hdr.nop; ++j)
     {
-        unsigned int cnt = hdr.locations[j] - i;
+        unsigned int location = parse_location(buf, lc_bits, j);
+        if (location < i || location >= length) break;
+        unsigned int cnt = location - i;
         if (crc8(&buf[i], cnt + 1) != 0)
         {
             log_warn("crc mismatch!");
@@ -353,18 +381,33 @@ void frame_process(frame_t *st)
     }
 }
 
-void frame_push(frame_t *st, uint8_t *bits)
+void frame_push(frame_t *st, uint8_t *bits, size_t length)
 {
-    const unsigned int start = 146152 - 30000 + 24, offset = 1248, hbits = 24;
+    unsigned int start, offset, hbits = 24;
     unsigned int i, j = 0, h = 0, header = 0, val = 0;
     uint8_t *ptr = st->buffer;
-    for (i = 0; i < P1_FRAME_LEN; ++i)
+
+    switch (length)
+    {
+    case P1_FRAME_LEN:
+        start = P1_FRAME_LEN - 30000;
+        offset = 1248;
+        break;
+    case P3_FRAME_LEN:
+        start = 120;
+        offset = 184;
+        break;
+    default:
+        log_error("Unknown frame length: %d", length);
+    }
+
+    for (i = 0; i < length; ++i)
     {
         // swap bit order
         uint8_t bit = bits[((i>>3)<<3) + 7 - (i & 7)];
         if (i >= start && ((i - start) % offset) == 0 && h < hbits)
         {
-            header |= bit << h;
+            header |= bit << (hbits - h - 1);
             ++h;
         }
         else
@@ -382,7 +425,7 @@ void frame_push(frame_t *st, uint8_t *bits)
     // log_debug("PCI %x", header);
 
     st->pci = header;
-    frame_process(st);
+    frame_process(st, ptr - st->buffer);
 }
 
 void frame_reset(frame_t *st)

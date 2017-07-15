@@ -90,7 +90,7 @@ void decode_process_p1(decode_t *st)
         int k = i / (J * B);
         int row = (k * 11) % 32;
         int column = (k * 11 + k / (32*9)) % C;
-        st->viterbi_p1[out++] = st->buffer[(block * 32 + row) * 720 + partition * C + column];
+        st->viterbi_p1[out++] = st->buffer_pm[(block * 32 + row) * 720 + partition * C + column];
         if ((out % 6) == 5) // depuncture, [1, 1, 1, 1, 1, 0]
             st->viterbi_p1[out++] = 0;
     }
@@ -98,7 +98,7 @@ void decode_process_p1(decode_t *st)
     nrsc5_conv_decode_p1(st->viterbi_p1, st->scrambler_p1);
     dump_ber(calc_cber(st->viterbi_p1, st->scrambler_p1));
     descramble(st->scrambler_p1, P1_FRAME_LEN);
-    frame_push(&st->input->frame, st->scrambler_p1);
+    frame_push(&st->input->frame, st->scrambler_p1, P1_FRAME_LEN);
 }
 
 void decode_process_pids(decode_t *st)
@@ -116,7 +116,7 @@ void decode_process_pids(decode_t *st)
         int k = ((i / J) % (200 / J)) + (365440 / (J * B));
         int row = (k * 11) % 32;
         int column = (k * 11 + k / (32*9)) % C;
-        st->viterbi_pids[out++] = st->buffer[(block * 32 + row) * 720 + partition * C + column];
+        st->viterbi_pids[out++] = st->buffer_pm[(block * 32 + row) * 720 + partition * C + column];
         if ((out % 6) == 5) // depuncture, [1, 1, 1, 1, 1, 0]
             st->viterbi_pids[out++] = 0;
     }
@@ -126,19 +126,53 @@ void decode_process_pids(decode_t *st)
     pids_frame_push(st->scrambler_pids);
 }
 
+void decode_process_p3(decode_t *st)
+{
+    const int J = 4, B = 32, C = 36, M = 2, N = 147456;
+    const int bk_bits = 32 * C;
+    const int bk_adj = 32 * C - 1;
+    unsigned int i, out = 0;
+    for (i = 0; i < 9216; i++)
+    {
+        int partition = ((st->i_p3 + 2 * (M / 4)) / M) % J;
+        unsigned int pti = (st->pt_p3[partition])++;
+        int block = (pti + (partition * 7) - (bk_adj * (pti / bk_bits))) % B;
+        int row = ((11 * pti) % bk_bits) / C;
+        int column = (pti * 11) % C;
+        st->viterbi_p3[out++] = st->internal_p3[(block * 32 + row) * 144 + partition * C + column];
+        if ((out % 6) == 1 || (out % 6) == 4) // depuncture, [1, 0, 1, 1, 0, 1]
+            st->viterbi_p3[out++] = 0;
+
+        st->internal_p3[st->i_p3] = st->buffer_px1[i];
+        (st->i_p3)++;
+    }
+    st->i_p3 = st->i_p3 % N;
+
+    nrsc5_conv_decode_p3(st->viterbi_p3, st->scrambler_p3);
+    descramble(st->scrambler_p3, P3_FRAME_LEN);
+    frame_push(&st->input->frame, st->scrambler_p3, P3_FRAME_LEN);
+}
+
 void decode_reset(decode_t *st)
 {
-    st->idx = 0;
+    st->idx_pm = 0;
+    st->idx_px1 = 0;
+    st->i_p3 = 0;
+    memset(st->pt_p3, 0, sizeof(unsigned int) * 4);
 }
 
 void decode_init(decode_t *st, struct input_t *input)
 {
     st->input = input;
-    st->buffer = malloc(720 * BLKSZ * 16);
+    st->buffer_pm = malloc(720 * BLKSZ * 16);
+    st->buffer_px1 = malloc(144 * BLKSZ * 2);
     st->viterbi_p1 = malloc(P1_FRAME_LEN * 3);
     st->scrambler_p1 = malloc(P1_FRAME_LEN);
     st->viterbi_pids = malloc(PIDS_FRAME_LEN * 3);
     st->scrambler_pids = malloc(PIDS_FRAME_LEN);
+    st->internal_p3 = malloc(P3_FRAME_LEN * 32);
+    st->viterbi_p3 = malloc(P3_FRAME_LEN * 3);
+    st->scrambler_p3 = malloc(P3_FRAME_LEN);
 
     decode_reset(st);
 }

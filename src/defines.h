@@ -16,24 +16,20 @@
 #define FFTCP (FFT + CP)
 // OFDM symbols per L1 block
 #define BLKSZ 32
-// number of reference subcarriers per sideband
-#define REF_PER_BAND 11
 // number of data subcarriers per sideband
-#define DATA_PER_BAND 180
+#define P1_DATA_PER_BAND 180
 // number of subcarriers per sideband
-#define BAND_LENGTH (REF_PER_BAND + DATA_PER_BAND)
-// total number of data subcarriers
-#define TOTAL_DATA (DATA_PER_BAND * 2)
-// total number of reference subcarriers
-#define TOTAL_REF (REF_PER_BAND * 2)
+#define P1_BAND_LENGTH (11 + P1_DATA_PER_BAND)
 // index of first lower sideband subcarrier
 #define LB_START (1024 - 546)
-// index of first upper sideband subcarrier
-#define UB_START (1024 + 356)
+// index of last upper sideband subcarrier
+#define UB_END (1024 + 546)
 // bits per P1 frame
 #define P1_FRAME_LEN 146176
 // bits per PIDS frame
 #define PIDS_FRAME_LEN 80
+// bits per P1 frame
+#define P3_FRAME_LEN 4608
 
 #define U8_F(x) ( (((float)(x)) - 127) / 128 )
 #define U8_Q15(x) ( ((int16_t)(x) - 127) << 7 )

@@ -88,12 +88,13 @@ static void adjust_ref(float complex *buf, float *phases, unsigned int ref)
     }
 }
 
-static int find_first_block (float complex *buf, unsigned int ref)
+static int find_first_block (float complex *buf, unsigned int ref, int *psmi)
 {
     static const signed char needle[] = {
         0, 1, 1, 0, 0, 1, 0, -1, -1, 1, 1, 0, 0, 1, 0, -1, 0, 0, 0, 0, -1, 1, 1, 1
     };
     unsigned char data[BLKSZ], prev = 0;
+    *psmi = -1;
     for (int n = 0; n < BLKSZ; n++)
     {
         unsigned char bit = crealf(buf[ref * BLKSZ + n]) <= 0 ? 0 : 1;
@@ -114,8 +115,12 @@ static int find_first_block (float complex *buf, unsigned int ref)
             if (needle[i] != data[(n + i) % BLKSZ])
                 break;
         }
-        if (i == sizeof(needle))
+        if (i == sizeof(needle)) {
+            if (n == 0) {
+                *psmi = (data[25] << 5) | (data[26] << 4) | (data[27] << 3) | (data[28] << 2) | (data[29] << 1) | data[30];
+            }
             return n;
+        }
     }
     return -1;
 }
@@ -182,21 +187,39 @@ static void adjust_data(float complex *buf, float *phases, unsigned int lower, u
 void sync_process(sync_t *st, float complex *buffer)
 {
     int i;
+    static int psmi = 1;
+    unsigned int partitions_per_band;
 
-    for (i = 0; i < BAND_LENGTH; i += 19)
+    switch (psmi) {
+        case 2:
+            partitions_per_band = 11;
+            break;
+        case 3:
+            partitions_per_band = 12;
+            break;
+        case 5:
+        case 6:
+        case 11:
+            partitions_per_band = 14;
+            break;
+        default:
+            partitions_per_band = 10;
+    }
+
+    for (i = 0; i < partitions_per_band * 19 + 1; i += 19)
     {
         adjust_ref(buffer, st->phases, LB_START + i);
-        adjust_ref(buffer, st->phases, UB_START + i);
+        adjust_ref(buffer, st->phases, UB_END - i);
     }
 
     // check if we lost synchronization or now have it
     if (st->ready)
     {
-        if (decode_get_block(&st->input->decode) == 0 && find_first_block(buffer, LB_START + 0) != 0)
+        if (decode_get_block(&st->input->decode) == 0 && find_first_block(buffer, LB_START, &psmi) != 0)
         {
-            if (find_first_block(buffer, UB_START + 19 * 10) != 0)
+            if (find_first_block(buffer, UB_END, &psmi) != 0)
             {
-                log_debug("lost sync (%d, %d)!", find_first_block(buffer, LB_START), find_first_block(buffer, UB_START + 19*10));
+                log_debug("lost sync (%d, %d)!", find_first_block(buffer, LB_START, &psmi), find_first_block(buffer, UB_END, &psmi));
                 st->ready = 0;
             }
         }
@@ -208,9 +231,9 @@ void sync_process(sync_t *st, float complex *buffer)
 
         // First and last reference subcarriers have the same data. Try both
         // in case one of the sidebands is too corrupted.
-        int offset = find_first_block(buffer, LB_START + 0);
+        int offset = find_first_block(buffer, LB_START, &psmi);
         if (offset < 0)
-            offset = find_first_block(buffer, UB_START + BAND_LENGTH - 1);
+            offset = find_first_block(buffer, UB_END, &psmi);
 
         if (offset > 0)
         {
@@ -228,13 +251,13 @@ void sync_process(sync_t *st, float complex *buffer)
             for (i = -300; i < 300; ++i)
             {
                 int offset2;
-                adjust_ref(buffer, st->phases, LB_START + i + BAND_LENGTH - 1);
-                offset = find_ref(buffer, LB_START + i + BAND_LENGTH - 1, 0);
+                adjust_ref(buffer, st->phases, LB_START + i + P1_BAND_LENGTH - 1);
+                offset = find_ref(buffer, LB_START + i + P1_BAND_LENGTH - 1, 0);
                 if (offset < 0)
                     continue;
                 // We think we found the start. Check upperband to confirm.
-                adjust_ref(buffer, st->phases, UB_START + i);
-                offset2 = find_ref(buffer, UB_START + i, 0);
+                adjust_ref(buffer, st->phases, UB_END + i - P1_BAND_LENGTH + 1);
+                offset2 = find_ref(buffer, UB_END + i - P1_BAND_LENGTH + 1, 0);
                 if (offset2 == offset)
                 {
                     // The offsets matched, so 'i' is likely the CFO.
@@ -259,10 +282,10 @@ void sync_process(sync_t *st, float complex *buffer)
     // if we are still synchronized
     if (st->ready)
     {
-        for (i = 0; i < BAND_LENGTH - 1; i += 19)
+        for (i = 0; i < partitions_per_band * 19; i += 19)
         {
             adjust_data(buffer, st->phases, LB_START + i, LB_START + i + 19);
-            adjust_data(buffer, st->phases, UB_START + i, UB_START + i + 19);
+            adjust_data(buffer, st->phases, UB_END - i - 19, UB_END - i);
         }
 
         // Calculate modulation error
@@ -270,7 +293,7 @@ void sync_process(sync_t *st, float complex *buffer)
         for (int n = 0; n < BLKSZ; n++)
         {
             float complex c, ideal;
-            for (i = 0; i < BAND_LENGTH - 1; i += 19)
+            for (i = 0; i < partitions_per_band * 19; i += 19)
             {
                 unsigned int j;
                 for (j = 1; j < 19; j++)
@@ -279,7 +302,7 @@ void sync_process(sync_t *st, float complex *buffer)
                     ideal = CMPLXF(crealf(c) >= 0 ? 1 : -1, cimagf(c) >= 0 ? 1 : -1);
                     error_lb += normf(ideal - c);
 
-                    c = buffer[(UB_START + i + j) * BLKSZ + n];
+                    c = buffer[(UB_END - i - 19 + j) * BLKSZ + n];
                     ideal = CMPLXF(crealf(c) >= 0 ? 1 : -1, cimagf(c) >= 0 ? 1 : -1);
                     error_ub += normf(ideal - c);
                 }
@@ -292,7 +315,7 @@ void sync_process(sync_t *st, float complex *buffer)
         // Display average MER for each sideband
         if (++st->mer_cnt == 16)
         {
-            float signal = 2 * BLKSZ * DATA_PER_BAND * st->mer_cnt;
+            float signal = 2 * BLKSZ * P1_DATA_PER_BAND * st->mer_cnt;
             float mer_db_lb = 10 * log10f(signal / st->error_lb);
             float mer_db_ub = 10 * log10f(signal / st->error_ub);
             log_info("MER: %f dB (lower), %f dB (upper)", mer_db_lb, mer_db_ub);
@@ -302,8 +325,8 @@ void sync_process(sync_t *st, float complex *buffer)
         }
 
         // Soft demod based on MER for each sideband
-        float mer_lb = 2 * BLKSZ * DATA_PER_BAND / error_lb;
-        float mer_ub = 2 * BLKSZ * DATA_PER_BAND / error_ub;
+        float mer_lb = 2 * BLKSZ * P1_DATA_PER_BAND / error_lb;
+        float mer_ub = 2 * BLKSZ * P1_DATA_PER_BAND / error_ub;
         float mult_lb = fmaxf(fminf(mer_lb * 10, 127), 1);
         float mult_ub = fmaxf(fminf(mer_ub * 10, 127), 1);
 
@@ -311,24 +334,46 @@ void sync_process(sync_t *st, float complex *buffer)
         for (int n = 0; n < BLKSZ; n++)
         {
             float complex c;
-            for (i = 0; i < BAND_LENGTH - 1; i += 19)
+            for (i = LB_START; i < LB_START + 190; i += 19)
             {
                 unsigned int j;
                 for (j = 1; j < 19; j++)
                 {
-                    c = buffer[(LB_START + i + j) * BLKSZ + n];
-                    decode_push(&st->input->decode, DEMOD(crealf(c)) * mult_lb);
-                    decode_push(&st->input->decode, DEMOD(cimagf(c)) * mult_lb);
+                    c = buffer[(i + j) * BLKSZ + n];
+                    decode_push_pm(&st->input->decode, DEMOD(crealf(c)) * mult_lb);
+                    decode_push_pm(&st->input->decode, DEMOD(cimagf(c)) * mult_lb);
                 }
             }
-            for (i = 0; i < BAND_LENGTH - 1; i += 19)
+            for (i = UB_END - 190; i < UB_END; i += 19)
             {
                 unsigned int j;
                 for (j = 1; j < 19; j++)
                 {
-                    c = buffer[(UB_START + i + j) * BLKSZ + n];
-                    decode_push(&st->input->decode, DEMOD(crealf(c)) * mult_ub);
-                    decode_push(&st->input->decode, DEMOD(cimagf(c)) * mult_ub);
+                    c = buffer[(i + j) * BLKSZ + n];
+                    decode_push_pm(&st->input->decode, DEMOD(crealf(c)) * mult_ub);
+                    decode_push_pm(&st->input->decode, DEMOD(cimagf(c)) * mult_ub);
+                }
+            }
+            if (psmi == 3) {
+                for (i = LB_START + 190; i < LB_START + 190 + 38; i += 19)
+                {
+                    unsigned int j;
+                    for (j = 1; j < 19; j++)
+                    {
+                        c = buffer[(i + j) * BLKSZ + n];
+                        decode_push_px1(&st->input->decode, DEMOD(crealf(c)) * mult_lb);
+                        decode_push_px1(&st->input->decode, DEMOD(cimagf(c)) * mult_lb);
+                    }
+                }
+                for (i = UB_END - 190 - 38; i < UB_END - 190; i += 19)
+                {
+                    unsigned int j;
+                    for (j = 1; j < 19; j++)
+                    {
+                        c = buffer[(i + j) * BLKSZ + n];
+                        decode_push_px1(&st->input->decode, DEMOD(crealf(c)) * mult_ub);
+                        decode_push_px1(&st->input->decode, DEMOD(cimagf(c)) * mult_ub);
+                    }
                 }
             }
 

@@ -1,5 +1,5 @@
 /*
- * Viterbi decoder for convolutional codes 
+ * Viterbi decoder for convolutional codes
  *
  * Copyright (C) 2015 Ettus Research LLC
  *
@@ -27,6 +27,7 @@
 #include <assert.h>
 #include <errno.h>
 
+#include "defines.h"
 #include "conv.h"
 
 #if defined(HAVE_SSE3)
@@ -404,16 +405,74 @@ static void _conv_decode(struct vdecoder *dec, const int8_t *seq, int len)
 	}
 }
 
-int nrsc5_conv_decode(const int8_t *in, uint8_t *out)
+int nrsc5_conv_decode_p1(const int8_t *in, uint8_t *out)
 {
 	const struct lte_conv_code code = {
 		.n = 3,
 		.k = 7,
-		.len = 146176,
+		.len = P1_FRAME_LEN,
 		.gen = { 0133, 0171, 0165 },
 		.term = CONV_TERM_TAIL_BITING,
 	};
-    int rc;
+	int rc;
+
+	struct vdecoder *vdec = alloc_vdec(&code);
+	if (!vdec)
+		return -EFAULT;
+
+	reset_decoder(vdec, code.term);
+
+	/* Propagate through the trellis with interval normalization */
+	_conv_decode(vdec, in, code.len);
+
+	if (code.term == CONV_TERM_TAIL_BITING)
+		_conv_decode(vdec, in, code.len);
+
+	rc = traceback(vdec, out, code.term, code.len);
+
+	free_vdec(vdec);
+	return rc;
+}
+
+int nrsc5_conv_decode_pids(const int8_t *in, uint8_t *out)
+{
+	const struct lte_conv_code code = {
+		.n = 3,
+		.k = 7,
+		.len = PIDS_FRAME_LEN,
+		.gen = { 0133, 0171, 0165 },
+		.term = CONV_TERM_TAIL_BITING,
+	};
+	int rc;
+
+	struct vdecoder *vdec = alloc_vdec(&code);
+	if (!vdec)
+		return -EFAULT;
+
+	reset_decoder(vdec, code.term);
+
+	/* Propagate through the trellis with interval normalization */
+	_conv_decode(vdec, in, code.len);
+
+	if (code.term == CONV_TERM_TAIL_BITING)
+		_conv_decode(vdec, in, code.len);
+
+	rc = traceback(vdec, out, code.term, code.len);
+
+	free_vdec(vdec);
+	return rc;
+}
+
+int nrsc5_conv_decode_p3(const int8_t *in, uint8_t *out)
+{
+	const struct lte_conv_code code = {
+		.n = 3,
+		.k = 7,
+		.len = P3_FRAME_LEN,
+		.gen = { 0133, 0171, 0165 },
+		.term = CONV_TERM_TAIL_BITING,
+	};
+	int rc;
 
 	struct vdecoder *vdec = alloc_vdec(&code);
 	if (!vdec)

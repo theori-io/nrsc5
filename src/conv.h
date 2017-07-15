@@ -28,6 +28,8 @@ struct lte_conv_code {
 	int term;
 };
 
-int nrsc5_conv_decode(const int8_t *in, uint8_t *out);
+int nrsc5_conv_decode_p1(const int8_t *in, uint8_t *out);
+int nrsc5_conv_decode_pids(const int8_t *in, uint8_t *out);
+int nrsc5_conv_decode_p3(const int8_t *in, uint8_t *out);
 
 #endif /* _CONV_H_ */

@@ -15,7 +15,7 @@ typedef struct
     unsigned int psd_idx;
 } frame_t;
 
-void frame_push(frame_t *st, uint8_t *bits);
+void frame_push(frame_t *st, uint8_t *bits, size_t length);
 void frame_reset(frame_t *st);
 void frame_set_program(frame_t *st, unsigned int program);
 void frame_init(frame_t *st, struct input_t *input);

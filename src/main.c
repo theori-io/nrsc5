@@ -18,10 +18,10 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <complex.h>
+#include <getopt.h>
 #include <limits.h>
 #include <math.h>
 #include <string.h>
-#include <unistd.h>
 
 #ifdef USE_THREADS
 #include <pthread.h>
@@ -99,22 +99,29 @@ static void log_lock(void *udata, int lock)
 
 static void help(const char *progname)
 {
-    fprintf(stderr, "Usage: %s [-q] [-l log-level] [-d device-index] [-g gain] [-p ppm-error] [-r samples-input] [-w samples-output] [-o audio-output -f adts|hdc|wav] frequency program\n", progname);
+    fprintf(stderr, "Usage: %s [-q] [-l log-level] [-d device-index] [-g gain] [-p ppm-error] [-r samples-input] [-w samples-output] [-o audio-output -f adts|hdc|wav] [--dump-aas-files directory] frequency program\n", progname);
 }
 
 int main(int argc, char *argv[])
 {
+    static const struct option long_opts[] = {
+        { "dump-aas-files", required_argument, NULL, 1 },
+        { 0 }
+    };
     int err, opt, gain = INT_MIN, ppm_error = 0;
     unsigned int count, i, frequency = 0, program = 0, device_index = 0;
-    char *input_name = NULL, *output_name = NULL, *audio_name = NULL, *format_name = NULL;
+    char *input_name = NULL, *output_name = NULL, *audio_name = NULL, *format_name = NULL, *files_path = NULL;
     FILE *infp = NULL, *outfp = NULL;
     input_t input;
     output_t output;
 
-    while ((opt = getopt(argc, argv, "r:w:d:p:o:f:g:ql:")) != -1)
+    while ((opt = getopt_long(argc, argv, "r:w:d:p:o:f:g:ql:", long_opts, NULL)) != -1)
     {
         switch (opt)
         {
+        case 1:
+            files_path = optarg;
+            break;
         case 'r':
             input_name = optarg;
             break;
@@ -251,6 +258,8 @@ int main(int argc, char *argv[])
         return 1;
 #endif
     }
+
+    output_set_aas_files_path(&output, files_path);
 
     math_init();
     input_init(&input, &output, frequency, program, outfp);

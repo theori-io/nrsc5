@@ -20,6 +20,13 @@
 #include "input.h"
 #include "reed-solomon.h"
 
+#define PCI_AUDIO 0x38D8D3
+#define PCI_AUDIO_FIXED 0xE3634C
+#define PCI_AUDIO_FIXED_OPP 0x8D8D33
+
+#define BBM 0x42E23A7D
+#define MAX_AAS_LEN 8212
+
 typedef struct
 {
     unsigned int codec;
@@ -104,7 +111,7 @@ static const uint16_t fcs_tab[] = {
 /* Good final FCS value */
 #define VALIDFCS16 0xf0b8
 
-static uint8_t crc8(uint8_t *pkt, unsigned int cnt)
+static uint8_t crc8(const uint8_t *pkt, unsigned int cnt)
 {
     unsigned int i, crc = 0xFF;
     for (i = 0; i < cnt; ++i)
@@ -112,12 +119,17 @@ static uint8_t crc8(uint8_t *pkt, unsigned int cnt)
     return crc;
 }
 
-static uint16_t fcs16(uint8_t *cp, int len)
+static uint16_t fcs16(const uint8_t *cp, int len)
 {
     uint16_t crc = 0xFFFF;
     while (len--)
         crc = (crc >> 8) ^ fcs_tab[(crc ^ *cp++) & 0xFF];
     return (crc);
+}
+
+static int has_fixed(frame_t *st)
+{
+    return st->pci == PCI_AUDIO_FIXED || PCI_AUDIO_FIXED_OPP;
 }
 
 static int fix_header(uint8_t *buf)
@@ -238,7 +250,7 @@ static int unescape_hdlc(uint8_t *data, int length)
     return p - data;
 }
 
-void psd_push(uint8_t* psd, int length)
+static void aas_push(frame_t *st, uint8_t* psd, int length)
 {
     length = unescape_hdlc(psd, length);
 
@@ -252,17 +264,17 @@ void psd_push(uint8_t* psd, int length)
     }
     else if (psd[0] != 0x21)
     {
-        log_warn("invalid PSD protocol %x", psd[0]);
+        log_warn("unknown AAS protocol %x", psd[0]);
     }
     else
     {
         // remove protocol and fcs fields
-        input_psd_push(psd + 1, length - 2);
+        input_aas_push(st->input, psd + 1, length - 2);
     }
 }
 
-// PSD transport uses HDLC-like framing
-void parse_psd(frame_t *st, uint8_t *data, size_t length)
+// AAS transport uses HDLC-like framing
+static void parse_psd(frame_t *st, uint8_t *data, size_t length)
 {
     uint8_t *p;
     int index = 0;
@@ -279,7 +291,7 @@ void parse_psd(frame_t *st, uint8_t *data, size_t length)
             if (index + st->psd_idx > 2048)
                 goto overflow;
             memcpy(&st->psd_buf[st->psd_idx], data, index);
-            psd_push(st->psd_buf, index + st->psd_idx);
+            aas_push(st, st->psd_buf, index + st->psd_idx);
             st->psd_idx = 0;
         }
 
@@ -294,7 +306,7 @@ void parse_psd(frame_t *st, uint8_t *data, size_t length)
                 break;
 
             int cur_index = p - data;
-            psd_push(&data[index], cur_index - index);
+            aas_push(st, &data[index], cur_index - index);
             index = cur_index + 1;
         }
     }
@@ -312,12 +324,158 @@ overflow:
     st->psd_idx += length - index;
 }
 
+static void process_fixed_ccc(frame_t *st)
+{
+    const uint8_t *buf = st->ccc_buf;
+
+    // padding
+    if (st->ccc_idx == 0)
+        return;
+
+    // ignore new CCC packets (XXX they shouldn't change)
+    if (st->fixed_ready)
+        return;
+
+    if (fcs16(buf, st->ccc_idx) != VALIDFCS16)
+    {
+        log_info("bad CCC checksum");
+        return;
+    }
+
+    for (unsigned int i = 0; i < 4; i++)
+    {
+        fixed_subchannel_t *subch = &st->subchannel[i];
+        subch->mode = 0;
+        subch->length = 0;
+
+        if (5 + i * 4 <= st->ccc_idx)
+        {
+            uint16_t mode = *(uint16_t *)&buf[1 + i * 4];
+            uint16_t length = *(uint16_t *)&buf[3 + i * 4];
+            log_info("Subchannel %d: mode=%d, length=%d", i, mode, length);
+
+            if (mode == 0)
+            {
+                subch->mode = mode;
+                subch->length = length;
+                subch->block_idx = 0;
+                subch->blocks = malloc(255 + 4);
+                subch->idx = 0;
+                subch->data = malloc(MAX_AAS_LEN);
+            }
+            else
+            {
+                log_warn("Subchannel mode %04X not supported", mode);
+            }
+        }
+    }
+
+    st->fixed_ready = 1;
+}
+
+/* FIXME: We only support mode=0 (no FEC, no interleaving) */
+static void process_fixed_block(frame_t *st, int i)
+{
+    fixed_subchannel_t *subch = &st->subchannel[i];
+    uint8_t *p = &subch->blocks[4];
+    for (int j = 0; j < 255; j++)
+    {
+        uint8_t byte = p[j];
+        // TODO eliminate duplication with parse_psd
+        if (byte == 0x7E)
+        {
+            aas_push(st, subch->data, subch->idx);
+            subch->idx = 0;
+        }
+        else
+        {
+            subch->data[subch->idx++] = byte;
+        }
+    }
+}
+
+static void process_fixed_data(frame_t *st)
+{
+    unsigned int sync = st->buffer[PDU_LEN - 1];
+
+    if (st->sync_count < 2)
+    {
+        unsigned int width = (sync & 0xF) * 2;
+        if (st->sync_width == width)
+            st->sync_count++;
+        else
+            st->sync_count = 0;
+        st->sync_width = width;
+
+        if (st->sync_count < 2)
+            return;
+    }
+
+    for (unsigned int i = 0; i < st->sync_width; i++)
+    {
+        uint8_t byte = st->buffer[PDU_LEN - st->sync_width - 1 + i];
+        // TODO eliminate duplication with parse_psd
+        if (byte == 0x7E)
+        {
+            unescape_hdlc(st->ccc_buf, st->ccc_idx);
+            process_fixed_ccc(st);
+            st->ccc_idx = 0;
+        }
+        else
+        {
+            st->ccc_buf[st->ccc_idx++] = byte;
+        }
+
+        if (st->ccc_idx == sizeof(st->ccc_buf))
+        {
+            log_info("CCC overflow");
+            st->ccc_idx = 0;
+        }
+    }
+
+    // wait until we have subchannel information
+    if (!st->fixed_ready)
+        return;
+
+    uint8_t *p = &st->buffer[PDU_LEN - st->sync_width - 1];
+    for (int i = 3; i >= 0; i--)
+    {
+        fixed_subchannel_t *subch = &st->subchannel[i];
+        int length = subch->length;
+
+        if (length == 0)
+            continue;
+
+        p -= length;
+        for (int j = 0; j < length; j++)
+        {
+            subch->blocks[subch->block_idx++] = p[j];
+            if (subch->block_idx == 4 && *(uint32_t *)subch->blocks != BBM)
+            {
+                // mis-aligned, skip a byte
+                memmove(subch->blocks, subch->blocks + 1, 3);
+                subch->block_idx--;
+            }
+
+            if (subch->block_idx == 255 + 4)
+            {
+                // we have a complete block, deinterleave and process
+                process_fixed_block(st, i);
+                subch->block_idx = 0;
+            }
+        }
+    }
+}
+
 void frame_process(frame_t *st, size_t length)
 {
     int offset;
     unsigned int i, j, hef, seq, lc_bits;
     uint8_t *buf;
     frame_header_t hdr;
+
+    if (has_fixed(st))
+        process_fixed_data(st);
 
     offset = find_program(st->buffer, st->program, length);
     if (offset == -1)
@@ -385,7 +543,7 @@ void frame_process(frame_t *st, size_t length)
 
 void frame_push(frame_t *st, uint8_t *bits, size_t length)
 {
-    unsigned int start, offset, hbits = 24;
+    unsigned int start, offset;
     unsigned int i, j = 0, h = 0, header = 0, val = 0;
     uint8_t *ptr = st->buffer;
 
@@ -407,7 +565,7 @@ void frame_push(frame_t *st, uint8_t *bits, size_t length)
     {
         // swap bit order
         uint8_t bit = bits[((i>>3)<<3) + 7 - (i & 7)];
-        if (i >= start && ((i - start) % offset) == 0 && h < hbits)
+        if (i >= start && ((i - start) % offset) == 0 && h < PCI_LEN)
         {
             header = (header << 1) | bit;
             ++h;
@@ -436,6 +594,11 @@ void frame_reset(frame_t *st)
     st->pci = 0;
     st->ready = 0;
     st->psd_idx = 0;
+
+    st->fixed_ready = 0;
+    st->sync_width = 0;
+    st->sync_count = 0;
+    st->ccc_idx = 0;
 }
 
 void frame_set_program(frame_t *st, unsigned int program)
@@ -446,7 +609,7 @@ void frame_set_program(frame_t *st, unsigned int program)
 void frame_init(frame_t *st, input_t *input)
 {
     st->input = input;
-    st->buffer = malloc(146152);
+    st->buffer = malloc(PDU_LEN);
     st->pdu = malloc(0x10000);
     st->psd_buf = malloc(2048);
 

@@ -357,7 +357,7 @@ void input_init(input_t *st, output_t *output, double center, unsigned int progr
     sync_init(&st->sync, st);
 }
 
-void input_psd_push(uint8_t *psd, unsigned int len)
+void input_aas_push(input_t *st, uint8_t *psd, unsigned int len)
 {
-    output_psd_push(psd, len);
+    output_aas_push(st->output, psd, len);
 }

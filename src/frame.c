@@ -227,6 +227,11 @@ static int find_program(uint8_t *buf, int program, size_t length)
             if (((buf[i] >> 4) & 7) == 1 && program == ((buf[i] >> 1) & 7))
                 return start;
         }
+        else
+        {
+            if (program == 0)
+                return start;
+        }
 
         // skip remaining bytes using last location
         i = start + parse_location(buf + start, lc_bits, hdr.nop - 1) + 1;

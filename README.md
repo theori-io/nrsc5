@@ -2,9 +2,14 @@
 
 The following packages are required:
 
+ * git
+ * build-essential
+ * cmake
+ * autoconf
+ * libtool
  * libao-dev
  * libfftw3-dev
- * rtl-sdr
+ * librtlsdr-dev
 
 ### Build Instructions
 
@@ -60,4 +65,3 @@ Examples:
      $ nrsc5 -r samples1071 0
 
      $ nrsc5 -o - -f adts 90500000 0 | mplayer -
-

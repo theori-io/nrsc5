@@ -251,7 +251,7 @@ void sync_process(sync_t *st, float complex *buffer)
         }
         else if (st->cfo_wait == 0)
         {
-            for (i = -300; i < 300; ++i)
+            for (i = -38; i < 38; ++i)
             {
                 int offset2;
                 adjust_ref(buffer, st->phases, LB_START + i + P1_BAND_LENGTH - 1);

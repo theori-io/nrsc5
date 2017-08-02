@@ -38,7 +38,6 @@ typedef struct
     unsigned int nop;
     unsigned int la_location;
     unsigned int hef;
-    uint16_t *locations;
 } frame_header_t;
 
 static const uint8_t crc8_tab[] = {
@@ -163,7 +162,6 @@ static void parse_header(uint8_t *buf, frame_header_t *hdr)
     hdr->nop = (buf[12] >> 1) & 0x3f;
     hdr->la_location = buf[13];
     hdr->hef = buf[12] & 0x80;
-    hdr->locations = (uint16_t *)&buf[14];
 }
 
 static unsigned int calc_lc_bits(frame_header_t *hdr)

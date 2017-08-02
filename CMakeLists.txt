@@ -55,7 +55,7 @@ if (USE_FAAD2)
         PREFIX ${FAAD2_PREFIX}
 
         UPDATE_COMMAND ""
-        PATCH_COMMAND patch -p1 -i "${CMAKE_SOURCE_DIR}/support/faad2-hdc-support.patch"
+        PATCH_COMMAND patch -p1 -Ni "${CMAKE_SOURCE_DIR}/support/faad2-hdc-support.patch" || exit 0
         COMMAND sh ./bootstrap
 
         CONFIGURE_COMMAND ${FAAD2_PREFIX}/src/faad2_external/configure --prefix=${FAAD2_PREFIX} --with-hdc "CFLAGS=-O3 ${CMAKE_C_FLAGS}"

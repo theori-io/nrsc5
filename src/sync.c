@@ -153,6 +153,18 @@ static int find_ref (float complex *buf, unsigned int ref, unsigned int rsid)
         }
         if (i == sizeof(needle))
             return n;
+        for (i = 0; i < sizeof(needle); i++)
+        {
+            // first bit of data may be wrong, so ignore
+            if ((n + i) % BLKSZ == 0) continue;
+            // ignore don't care bits
+            if (needle[i] < 0) continue;
+            // test if bit is correct
+            if (needle[i] == data[(n + i) % BLKSZ])
+                break;
+        }
+        if (i == sizeof(needle))
+            return n;
     }
     return -1;
 }
@@ -248,7 +260,7 @@ void sync_process(sync_t *st, float complex *buffer)
         }
         else if (st->cfo_wait == 0)
         {
-            for (i = -300; i < 300; ++i)
+            for (i = -38; i < 38; ++i)
             {
                 int offset2;
                 adjust_ref(buffer, st->phases, LB_START + i + P1_BAND_LENGTH - 1);

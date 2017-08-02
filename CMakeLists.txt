@@ -27,6 +27,11 @@ if (NOT LIBTOOLIZE)
     message (FATAL_ERROR "Missing libtoolize. Install libtool package and try again.")
 endif ()
 
+find_program (PATCH patch)
+if (NOT PATCH)
+    message (FATAL_ERROR "Missing patch. Install patch package and try again.")
+endif()
+
 find_library (FFTW3F_LIBRARY fftw3f)
 find_library (RTL_SDR_LIBRARY rtlsdr)
 
@@ -47,8 +52,8 @@ endif()
 set (CMAKE_REQUIRED_FLAGS --std=gnu11)
 check_symbol_exists (strndup string.h HAVE_STRNDUP)
 check_symbol_exists (CMPLXF complex.h HAVE_CMPLXF)
-check_symbol_exists (__builtin_complex complex.h HAVE_BUILTIN_COMPLEX)
 check_symbol_exists (_Imaginary_I complex.h HAVE_IMAGINARY_I)
+check_symbol_exists (_Complex_I complex.h HAVE_COMPLEX_I)
 
 if (USE_FAAD2)
     # libao only used if we have FAAD2

@@ -228,6 +228,10 @@ static int find_program(uint8_t *buf, int program, size_t length)
                 return start;
         }
 
+        // bail-out in case of no program id flag
+        if (program == 0 && start == 0)
+            return start;
+
         // skip remaining bytes using last location
         i = start + parse_location(buf + start, lc_bits, hdr.nop - 1) + 1;
     }

@@ -1,0 +1,22 @@
+#pragma once
+
+#cmakedefine USE_FAAD2
+#cmakedefine USE_ID3V2LIB
+#cmakedefine USE_COLOR
+#cmakedefine USE_FAST_MATH
+#cmakedefine USE_THREADS
+
+#cmakedefine HAVE_PTHREAD_SETNAME_NP
+#cmakedefine HAVE_STRNDUP
+#cmakedefine HAVE_BUILTIN_COMPLEX
+#cmakedefine HAVE_CMPLXF
+#cmakedefine HAVE_IMAGINARY_I
+
+#ifndef HAVE_CMPLXF
+#ifdef HAVE_BUILTIN_COMPLEX
+#define CMPLXF(x,y) __builtin_complex((float)(x), (float)(y))
+#endif
+#ifdef HAVE_IMAGINARY_I
+#define CMPLXF(x,y) ((float complex)((float)(x) + _Imaginary_I * (float)(y)))
+#endif
+#endif /* HAVE_CMPLXF */

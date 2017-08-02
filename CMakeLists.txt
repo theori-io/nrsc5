@@ -1,5 +1,6 @@
 cmake_minimum_required (VERSION 2.8)
 include (CheckLibraryExists)
+include (CheckSymbolExists)
 include (ExternalProject)
 project (nrsc5 C)
 
@@ -42,6 +43,12 @@ if (CMAKE_SYSTEM_PROCESSOR MATCHES "(i[456]|x)86.*")
         add_definitions (-DHAVE_SSE2 -DHAVE_SSE3)
     endif()
 endif()
+
+set (CMAKE_REQUIRED_FLAGS --std=gnu11)
+check_symbol_exists (strndup string.h HAVE_STRNDUP)
+check_symbol_exists (CMPLXF complex.h HAVE_CMPLXF)
+check_symbol_exists (__builtin_complex complex.h HAVE_BUILTIN_COMPLEX)
+check_symbol_exists (_Imaginary_I complex.h HAVE_IMAGINARY_I)
 
 if (USE_FAAD2)
     # libao only used if we have FAAD2

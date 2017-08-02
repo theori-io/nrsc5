@@ -1,22 +1,19 @@
 add_compile_options (--std=gnu11 -O3 -Wall)
 
-if (USE_COLOR)
-    add_definitions (-DLOG_USE_COLOR)
-endif()
-
 if (USE_THREADS)
-    add_definitions (-D_GNU_SOURCE -DUSE_THREADS)
+    add_definitions (-D_GNU_SOURCE)
     set (THREAD_LIBRARY pthread)
-    check_library_exists (${THREAD_LIBRARY} pthread_setname_np "" HAVE_PTHREAD_SETNAME_NP)
-    if (HAVE_PTHREAD_SETNAME_NP AND CMAKE_SYSTEM_NAME MATCHES Linux)
-        add_definitions (-DHAVE_PTHREAD_SETNAME_NP)
+    if (CMAKE_SYSTEM_NAME MATCHES Linux)
+        check_library_exists (${THREAD_LIBRARY} pthread_setname_np "" HAVE_PTHREAD_SETNAME_NP)
     endif()
 endif()
 
 if (USE_FAST_MATH)
     add_compile_options (-ffast-math)
-    add_definitions (-DUSE_FAST_MATH)
 endif()
+
+configure_file (config.h.in config.h)
+include_directories ("${CMAKE_CURRENT_BINARY_DIR}")
 
 add_executable (
     nrsc5
@@ -41,6 +38,8 @@ add_executable (
     galois.c
 
     log.c
+
+    strndup.c
 )
 target_link_libraries (
     nrsc5

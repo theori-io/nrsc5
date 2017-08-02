@@ -13,6 +13,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "config.h"
+
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -228,7 +230,7 @@ int main(int argc, char *argv[])
         }
         else if (strcmp(format_name, "wav") == 0)
         {
-#ifdef HAVE_FAAD2
+#ifdef USE_FAAD2
             output_init_wav(&output, audio_name);
 #else
             log_fatal("WAV output requires FAAD2.");
@@ -251,7 +253,7 @@ int main(int argc, char *argv[])
     }
     else
     {
-#ifdef HAVE_FAAD2
+#ifdef USE_FAAD2
         output_init_live(&output);
 #else
         log_fatal("Live output requires FAAD2.");

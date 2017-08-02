@@ -19,6 +19,8 @@
  * Author: Tom Tsou <tom.tsou@ettus.com>
  */
 
+#include "config.h"
+
 #ifdef __clang__
 #define __always_inline
 #endif

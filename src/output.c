@@ -542,7 +542,7 @@ static void process_port(output_t *st, uint16_t port_id, uint8_t *buf, unsigned 
         }
         else if (port->u.file.size)
         {
-            log_debug("%s expected %d, got %d\n", port->u.file.name, port->u.file.seq, seq);
+            log_debug("%s expected %d, got %d", port->u.file.name, port->u.file.seq, seq);
         }
         break;
     }

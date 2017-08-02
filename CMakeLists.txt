@@ -77,6 +77,7 @@ if (USE_ID3V2LIB)
     ExternalProject_Add (
         id3v2lib_external
         GIT_REPOSITORY "https://github.com/larsbs/id3v2lib.git"
+        GIT_TAG 9bca1c33b8cd8037ee59de927bda057c9ac7043d
         PREFIX ${ID3V2LIB_PREFIX}
 
         INSTALL_COMMAND ""

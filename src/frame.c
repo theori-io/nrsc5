@@ -492,8 +492,12 @@ void frame_process(frame_t *st, size_t length)
     i = 14 + ((lc_bits * hdr.nop) + 4) / 8;
     // skip extended headers
     for (hef = hdr.hef; hef; ++i)
+    {
+        if (i >= length) return;
         hef = buf[i] >> 7;
+    }
 
+    if (hdr.la_location < i || hdr.la_location >= length) return;
     parse_psd(st, &buf[i], hdr.la_location-i+1);
     i = hdr.la_location + 1;
     seq = hdr.seq;

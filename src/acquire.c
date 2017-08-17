@@ -180,15 +180,13 @@ void acquire_init(acquire_t *st, input_t *input)
     st->shape = malloc(sizeof(float) * FFTCP);
     for (i = 0; i < FFTCP; ++i)
     {
-        // The first CP samples overlap with last CP samples. Due to ISI, we
-        // don't want to use the samples on the edges of our symbol.
-        // We use the identity: sin^2 x + cos^2 x = 1.
+        // Pulse shaping window function
         if (i < CP)
-            st->shape[i] = powf(sinf(M_PI / 2 * i / CP), 2);
+            st->shape[i] = sinf(M_PI / 2 * i / CP);
         else if (i < FFT)
             st->shape[i] = 1;
         else
-            st->shape[i] = powf(cosf(M_PI / 2 * (i - FFT) / CP), 2);
+            st->shape[i] = cosf(M_PI / 2 * (i - FFT) / CP);
     }
 
     st->history_size = 0;

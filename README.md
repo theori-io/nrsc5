@@ -41,7 +41,7 @@ This was designed for use with an RTL-SDR dongle since that was our testing plat
 
 Options:
 
-       frequency                       rtl-sdr center frequency
+       frequency                       rtl-sdr center frequency in MHz or Hz
                                          (do not provide frequency when reading from file)
        program                         audio program to decode
                                          (0, 1, 2, or 3)
@@ -60,8 +60,8 @@ Options:
 
 Examples:
 
-     $ nrsc5 -p 63 -g 490 -w samples1071 107100000 0
+     $ nrsc5 -p 63 -g 490 -w samples1071 107.1 0
 
      $ nrsc5 -r samples1071 0
 
-     $ nrsc5 -o - -f adts 90500000 0 | mplayer -
+     $ nrsc5 -o - -f adts 90.5 0 | mplayer -

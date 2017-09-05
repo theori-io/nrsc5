@@ -99,6 +99,13 @@ static void log_lock(void *udata, int lock)
 }
 #endif
 
+unsigned int parse_freq(char *s)
+{
+    double d = strtod(s, NULL);
+    if (d < 10000) d *= 1e6;
+    return (unsigned int) d;
+}
+
 static void help(const char *progname)
 {
     fprintf(stderr, "Usage: %s [-q] [-l log-level] [-d device-index] [-g gain] [-p ppm-error] [-r samples-input] [-w samples-output] [-o audio-output -f adts|hdc|wav] [--dump-aas-files directory] frequency program\n", progname);
@@ -171,7 +178,7 @@ int main(int argc, char *argv[])
             help(argv[0]);
             return 0;
         }
-        frequency = strtoul(argv[optind], NULL, 0);
+        frequency = parse_freq(argv[optind]);
         program = strtoul(argv[optind+1], NULL, 0);
 
         count = rtlsdr_get_device_count();

@@ -13,6 +13,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "config.h"
+
 #include <math.h>
 
 #include "defines.h"
@@ -88,73 +90,74 @@ static void adjust_ref(float complex *buf, float *phases, unsigned int ref)
     }
 }
 
-static int find_first_block (float complex *buf, unsigned int ref, int *psmi)
+static void decode_dbpsk(const float complex *buf, unsigned char *data, int size)
 {
-    static const signed char needle[] = {
-        0, 1, 1, 0, 0, 1, 0, -1, -1, 1, 1, 0, 0, 1, 0, -1, 0, 0, 0, 0, -1, 1, 1, 1
-    };
-    unsigned char data[BLKSZ], prev = 0;
-    *psmi = -1;
-    for (int n = 0; n < BLKSZ; n++)
+    unsigned char prev = 0;
+
+    for (int n = 0; n < size; n++)
     {
-        unsigned char bit = crealf(buf[ref * BLKSZ + n]) <= 0 ? 0 : 1;
+        unsigned char bit = crealf(buf[n]) <= 0 ? 0 : 1;
         data[n] = bit ^ prev;
         prev = bit;
     }
+}
 
-    for (int n = 0; n < BLKSZ; n++)
+static int fuzzy_match(const signed char *needle, int needle_size, const unsigned char *data, int size)
+{
+    for (int n = 0; n < size; n++)
     {
         unsigned int i;
-        for (i = 0; i < sizeof(needle); i++)
+        for (i = 0; i < needle_size; i++)
         {
             // first bit of data may be wrong, so ignore
-            if ((n + i) % BLKSZ == 0) continue;
+            if ((n + i) % size == 0) continue;
             // ignore don't care bits
             if (needle[i] < 0) continue;
             // test if bit is correct
-            if (needle[i] != data[(n + i) % BLKSZ])
+            if (needle[i] != data[(n + i) % size])
                 break;
         }
-        if (i == sizeof(needle)) {
-            if (n == 0) {
-                *psmi = (data[25] << 5) | (data[26] << 4) | (data[27] << 3) | (data[28] << 2) | (data[29] << 1) | data[30];
-            }
+        if (i == needle_size)
             return n;
-        }
     }
     return -1;
 }
 
-static int find_ref (float complex *buf, unsigned int ref, unsigned int rsid)
+static int find_first_block(float complex *buf, unsigned int ref, int *psmi)
+{
+    static const signed char needle[] = {
+        0, 1, 1, 0, 0, 1, 0, -1, -1, 1, 1, 0, 0, 1, 0, -1, 0, 0, 0, 0, -1, 1, 1, 1
+    };
+    unsigned char data[BLKSZ];
+    int n;
+
+    *psmi = -1;
+    decode_dbpsk(&buf[ref * BLKSZ], data, BLKSZ);
+    n = fuzzy_match(needle, sizeof(needle), data, BLKSZ);
+    if (n == 0)
+        *psmi = (data[25] << 5) | (data[26] << 4) | (data[27] << 3) | (data[28] << 2) | (data[29] << 1) | data[30];
+    return n;
+}
+
+static int find_ref(float complex *buf, unsigned int ref, unsigned int rsid)
 {
     signed char needle[] = {
         0, 1, 1, 0, 0, 1, 0, -1, -1, 1, rsid >> 1, rsid & 1, 0, (rsid >> 1) ^ (rsid & 1), 0, -1, -1, -1, -1, -1, -1, 1, 1, 1
     };
-    unsigned char data[BLKSZ], prev = 0;
-    for (int n = 0; n < BLKSZ; n++)
-    {
-        unsigned char bit = crealf(buf[ref * BLKSZ + n]) <= 0 ? 0 : 1;
-        data[n] = bit ^ prev;
-        prev = bit;
-    }
+    unsigned char data[BLKSZ];
+    int n;
 
-    for (int n = 0; n < BLKSZ; n++)
+    decode_dbpsk(&buf[ref * BLKSZ], data, BLKSZ);
+    n = fuzzy_match(needle, sizeof(needle), data, BLKSZ);
+    if (n < 0)
     {
-        unsigned int i;
-        for (i = 0; i < sizeof(needle); i++)
-        {
-            // first bit of data may be wrong, so ignore
-            if ((n + i) % BLKSZ == 0) continue;
-            // ignore don't care bits
-            if (needle[i] < 0) continue;
-            // test if bit is correct
-            if (needle[i] != data[(n + i) % BLKSZ])
-                break;
-        }
-        if (i == sizeof(needle))
-            return n;
+        // Try again with the data inverted. This handles phase ambiguity due
+        // to CFO (e.g. if frequency is offset by more than 1,815 Hz).
+        for (int i = 0; i < BLKSZ; i++)
+            data[i] = !data[i];
+        n = fuzzy_match(needle, sizeof(needle), data, BLKSZ);
     }
-    return -1;
+    return n;
 }
 
 static float calc_smag(float complex *buf, unsigned int ref)
@@ -248,7 +251,7 @@ void sync_process(sync_t *st, float complex *buffer)
         }
         else if (st->cfo_wait == 0)
         {
-            for (i = -300; i < 300; ++i)
+            for (i = -38; i < 38; ++i)
             {
                 int offset2;
                 adjust_ref(buffer, st->phases, LB_START + i + P1_BAND_LENGTH - 1);

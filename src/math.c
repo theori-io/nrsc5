@@ -1,3 +1,4 @@
+#include "config.h"
 #include "defines.h"
 
 #ifdef USE_FAST_MATH

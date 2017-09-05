@@ -38,7 +38,6 @@ typedef struct
     unsigned int nop;
     unsigned int la_location;
     unsigned int hef;
-    uint16_t *locations;
 } frame_header_t;
 
 static const uint8_t crc8_tab[] = {
@@ -163,7 +162,6 @@ static void parse_header(uint8_t *buf, frame_header_t *hdr)
     hdr->nop = (buf[12] >> 1) & 0x3f;
     hdr->la_location = buf[13];
     hdr->hef = buf[12] & 0x80;
-    hdr->locations = (uint16_t *)&buf[14];
 }
 
 static unsigned int calc_lc_bits(frame_header_t *hdr)
@@ -225,6 +223,11 @@ static int find_program(uint8_t *buf, int program, size_t length)
                 ++i;
             // compare program id flag
             if (((buf[i] >> 4) & 7) == 1 && program == ((buf[i] >> 1) & 7))
+                return start;
+        }
+        else
+        {
+            if (program == 0)
                 return start;
         }
 
@@ -489,8 +492,12 @@ void frame_process(frame_t *st, size_t length)
     i = 14 + ((lc_bits * hdr.nop) + 4) / 8;
     // skip extended headers
     for (hef = hdr.hef; hef; ++i)
+    {
+        if (i >= length) return;
         hef = buf[i] >> 7;
+    }
 
+    if (hdr.la_location < i || hdr.la_location >= length) return;
     parse_psd(st, &buf[i], hdr.la_location-i+1);
     i = hdr.la_location + 1;
     seq = hdr.seq;

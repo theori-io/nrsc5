@@ -1,5 +1,7 @@
 #pragma once
 
+#include "config.h"
+
 #ifdef HAVE_FAAD2
 #include <ao/ao.h>
 #include <neaacdec.h>

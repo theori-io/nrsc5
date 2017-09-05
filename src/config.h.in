@@ -1,0 +1,28 @@
+#pragma once
+
+#cmakedefine USE_FAAD2
+#cmakedefine USE_ID3V2LIB
+#cmakedefine USE_COLOR
+#cmakedefine USE_FAST_MATH
+#cmakedefine USE_THREADS
+
+#cmakedefine HAVE_PTHREAD_SETNAME_NP
+#cmakedefine HAVE_STRNDUP
+#cmakedefine HAVE_CMPLXF
+#cmakedefine HAVE_IMAGINARY_I
+#cmakedefine HAVE_COMPLEX_I
+
+#ifndef HAVE_CMPLXF
+#if (__GNUC__ > 4 || (__GNUC__ == 4 && __GNUC_MINOR__ >= 7))
+    #define CMPLXF(x,y) __builtin_complex((float)(x), (float)(y))
+#elif defined(HAVE_IMAGINARY_I)
+    #define CMPLXF(x,y) ((float complex)((float)(x) + _Imaginary_I * (float)(y)))
+#elif defined(HAVE_COMPLEX_I)
+    #define CMPLXF(x,y) ((float complex)((float)(x) + _Complex_I * (float)(y)))
+#endif
+#endif /* HAVE_CMPLXF */
+
+#ifndef HAVE_STRNDUP
+#include <stdlib.h>
+char *strndup(char const *s, size_t n);
+#endif

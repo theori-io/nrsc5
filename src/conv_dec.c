@@ -19,6 +19,8 @@
  * Author: Tom Tsou <tom.tsou@ettus.com>
  */
 
+#include "config.h"
+
 #include <stdlib.h>
 #ifndef __APPLE__
 #include <malloc.h>

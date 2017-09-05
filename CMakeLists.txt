@@ -1,5 +1,6 @@
 cmake_minimum_required (VERSION 2.8)
 include (CheckLibraryExists)
+include (CheckSymbolExists)
 include (ExternalProject)
 project (nrsc5 C)
 
@@ -26,6 +27,11 @@ if (NOT LIBTOOLIZE)
     message (FATAL_ERROR "Missing libtoolize. Install libtool package and try again.")
 endif ()
 
+find_program (PATCH patch)
+if (NOT PATCH)
+    message (FATAL_ERROR "Missing patch. Install patch package and try again.")
+endif()
+
 find_library (FFTW3F_LIBRARY fftw3f)
 find_library (RTL_SDR_LIBRARY rtlsdr)
 
@@ -43,6 +49,12 @@ if (CMAKE_SYSTEM_PROCESSOR MATCHES "(i[456]|x)86.*")
     endif()
 endif()
 
+set (CMAKE_REQUIRED_FLAGS --std=gnu11)
+check_symbol_exists (strndup string.h HAVE_STRNDUP)
+check_symbol_exists (CMPLXF complex.h HAVE_CMPLXF)
+check_symbol_exists (_Imaginary_I complex.h HAVE_IMAGINARY_I)
+check_symbol_exists (_Complex_I complex.h HAVE_COMPLEX_I)
+
 if (USE_FAAD2)
     # libao only used if we have FAAD2
     find_library (AO_LIBRARY ao)
@@ -55,7 +67,7 @@ if (USE_FAAD2)
         PREFIX ${FAAD2_PREFIX}
 
         UPDATE_COMMAND ""
-        PATCH_COMMAND patch -p1 -i "${CMAKE_SOURCE_DIR}/support/faad2-hdc-support.patch"
+        PATCH_COMMAND patch -p1 -Ni "${CMAKE_SOURCE_DIR}/support/faad2-hdc-support.patch" || exit 0
         COMMAND sh ./bootstrap
 
         CONFIGURE_COMMAND ${FAAD2_PREFIX}/src/faad2_external/configure --prefix=${FAAD2_PREFIX} --with-hdc "CFLAGS=-O3 ${CMAKE_C_FLAGS}"

@@ -13,6 +13,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "config.h"
+
 #include <assert.h>
 #include <errno.h>
 #include <string.h>
@@ -23,11 +25,11 @@
 #include "defines.h"
 #include "output.h"
 
-#ifdef HAVE_ID3V2LIB
+#ifdef USE_ID3V2LIB
 #include <id3v2lib.h>
 #endif
 
-#ifdef HAVE_FAAD2
+#ifdef USE_FAAD2
 static ao_sample_format sample_format = {
     16,
     44100,
@@ -120,7 +122,7 @@ void output_push(output_t *st, uint8_t *pkt, unsigned int len)
         return;
     }
 
-#ifdef HAVE_FAAD2
+#ifdef USE_FAAD2
     void *buffer;
     NeAACDecFrameInfo info;
 
@@ -178,7 +180,7 @@ void output_push(output_t *st, uint8_t *pkt, unsigned int len)
 #endif
 }
 
-#if defined(HAVE_FAAD2) && defined(USE_THREADS)
+#if defined(USE_FAAD2) && defined(USE_THREADS)
 static void *output_worker(void *arg)
 {
     output_t *st = arg;
@@ -215,7 +217,7 @@ void output_reset(output_t *st)
 {
     memset(st->ports, 0, sizeof(st->ports));
 
-#ifdef HAVE_FAAD2
+#ifdef USE_FAAD2
     if (st->method == OUTPUT_ADTS || st->method == OUTPUT_HDC)
         return;
 
@@ -255,7 +257,7 @@ void output_init_hdc(output_t *st, const char *name)
     st->aas_files_path = NULL;
 }
 
-#ifdef HAVE_FAAD2
+#ifdef USE_FAAD2
 static void output_init_ao(output_t *st, int driver, const char *name)
 {
     unsigned int i;
@@ -310,7 +312,7 @@ void output_init_live(output_t *st)
 }
 #endif
 
-#ifdef HAVE_ID3V2LIB
+#ifdef USE_ID3V2LIB
 static void display_text_content(const char *header, ID3v2_frame *frame)
 {
     if (frame == NULL)
@@ -540,7 +542,7 @@ static void process_port(output_t *st, uint16_t port_id, uint8_t *buf, unsigned 
         }
         else if (port->u.file.size)
         {
-            log_debug("%s expected %d, got %d\n", port->u.file.name, port->u.file.seq, seq);
+            log_debug("%s expected %d, got %d", port->u.file.name, port->u.file.seq, seq);
         }
         break;
     }
@@ -556,7 +558,7 @@ void output_aas_push(output_t *st, uint8_t *buf, unsigned int len)
     if (port == 0x5100 || (port >= 0x5201 && port <= 0x5207))
     {
         // PSD ports
-#ifdef HAVE_ID3V2LIB
+#ifdef USE_ID3V2LIB
         output_id3(buf + 4, len - 4);
 #endif
     }

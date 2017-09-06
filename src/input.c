@@ -95,6 +95,7 @@ static void input_push_to_acquire(input_t *st)
     // CFO is modified in sync, and is expected to be "immediately" applied
     for (unsigned int j = st->used + st->cfo_used; j < st->avail; j++)
         st->buffer[j] *= st->cfo_tbl[st->cfo_idx++ % FFT];
+    st->cfo_idx %= FFT;
 
     if (st->skip)
     {

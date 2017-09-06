@@ -478,9 +478,7 @@ static void process_port(output_t *st, uint16_t port_id, uint8_t *buf, unsigned 
     case 3: // file
     {
         uint32_t *p32 = (uint32_t *)buf;
-        uint32_t unk1 = p32[0];
-        uint32_t seq = p32[1];;
-        log_debug("Port %04X unk %08X", port->port, unk1);
+        uint32_t seq = p32[1];
         buf += 8;
         len -= 8;
         if (seq == 0)

@@ -279,9 +279,9 @@ int main(int argc, char *argv[])
         {
             uint8_t tmp[RADIO_BUFFER];
             size_t cnt;
-            cnt = fread(tmp, 1, sizeof(tmp), infp);
+            cnt = fread(tmp, 4, sizeof(tmp) / 4, infp);
             if (cnt > 0)
-                input_cb(tmp, cnt, &input);
+                input_cb(tmp, cnt * 4, &input);
             input_wait(&input, 0);
         }
         input_wait(&input, 1);

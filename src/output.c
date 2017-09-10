@@ -111,6 +111,14 @@ void output_reset_buffers(output_t *st)
 
 void output_push(output_t *st, uint8_t *pkt, unsigned int len)
 {
+    st->audio_packets++;
+    st->audio_bytes += len;
+    if (st->audio_packets >= 32) {
+        log_debug("Audio bit rate: %.1f kbps", (float)st->audio_bytes * 8 * 44100 / 2048 / st->audio_packets / 1000);
+        st->audio_packets = 0;
+        st->audio_bytes = 0;
+    }
+
     if (st->method == OUTPUT_ADTS)
     {
         dump_adts(st->outfp, pkt, len);
@@ -216,6 +224,8 @@ static void *output_worker(void *arg)
 void output_reset(output_t *st)
 {
     memset(st->ports, 0, sizeof(st->ports));
+    st->audio_packets = 0;
+    st->audio_bytes = 0;
 
 #ifdef USE_FAAD2
     if (st->method == OUTPUT_ADTS || st->method == OUTPUT_HDC)

@@ -107,7 +107,7 @@ void decode_sis(pids_t *st, uint8_t *bits)
             {
                 country_code[j] = decode_char5(bits, &off);
             }
-            off += 3;
+            off += 3; // reserved
             fcc_facility_id = decode_int(bits, &off, 19);
 
             if ((strcmp(country_code, st->country_code) != 0) || (fcc_facility_id != st->fcc_facility_id))
@@ -216,7 +216,7 @@ void decode_sis(pids_t *st, uint8_t *bits)
             }
             else
             {
-                off += 3;
+                off += 3; // reserved
                 for (j = 0; j < 6; j++)
                     st->message[current_frame * 6 - 2 + j] = decode_int(bits, &off, 8);
             }
@@ -245,7 +245,47 @@ void decode_sis(pids_t *st, uint8_t *bits)
             off += 22;
             break;
         case 8:
-            off += 58;
+            if (off > 64 - 58) break;
+            current_frame = decode_int(bits, &off, 4);
+            if (bits[off++] == 0)
+            {
+                // Fixme: implement Universal Short Station Name
+                off += 53;
+            }
+            else
+            {
+                if (current_frame == 0)
+                {
+                    st->slogan_encoding = decode_int(bits, &off, 3);
+                    off += 3; // reserved
+                    st->slogan_len = decode_int(bits, &off, 7);
+                    for (j = 0; j < 5; j++)
+                        st->slogan[j] = decode_int(bits, &off, 8);
+                }
+                else
+                {
+                    off += 5; // reserved
+                    for (j = 0; j < 6; j++)
+                        st->slogan[current_frame * 6 - 1 + j] = decode_int(bits, &off, 8);
+                }
+                st->slogan_have_frame[current_frame] = 1;
+
+                if (st->slogan_len >= 0 && !st->slogan_displayed)
+                {
+                    int complete = 1;
+                    for (j = 0; j < (st->slogan_len + 6) / 6; j++)
+                        complete &= st->slogan_have_frame[j];
+
+                    if (complete)
+                    {
+                        if (st->slogan_encoding == 0)
+                            log_debug("Slogan: %s", st->slogan);
+                        else
+                            log_debug("Unsupported encoding: %d", st->slogan_encoding);
+                        st->slogan_displayed = 1;
+                    }
+                }
+            }
             break;
         case 9:
             off += 58;
@@ -273,12 +313,21 @@ void pids_init(pids_t *st)
 {
     memset(st->country_code, 0, sizeof(st->country_code));
     st->fcc_facility_id = 0;
+
     memset(st->short_name, 0, sizeof(st->short_name));
+    
     st->long_name_seq = -1;
     st->long_name_displayed = 0;
+
     st->latitude = NAN;
     st->longitude = NAN;
     st->altitude = 0;
+
     st->message_seq = -1;
     st->message_displayed = 0;
+
+    memset(st->slogan, 0, sizeof(st->slogan));
+    memset(st->slogan_have_frame, 0, sizeof(st->slogan_have_frame));
+    st->slogan_len = -1;
+    st->slogan_displayed = 0;
 }

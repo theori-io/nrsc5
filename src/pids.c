@@ -72,7 +72,7 @@ char decode_char(uint8_t *bits, int *off)
     return chars[decode_int(bits, off, 5)];
 }
 
-void decode_sis(uint8_t *bits)
+void decode_sis(pids_t *st, uint8_t *bits)
 {
     int payloads, off, i;
 
@@ -100,7 +100,13 @@ void decode_sis(uint8_t *bits)
             }
             off += 3;
             fcc_facility_id = decode_int(bits, &off, 19);
-            log_debug("Country: %s, FCC facility ID: %d", country_code, fcc_facility_id);
+
+            if ((strcmp(country_code, st->country_code) != 0) || (fcc_facility_id != st->fcc_facility_id))
+            {
+                log_debug("Country: %s, FCC facility ID: %d", country_code, fcc_facility_id);
+                strcpy(st->country_code, country_code);
+                st->fcc_facility_id = fcc_facility_id;
+            }
             break;
         case 1:
             if (off > 64 - 22) break;
@@ -111,7 +117,12 @@ void decode_sis(uint8_t *bits)
             if (bits[off] == 0 && bits[off+1] == 1)
                 strcat(short_name, "-FM");
             off += 2;
-            log_debug("Station Name: %s", short_name);
+
+            if (strcmp(short_name, st->short_name) != 0)
+            {
+                log_debug("Station Name: %s", short_name);
+                strcpy(st->short_name, short_name);
+            }
             break;
         case 2:
             off += 58;
@@ -143,7 +154,7 @@ void decode_sis(uint8_t *bits)
     }
 }
 
-void pids_frame_push(uint8_t *bits)
+void pids_frame_push(pids_t *st, uint8_t *bits)
 {
     int i;
     uint8_t reversed[PIDS_FRAME_LEN];
@@ -153,5 +164,12 @@ void pids_frame_push(uint8_t *bits)
         reversed[i] = bits[((i>>3)<<3) + 7 - (i & 7)];
     }
     if (check_crc12(reversed))
-        decode_sis(reversed);
+        decode_sis(st, reversed);
+}
+
+void pids_init(pids_t *st)
+{
+    memset(st->country_code, 0, sizeof(st->country_code));
+    st->fcc_facility_id = 0;
+    memset(st->short_name, 0, sizeof(st->short_name));
 }

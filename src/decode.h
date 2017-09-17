@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 #include "defines.h"
+#include "pids.h"
 
 typedef struct
 {
@@ -20,6 +21,8 @@ typedef struct
     unsigned int pt_p3[4];
     int8_t *viterbi_p3;
     uint8_t *scrambler_p3;
+
+    pids_t pids;
 } decode_t;
 
 void decode_process_p1(decode_t *st);

@@ -125,7 +125,7 @@ void decode_process_pids(decode_t *st)
 
     nrsc5_conv_decode_pids(st->viterbi_pids, st->scrambler_pids);
     descramble(st->scrambler_pids, PIDS_FRAME_LEN);
-    pids_frame_push(st->scrambler_pids);
+    pids_frame_push(&st->pids, st->scrambler_pids);
 }
 
 void decode_process_p3(decode_t *st)
@@ -161,6 +161,7 @@ void decode_reset(decode_t *st)
     st->idx_px1 = 0;
     st->i_p3 = 0;
     memset(st->pt_p3, 0, sizeof(unsigned int) * 4);
+    pids_init(&st->pids);
 }
 
 void decode_init(decode_t *st, struct input_t *input)

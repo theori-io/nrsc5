@@ -25,6 +25,11 @@
 #include "defines.h"
 #include "output.h"
 
+#ifdef __MACH__
+#include <mach/clock.h>
+#include <mach/mach.h>
+#endif
+
 #ifdef USE_ID3V2LIB
 #include <id3v2lib.h>
 #endif
@@ -141,7 +146,19 @@ void output_push(output_t *st, uint8_t *pkt, unsigned int len)
 
 #ifdef USE_THREADS
         struct timespec ts;
+
+#ifdef __MACH__
+        clock_serv_t cclock;
+        mach_timespec_t mts;
+        host_get_clock_service(mach_host_self(), CALENDAR_CLOCK, &cclock);
+        clock_get_time(cclock, &mts);
+        mach_port_deallocate(mach_task_self(), cclock);
+        ts.tv_sec = mts.tv_sec;
+        ts.tv_nsec = mts.tv_nsec;
+#else
         clock_gettime(CLOCK_REALTIME, &ts);
+#endif
+
         ts.tv_nsec += 100000000;
         if (ts.tv_nsec >= 1000000000)
         {

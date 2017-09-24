@@ -25,10 +25,6 @@
 #include "defines.h"
 #include "output.h"
 
-#ifdef USE_ID3V2LIB
-#include <id3v2lib.h>
-#endif
-
 #ifdef USE_FAAD2
 static ao_sample_format sample_format = {
     16,
@@ -324,65 +320,65 @@ void output_init_live(output_t *st)
 }
 #endif
 
-#ifdef USE_ID3V2LIB
-static void display_text_content(const char *header, ID3v2_frame *frame)
+static unsigned int id3_length(uint8_t *buf)
 {
-    if (frame == NULL)
-        return;
-
-    ID3v2_frame_text_content *content = parse_text_frame_content(frame);
-
-    char temp[content->size + 1];
-    memcpy(temp, content->data, content->size);
-    temp[content->size] = '\0';
-    log_info("%s: %s", header, temp);
-
-    free(content);
+    return ((buf[0] & 0x7f) << 21) | ((buf[1] & 0x7f) << 14) | ((buf[2] & 0x7f) << 7) | (buf[3] & 0x7f);
 }
 
-static void display_comment_content(const char *header, ID3v2_frame *frame)
+static char *id3_text(uint8_t *buf, unsigned int frame_len)
 {
-    if (frame == NULL)
-        return;
+    char *text;
 
-    ID3v2_frame_comment_content *content = parse_comment_frame_content(frame);
-
-    char temp[content->text->size + 1];
-    memcpy(temp, content->text->data, content->text->size);
-    temp[content->text->size] = '\0';
-    log_info("%s: %s", header, temp);
-
-    free(content);
+    if (frame_len == 0)
+    {
+        text = (char *) malloc(1);
+        text[0] = 0;
+        return text;
+    }
+    else
+    {
+        text = (char *) malloc(frame_len);
+        memcpy(text, buf + 1, frame_len - 1);
+        text[frame_len - 1] = 0;
+        return text;
+    }
 }
 
 static void output_id3(uint8_t *buf, unsigned int len)
 {
-    ID3v2_tag *tag = load_tag_with_buffer((char *)buf, len);
-    if (tag == NULL)
+    unsigned int off = 0, id3_len;
+    if (len < 10 || memcmp(buf + off, "ID3\x03\x00", 5) || buf[off+5]) return;
+    id3_len = id3_length(buf + 6) + 10;
+    if (id3_len > len) return;
+    off += 10;
+
+    while (off + 10 <= id3_len)
     {
-        log_info("invalid psd");
-        return;
+        unsigned int frame_len = id3_length(buf + off + 4);
+        if (off + 10 + frame_len > id3_len) return;
+
+        if (memcmp(buf + off, "TIT2", 4) == 0)
+        {
+            char *title = id3_text(buf + off + 10, frame_len);
+            log_debug("Title: %s", title);
+            free(title);
+        }
+        else if (memcmp(buf + off, "TPE1", 4) == 0)
+        {
+            char *artist = id3_text(buf + off + 10, frame_len);
+            log_debug("Artist: %s", artist);
+            free(artist);
+        }
+        else if (memcmp(buf + off, "TALB", 4) == 0)
+        {
+            char *album = id3_text(buf + off + 10, frame_len);
+            log_debug("Album: %s", album);
+            free(album);
+        }
+
+        off += 10 + frame_len;
     }
-
-    ID3v2_frame *title_frame = tag_get_title(tag);
-    display_text_content("Title", title_frame);
-    free(title_frame);
-
-    ID3v2_frame *artist_frame = tag_get_artist(tag);
-    display_text_content("Artist", artist_frame);
-    free(artist_frame);
-
-    ID3v2_frame *genre_frame = tag_get_genre(tag);
-    display_text_content("Genre", genre_frame);
-    free(genre_frame);
-
-    ID3v2_frame *comment_frame = tag_get_comment(tag);
-    display_comment_content("Comment", comment_frame);
-    free(comment_frame);
-
-    free(tag);
 }
-#endif
 
 static void parse_port_info(output_t *st, uint8_t *buf, unsigned int len)
 {
@@ -568,9 +564,7 @@ void output_aas_push(output_t *st, uint8_t *buf, unsigned int len)
     if (port == 0x5100 || (port >= 0x5201 && port <= 0x5207))
     {
         // PSD ports
-#ifdef USE_ID3V2LIB
         output_id3(buf + 4, len - 4);
-#endif
     }
     else if (port == 0x20)
     {

@@ -320,15 +320,26 @@ void output_init_live(output_t *st)
 
 static unsigned int id3_length(uint8_t *buf)
 {
-    return (buf[0] << 21) | (buf[1] << 14) | (buf[2] << 7) | buf[3];
+    return ((buf[0] & 0x7f) << 21) | ((buf[1] & 0x7f) << 14) | ((buf[2] & 0x7f) << 7) | (buf[3] & 0x7f);
 }
 
 static char *id3_text(uint8_t *buf, unsigned int frame_len)
 {
-    char *text = (char *) malloc(frame_len);
-    memcpy(text, buf + 1, frame_len - 1);
-    text[frame_len - 1] = 0;
-    return text;
+    char *text;
+
+    if (frame_len == 0)
+    {
+        text = (char *) malloc(1);
+        text[0] = 0;
+        return text;
+    }
+    else
+    {
+        text = (char *) malloc(frame_len);
+        memcpy(text, buf + 1, frame_len - 1);
+        text[frame_len - 1] = 0;
+        return text;
+    }
 }
 
 static void output_id3(uint8_t *buf, unsigned int len)

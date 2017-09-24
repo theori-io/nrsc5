@@ -10,7 +10,6 @@ option (USE_SSE "Use SSE3 instructions")
 option (USE_THREADS "Enable multithreading" ON)
 option (USE_FAST_MATH "Use unsafe math optimizations")
 option (USE_FAAD2 "AAC decoding with FAAD2" ON)
-option (USE_ID3V2LIB "ID3V2 decoding from PSD" ON)
 
 find_program (AUTOCONF autoconf)
 if (NOT AUTOCONF)
@@ -82,26 +81,6 @@ if (USE_FAAD2)
 
     set (FAAD2_LIBRARY faad2)
     add_definitions (-DHAVE_FAAD2)
-endif()
-
-if (USE_ID3V2LIB)
-    set (ID3V2LIB_PREFIX "${CMAKE_BINARY_DIR}/id3v2lib-prefix")
-    ExternalProject_Add (
-        id3v2lib_external
-        GIT_REPOSITORY "https://github.com/larsbs/id3v2lib.git"
-        GIT_TAG 9bca1c33b8cd8037ee59de927bda057c9ac7043d
-        PREFIX ${ID3V2LIB_PREFIX}
-
-        INSTALL_COMMAND ""
-    )
-
-    add_library (id3v2lib STATIC IMPORTED)
-    set_property (TARGET id3v2lib PROPERTY IMPORTED_LOCATION "${ID3V2LIB_PREFIX}/src/id3v2lib_external-build/src/libid3v2.a")
-    add_dependencies (id3v2lib id3v2lib_external)
-    include_directories ("${ID3V2LIB_PREFIX}/src/id3v2lib_external/include")
-
-    set (ID3V2LIB_LIBRARY id3v2lib)
-    add_definitions (-DHAVE_ID3V2LIB)
 endif()
 
 add_subdirectory (src)

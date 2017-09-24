@@ -67,6 +67,8 @@ typedef struct
 
     char *aas_files_path;
     aas_port_t ports[32];
+    unsigned int audio_packets;
+    unsigned int audio_bytes;
 } output_t;
 
 void output_push(output_t *st, uint8_t *pkt, unsigned int len);

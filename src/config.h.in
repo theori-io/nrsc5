@@ -1,7 +1,6 @@
 #pragma once
 
 #cmakedefine USE_FAAD2
-#cmakedefine USE_ID3V2LIB
 #cmakedefine USE_COLOR
 #cmakedefine USE_FAST_MATH
 #cmakedefine USE_THREADS

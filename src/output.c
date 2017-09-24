@@ -149,8 +149,10 @@ void output_push(output_t *st, uint8_t *pkt, unsigned int len)
 
 #ifdef USE_THREADS
         struct timespec ts;
-        clock_gettime(CLOCK_REALTIME, &ts);
-        ts.tv_nsec += 100000000;
+        struct timeval now;
+        gettimeofday(&now, NULL);
+        ts.tv_sec = now.tv_sec;
+        ts.tv_nsec = (now.tv_usec + 100000) * 1000;
         if (ts.tv_nsec >= 1000000000)
         {
             ts.tv_nsec -= 1000000000;

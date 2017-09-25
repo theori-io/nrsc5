@@ -18,6 +18,7 @@ typedef struct
     uint8_t *scrambler_pids;
     int8_t *internal_p3;
     unsigned int i_p3;
+    int ready_p3;
     unsigned int pt_p3[4];
     int8_t *viterbi_p3;
     uint8_t *scrambler_p3;

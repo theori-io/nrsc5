@@ -57,6 +57,7 @@ Options:
        -q                              disable log output
        -l log-level                    set log level
                                          (1 = DEBUG, 2 = INFO, 3 = WARN)
+       -v                              print the version number and exit
 
 Examples:
 

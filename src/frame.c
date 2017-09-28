@@ -288,13 +288,20 @@ static void parse_psd(frame_t *st, uint8_t *data, size_t length)
     {
         index = p - data;
 
-        // complete current psd frame
-        if (st->psd_idx)
+        if (st->psd_idx >= 0)
         {
-            if (index + st->psd_idx > 2048)
-                goto overflow;
-            memcpy(&st->psd_buf[st->psd_idx], data, index);
-            aas_push(st, st->psd_buf, index + st->psd_idx);
+            // complete current psd frame
+            if (st->psd_idx)
+            {
+                if (index + st->psd_idx > 2048)
+                    goto overflow;
+                memcpy(&st->psd_buf[st->psd_idx], data, index);
+                aas_push(st, st->psd_buf, index + st->psd_idx);
+                st->psd_idx = 0;
+            }
+        }
+        else
+        {
             st->psd_idx = 0;
         }
 
@@ -314,17 +321,20 @@ static void parse_psd(frame_t *st, uint8_t *data, size_t length)
         }
     }
 
-    // store remaining bytes
-    if (length - index + st->psd_idx > 2048)
+    if (st->psd_idx >= 0)
     {
+        // store remaining bytes
+        if (length - index + st->psd_idx > 2048)
+        {
 overflow:
-        log_error("psd buffer overflow");
-        st->psd_idx = 0;
-        return;
-    }
+            log_error("psd buffer overflow");
+            st->psd_idx = 0;
+            return;
+        }
 
-    memcpy(&st->psd_buf[st->psd_idx], &data[index], length - index);
-    st->psd_idx += length - index;
+        memcpy(&st->psd_buf[st->psd_idx], &data[index], length - index);
+        st->psd_idx += length - index;
+    }
 }
 
 static void process_fixed_ccc(frame_t *st)
@@ -363,7 +373,7 @@ static void process_fixed_ccc(frame_t *st)
                 subch->length = length;
                 subch->block_idx = 0;
                 subch->blocks = malloc(255 + 4);
-                subch->idx = 0;
+                subch->idx = -1;
                 subch->data = malloc(MAX_AAS_LEN);
             }
             else
@@ -385,14 +395,21 @@ static void process_fixed_block(frame_t *st, int i)
     {
         uint8_t byte = p[j];
         // TODO eliminate duplication with parse_psd
-        if (byte == 0x7E)
+        if (subch->idx >= 0)
         {
-            aas_push(st, subch->data, subch->idx);
-            subch->idx = 0;
+            if (byte == 0x7E)
+            {
+                aas_push(st, subch->data, subch->idx);
+                subch->idx = 0;
+            }
+            else
+            {
+                subch->data[subch->idx++] = byte;
+            }
         }
         else
         {
-            subch->data[subch->idx++] = byte;
+            if (byte == 0x7E) subch->idx = 0;
         }
     }
 }
@@ -600,7 +617,7 @@ void frame_reset(frame_t *st)
     st->pdu_idx = 0;
     st->pci = 0;
     st->ready = 0;
-    st->psd_idx = 0;
+    st->psd_idx = -1;
 
     st->fixed_ready = 0;
     st->sync_width = 0;

@@ -2,6 +2,23 @@
 
 #include <stdint.h>
 
+#define MAX_AUDIO_SERVICES 8
+#define MAX_DATA_SERVICES 16
+
+typedef struct
+{
+    int access;
+    int type;
+    int sound_exp;
+} asd_t;
+
+typedef struct
+{
+    int access;
+    int type;
+    int mime_type;
+} dsd_t;
+
 typedef struct
 {
     char country_code[3];
@@ -25,6 +42,9 @@ typedef struct
     int message_encoding;
     int message_len;
     int message_displayed;
+
+    asd_t audio_services[MAX_AUDIO_SERVICES];
+    dsd_t data_services[MAX_DATA_SERVICES];
 
     char slogan[96];
     uint8_t slogan_have_frame[16];

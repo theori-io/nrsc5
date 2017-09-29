@@ -95,6 +95,9 @@ void decode_sis(pids_t *st, uint8_t *bits)
         int current_frame;
         int last_frame;
         float latitude, longitude;
+        int category, prog_num;
+        asd_t audio_service;
+        dsd_t data_service;
 
         if (off > 60) break;
         msg_id = decode_int(bits, &off, 4);
@@ -239,7 +242,60 @@ void decode_sis(pids_t *st, uint8_t *bits)
             }
             break;
         case 6:
-            off += 27;
+            if (off > 64 - 27) break;
+            category = decode_int(bits, &off, 2);
+            switch (category)
+            {
+            case 0:
+                audio_service.access = decode_int(bits, &off, 1);
+                prog_num = decode_int(bits, &off, 6);
+                audio_service.type = decode_int(bits, &off, 8);
+                off += 5; // reserved
+                audio_service.sound_exp = decode_int(bits, &off, 5);
+
+                if (prog_num >= MAX_AUDIO_SERVICES)
+                {
+                    log_debug("Invalid program number: %d", prog_num);
+                    break;
+                }
+
+                if (st->audio_services[prog_num].access != audio_service.access
+                    || st->audio_services[prog_num].type != audio_service.type
+                    || st->audio_services[prog_num].sound_exp != audio_service.sound_exp)
+                {
+                    st->audio_services[prog_num] = audio_service;
+                    log_debug("Audio program %d: %s, type %d, sound experience %d",
+                        prog_num, audio_service.access ? "restricted" : "public",
+                        audio_service.type, audio_service.sound_exp);
+                }
+                break;
+            case 1:
+                data_service.access = decode_int(bits, &off, 1);
+                data_service.type = decode_int(bits, &off, 9);
+                off += 3; // reserved
+                data_service.mime_type = decode_int(bits, &off, 12);
+
+                for (j = 0; j < MAX_DATA_SERVICES; j++)
+                {
+                    if (st->data_services[j].access == data_service.access
+                        && st->data_services[j].type == data_service.type
+                        && st->data_services[j].mime_type == data_service.mime_type)
+                    {
+                        break;
+                    }
+                    else if (st->data_services[j].type == -1)
+                    {
+                        st->data_services[j] = data_service;
+                        log_debug("Data service: %s, type %d, MIME type %03x",
+                            data_service.access ? "restricted" : "public",
+                            data_service.type, data_service.mime_type);
+                        break;
+                    }
+                }
+                break;
+            default:
+                log_debug("Unknown service category identifier: %d", category);
+            }
             break;
         case 7:
             off += 22;
@@ -311,11 +367,13 @@ void pids_frame_push(pids_t *st, uint8_t *bits)
 
 void pids_init(pids_t *st)
 {
+    int i;
+
     memset(st->country_code, 0, sizeof(st->country_code));
     st->fcc_facility_id = 0;
 
     memset(st->short_name, 0, sizeof(st->short_name));
-    
+
     st->long_name_seq = -1;
     st->long_name_displayed = 0;
 
@@ -325,6 +383,19 @@ void pids_init(pids_t *st)
 
     st->message_seq = -1;
     st->message_displayed = 0;
+
+    for (i = 0; i < MAX_AUDIO_SERVICES; i++)
+    {
+        st->audio_services[i].access = -1;
+        st->audio_services[i].type = -1;
+        st->audio_services[i].sound_exp = -1;
+    }
+    for (i = 0; i < MAX_DATA_SERVICES; i++)
+    {
+        st->data_services[i].access = -1;
+        st->data_services[i].type = -1;
+        st->data_services[i].mime_type = -1;
+    }
 
     memset(st->slogan, 0, sizeof(st->slogan));
     memset(st->slogan_have_frame, 0, sizeof(st->slogan_have_frame));

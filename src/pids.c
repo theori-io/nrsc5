@@ -98,6 +98,7 @@ void decode_sis(pids_t *st, uint8_t *bits)
         int category, prog_num;
         asd_t audio_service;
         dsd_t data_service;
+        int index, parameter, tzo;
 
         if (off > 60) break;
         msg_id = decode_int(bits, &off, 4);
@@ -255,7 +256,7 @@ void decode_sis(pids_t *st, uint8_t *bits)
 
                 if (prog_num >= MAX_AUDIO_SERVICES)
                 {
-                    log_debug("Invalid program number: %d", prog_num);
+                    log_warn("Invalid program number: %d", prog_num);
                     break;
                 }
 
@@ -294,11 +295,70 @@ void decode_sis(pids_t *st, uint8_t *bits)
                 }
                 break;
             default:
-                log_debug("Unknown service category identifier: %d", category);
+                log_warn("Unknown service category identifier: %d", category);
             }
             break;
         case 7:
-            off += 22;
+            if (off > 64 - 22) break;
+            index = decode_int(bits, &off, 6);
+            parameter = decode_int(bits, &off, 16);
+            if (index >= NUM_PARAMETERS)
+            {
+                log_warn("Invalid parameter index: %d", index);
+                break;
+            }
+            if (st->parameters[index] != parameter)
+            {
+                st->parameters[index] = parameter;
+                switch (index)
+                {
+                case 0:
+                    log_debug("Pending leap second offset: %d, current leap second offset: %d",
+                        parameter >> 8, parameter & 0xff);
+                    break;
+                case 1:
+                case 2:
+                    if (st->parameters[1] >= 0 && st->parameters[2] >= 0)
+                        log_debug("ALFN of pending leap second adjustment: %d", st->parameters[2] << 16 | st->parameters[1]);
+                    break;
+                case 3:
+                    tzo = (parameter >> 5) & 0x7ff;
+                    if (tzo > 1024) tzo -= 2048;
+                    log_debug("Local time zone offset: %d minutes, DST sched. %d, local DST? %s, regional DST? %s",
+                        tzo, (parameter >> 2) & 0x7, parameter & 0x2 ? "yes" : "no", parameter & 0x1 ? "yes" : "no");
+                    break;
+                case 4:
+                case 5:
+                case 6:
+                case 7:
+                    if (st->parameters[4] >= 0 && st->parameters[5] >= 0 && st->parameters[6] >= 0 && st->parameters[7] >= 0)
+                    {
+                        log_debug("Exciter manuf. \"%c%c\", core version %d.%d.%d.%d-%d, manuf. version %d.%d.%d.%d-%d",
+                            (st->parameters[4] >> 8) & 0x7f, st->parameters[4] & 0x7f,
+                            (st->parameters[5] >> 11) & 0x1f, (st->parameters[5] >> 6) & 0x1f, (st->parameters[5] >> 1) & 0x1f,
+                            (st->parameters[7] >> 11) & 0x1f, (st->parameters[7] >> 3) & 0x7,
+                            (st->parameters[6] >> 11) & 0x1f, (st->parameters[6] >> 6) & 0x1f, (st->parameters[6] >> 1) & 0x1f,
+                            (st->parameters[7] >> 6) & 0x1f, st->parameters[7] & 0x7
+                        );
+                    }
+                    break;
+                case 8:
+                case 9:
+                case 10:
+                case 11:
+                    if (st->parameters[8] >= 0 && st->parameters[9] >= 0 && st->parameters[10] >= 0 && st->parameters[11] >= 0)
+                    {
+                        log_debug("Importer manuf. \"%c%c\", core version %d.%d.%d.%d-%d, manuf. version %d.%d.%d.%d-%d",
+                            (st->parameters[8] >> 8) & 0x7f, st->parameters[8] & 0x7f,
+                            (st->parameters[9] >> 11) & 0x1f, (st->parameters[9] >> 6) & 0x1f, (st->parameters[9] >> 1) & 0x1f,
+                            (st->parameters[11] >> 11) & 0x1f, (st->parameters[11] >> 3) & 0x7,
+                            (st->parameters[10] >> 11) & 0x1f, (st->parameters[10] >> 6) & 0x1f, (st->parameters[10] >> 1) & 0x1f,
+                            (st->parameters[11] >> 6) & 0x1f, st->parameters[11] & 0x7
+                        );
+                    }
+                    break;
+                }
+            }
             break;
         case 8:
             if (off > 64 - 58) break;
@@ -337,7 +397,7 @@ void decode_sis(pids_t *st, uint8_t *bits)
                         if (st->slogan_encoding == 0)
                             log_debug("Slogan: %s", st->slogan);
                         else
-                            log_debug("Unsupported encoding: %d", st->slogan_encoding);
+                            log_warn("Unsupported encoding: %d", st->slogan_encoding);
                         st->slogan_displayed = 1;
                     }
                 }
@@ -396,6 +456,9 @@ void pids_init(pids_t *st)
         st->data_services[i].type = -1;
         st->data_services[i].mime_type = -1;
     }
+
+    for (i = 0; i < NUM_PARAMETERS; i++)
+        st->parameters[i] = -1;
 
     memset(st->slogan, 0, sizeof(st->slogan));
     memset(st->slogan_have_frame, 0, sizeof(st->slogan_have_frame));

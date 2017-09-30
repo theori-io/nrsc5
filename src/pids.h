@@ -4,6 +4,7 @@
 
 #define MAX_AUDIO_SERVICES 8
 #define MAX_DATA_SERVICES 16
+#define NUM_PARAMETERS 12
 
 typedef struct
 {
@@ -45,6 +46,8 @@ typedef struct
 
     asd_t audio_services[MAX_AUDIO_SERVICES];
     dsd_t data_services[MAX_DATA_SERVICES];
+
+    int parameters[NUM_PARAMETERS];
 
     char slogan[96];
     uint8_t slogan_have_frame[16];

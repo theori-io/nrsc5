@@ -105,7 +105,7 @@ unsigned int parse_freq(char *s)
 
 static void help(const char *progname)
 {
-    fprintf(stderr, "Usage: %s [-q] [-l log-level] [-d device-index] [-g gain] [-p ppm-error] [-r samples-input] [-w samples-output] [-o audio-output -f adts|hdc|wav] [--dump-aas-files directory] frequency program\n", progname);
+    fprintf(stderr, "Usage: %s [-v] [-q] [-l log-level] [-d device-index] [-g gain] [-p ppm-error] [-r samples-input] [-w samples-output] [-o audio-output -f adts|hdc|wav] [--dump-aas-files directory] frequency program\n", progname);
 }
 
 int main(int argc, char *argv[])
@@ -121,7 +121,7 @@ int main(int argc, char *argv[])
     input_t input;
     output_t output;
 
-    while ((opt = getopt_long(argc, argv, "r:w:d:p:o:f:g:ql:", long_opts, NULL)) != -1)
+    while ((opt = getopt_long(argc, argv, "r:w:d:p:o:f:g:ql:v", long_opts, NULL)) != -1)
     {
         switch (opt)
         {
@@ -155,6 +155,9 @@ int main(int argc, char *argv[])
         case 'l':
             log_set_level(atoi(optarg));
             break;
+        case 'v':
+            printf("nrsc5 revision %s\n", GIT_COMMIT_HASH);
+            return 0;
         default:
             help(argv[0]);
             return 0;

@@ -2,9 +2,17 @@
 
 #include <stdint.h>
 
+#define MAX_LONG_NAME_LEN 56
+#define MAX_LONG_NAME_FRAMES 8
+#define MAX_MESSAGE_LEN 190
+#define MAX_MESSAGE_FRAMES 32
 #define MAX_AUDIO_SERVICES 8
 #define MAX_DATA_SERVICES 16
 #define NUM_PARAMETERS 12
+#define MAX_SLOGAN_LEN 95
+#define MAX_SLOGAN_FRAMES 16
+#define MAX_ALERT_LEN 381
+#define MAX_ALERT_FRAMES 64
 
 typedef struct
 {
@@ -27,8 +35,8 @@ typedef struct
 
     char short_name[8];
 
-    char long_name[57];
-    uint8_t long_name_have_frame[8];
+    char long_name[MAX_LONG_NAME_LEN + 1];
+    uint8_t long_name_have_frame[MAX_LONG_NAME_FRAMES];
     int long_name_seq;
     int long_name_displayed;
 
@@ -36,8 +44,8 @@ typedef struct
     float longitude;
     int altitude;
 
-    char message[192];
-    uint8_t message_have_frame[32];
+    char message[MAX_MESSAGE_LEN + 1];
+    uint8_t message_have_frame[MAX_MESSAGE_FRAMES];
     int message_seq;
     int message_priority;
     int message_encoding;
@@ -49,14 +57,14 @@ typedef struct
 
     int parameters[NUM_PARAMETERS];
 
-    char slogan[96];
-    uint8_t slogan_have_frame[16];
+    char slogan[MAX_SLOGAN_LEN + 1];
+    uint8_t slogan_have_frame[MAX_SLOGAN_FRAMES];
     int slogan_encoding;
     int slogan_len;
     int slogan_displayed;
 
-    char alert[382];
-    uint8_t alert_have_frame[64];
+    char alert[MAX_ALERT_LEN + 1];
+    uint8_t alert_have_frame[MAX_ALERT_FRAMES];
     int alert_seq;
     int alert_encoding;
     int alert_len;

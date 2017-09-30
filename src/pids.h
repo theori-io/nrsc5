@@ -54,6 +54,14 @@ typedef struct
     int slogan_encoding;
     int slogan_len;
     int slogan_displayed;
+
+    char alert[382];
+    uint8_t alert_have_frame[64];
+    int alert_seq;
+    int alert_encoding;
+    int alert_len;
+    int alert_cnt_len;
+    int alert_displayed;
 } pids_t;
 
 void pids_frame_push(pids_t *st, uint8_t *bits);

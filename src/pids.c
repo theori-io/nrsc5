@@ -404,7 +404,49 @@ void decode_sis(pids_t *st, uint8_t *bits)
             }
             break;
         case 9:
-            off += 58;
+            if (off > 64 - 58) break;
+            current_frame = decode_int(bits, &off, 6);
+            seq = decode_int(bits, &off, 2);
+            off += 2; // reserved
+
+            if (current_frame == 0)
+            {
+                if (seq != st->alert_seq)
+                {
+                    memset(st->alert, 0, sizeof(st->alert));
+                    memset(st->alert_have_frame, 0, sizeof(st->alert_have_frame));
+                    st->alert_seq = seq;
+                    st->alert_displayed = 0;
+                }
+                st->alert_encoding = decode_int(bits, &off, 3);
+                st->alert_len = decode_int(bits, &off, 9);
+                off += 7; // CRC-7 integrity check
+                st->alert_cnt_len = decode_int(bits, &off, 5);
+                for (j = 0; j < 3; j++)
+                    st->alert[j] = decode_int(bits, &off, 8);
+            }
+            else
+            {
+                for (j = 0; j < 6; j++)
+                    st->alert[current_frame * 6 - 3 + j] = decode_int(bits, &off, 8);
+            }
+            st->alert_have_frame[current_frame] = 1;
+
+            if (st->alert_len >= 0 && !st->alert_displayed)
+            {
+                int complete = 1;
+                for (j = 0; j < (st->alert_len + 8) / 6; j++)
+                    complete &= st->alert_have_frame[j];
+
+                if (complete)
+                {
+                    if (st->alert_encoding == 0)
+                        log_debug("Alert: %s", st->alert + 1 + (2 * st->alert_cnt_len));
+                    else
+                        log_warn("Unsupported encoding: %d", st->alert_encoding);
+                    st->alert_displayed = 1;
+                }
+            }
             break;
         default:
             log_error("unexpected msg_id: %d", msg_id);
@@ -464,4 +506,9 @@ void pids_init(pids_t *st)
     memset(st->slogan_have_frame, 0, sizeof(st->slogan_have_frame));
     st->slogan_len = -1;
     st->slogan_displayed = 0;
+
+    memset(st->alert, 0, sizeof(st->alert));
+    memset(st->alert_have_frame, 0, sizeof(st->alert_have_frame));
+    st->alert_seq = -1;
+    st->alert_displayed = 0;
 }

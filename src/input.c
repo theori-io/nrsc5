@@ -198,7 +198,7 @@ static void measure_snr(input_t *st, uint8_t *buf, uint32_t len)
         st->snr_cnt++;
     }
 
-    if (st->snr_cnt > 2048)
+    if (st->snr_cnt >= SNR_FFT_COUNT)
     {
         // noise bands are the frequncies near our signal
         float noise_lo = 0;

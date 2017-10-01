@@ -291,7 +291,7 @@ int main(int argc, char *argv[])
     }
     else
     {
-        uint8_t *buf = malloc(128 * 1024);
+        uint8_t *buf = malloc(128 * SNR_FFT_COUNT);
         rtlsdr_dev_t *dev;
 
         err = rtlsdr_open(&dev, 0);
@@ -332,7 +332,7 @@ int main(int argc, char *argv[])
         while (gain_count)
         {
             // use a smaller buffer during auto gain
-            int len = 128 * 1024;
+            int len = 128 * SNR_FFT_COUNT;
 
 #ifdef USE_THREADS
             pthread_mutex_lock(&rtlsdr_usb_mutex);

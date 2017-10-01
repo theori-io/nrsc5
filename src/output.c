@@ -105,6 +105,20 @@ void output_reset_buffers(output_t *st)
 #endif
 }
 
+void audio_play(output_t *st, void *buffer)
+{
+    unsigned int i;
+    if (st->method == OUTPUT_LIVE && st->first_audio_packet)
+    {
+        uint8_t silence[AUDIO_FRAME_BYTES];
+        memset(silence, 0, sizeof(silence));
+        for (i = 0; i < LATENCY_FRAMES; i++)
+            ao_play(st->dev, (void *)silence, sizeof(silence));
+        st->first_audio_packet = 0;
+    }
+    ao_play(st->dev, buffer, AUDIO_FRAME_BYTES);
+}
+
 void output_push(output_t *st, uint8_t *pkt, unsigned int len)
 {
     st->audio_packets++;
@@ -180,7 +194,7 @@ void output_push(output_t *st, uint8_t *pkt, unsigned int len)
         pthread_mutex_unlock(&st->mutex);
         pthread_cond_signal(&st->cond);
 #else
-        ao_play(st->dev, (void *)buffer, AUDIO_FRAME_BYTES);
+        audio_play(st, buffer);
 #endif
     }
 #endif
@@ -205,7 +219,7 @@ static void *output_worker(void *arg)
             st->tail = NULL;
         pthread_mutex_unlock(&st->mutex);
 
-        ao_play(st->dev, (void *)ob->data, AUDIO_FRAME_BYTES);
+        audio_play(st, ob->data);
 
         pthread_mutex_lock(&st->mutex);
         // add to free list
@@ -218,6 +232,11 @@ static void *output_worker(void *arg)
     return NULL;
 }
 #endif
+
+void output_begin(output_t *st)
+{
+    st->first_audio_packet = 1;
+}
 
 void output_reset(output_t *st)
 {

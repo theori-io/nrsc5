@@ -169,6 +169,7 @@ void decode_reset(decode_t *st)
     st->ready_p3 = 0;
     memset(st->pt_p3, 0, sizeof(unsigned int) * 4);
     pids_init(&st->pids);
+    output_begin(st->input->output);
 }
 
 void decode_init(decode_t *st, struct input_t *input)

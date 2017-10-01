@@ -12,6 +12,7 @@
 #endif
 
 #define AUDIO_FRAME_BYTES 8192
+#define LATENCY_FRAMES 10
 #define MAX_PORTS 32
 
 typedef enum
@@ -67,11 +68,13 @@ typedef struct
 
     char *aas_files_path;
     aas_port_t ports[32];
+    unsigned int first_audio_packet;
     unsigned int audio_packets;
     unsigned int audio_bytes;
 } output_t;
 
 void output_push(output_t *st, uint8_t *pkt, unsigned int len);
+void output_begin(output_t *st);
 void output_reset(output_t *st);
 void output_init_adts(output_t *st, const char *name);
 void output_init_hdc(output_t *st, const char *name);

@@ -148,11 +148,17 @@ void decode_process_p3(decode_t *st)
         st->internal_p3[st->i_p3] = st->buffer_px1[i];
         (st->i_p3)++;
     }
-    st->i_p3 = st->i_p3 % N;
-
-    nrsc5_conv_decode_p3(st->viterbi_p3, st->scrambler_p3);
-    descramble(st->scrambler_p3, P3_FRAME_LEN);
-    frame_push(&st->input->frame, st->scrambler_p3, P3_FRAME_LEN);
+    if (st->ready_p3)
+    {
+        nrsc5_conv_decode_p3(st->viterbi_p3, st->scrambler_p3);
+        descramble(st->scrambler_p3, P3_FRAME_LEN);
+        frame_push(&st->input->frame, st->scrambler_p3, P3_FRAME_LEN);
+    }
+    if (st->i_p3 == N)
+    {
+        st->i_p3 = 0;
+        st->ready_p3 = 1;
+    }
 }
 
 void decode_reset(decode_t *st)
@@ -160,8 +166,10 @@ void decode_reset(decode_t *st)
     st->idx_pm = 0;
     st->idx_px1 = 0;
     st->i_p3 = 0;
+    st->ready_p3 = 0;
     memset(st->pt_p3, 0, sizeof(unsigned int) * 4);
     pids_init(&st->pids);
+    output_begin(st->input->output);
 }
 
 void decode_init(decode_t *st, struct input_t *input)

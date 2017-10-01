@@ -276,70 +276,43 @@ static void aas_push(frame_t *st, uint8_t* psd, int length)
     }
 }
 
-// AAS transport uses HDLC-like framing
-static void parse_psd(frame_t *st, uint8_t *data, size_t length)
+static void parse_hdlc(frame_t *st, void (*process)(frame_t *, uint8_t *, int), uint8_t *buffer, int *bufidx, int bufsz, uint8_t *input, size_t inlen)
 {
-    uint8_t *p;
-    int index = 0;
-
-    // find "flag"
-    p = memchr(data, 0x7E, length);
-    if (p)
+    for (size_t i = 0; i < inlen; i++)
     {
-        index = p - data;
-
-        // complete current psd frame
-        if (st->psd_idx)
+        uint8_t byte = input[i];
+        if (byte == 0x7E)
         {
-            if (index + st->psd_idx > 2048)
-                goto overflow;
-            memcpy(&st->psd_buf[st->psd_idx], data, index);
-            aas_push(st, st->psd_buf, index + st->psd_idx);
-            st->psd_idx = 0;
+            if (*bufidx >= 0)
+                process(st, buffer, *bufidx);
+            *bufidx = 0;
         }
-
-        // skip the flag
-        index++;
-
-        // check for complete psd in one frame
-        while (1)
+        else if (*bufidx >= 0)
         {
-            p = memchr(&data[index], 0x7E, length - index);
-            if (p == NULL)
-                break;
-
-            int cur_index = p - data;
-            aas_push(st, &data[index], cur_index - index);
-            index = cur_index + 1;
+            if (*bufidx == bufsz)
+            {
+                log_error("HDLC buffer overflow");
+                *bufidx = -1;
+                continue;
+            }
+            buffer[(*bufidx)++] = byte;
         }
     }
-
-    // store remaining bytes
-    if (length - index + st->psd_idx > 2048)
-    {
-overflow:
-        log_error("psd buffer overflow");
-        st->psd_idx = 0;
-        return;
-    }
-
-    memcpy(&st->psd_buf[st->psd_idx], &data[index], length - index);
-    st->psd_idx += length - index;
 }
 
-static void process_fixed_ccc(frame_t *st)
+static void process_fixed_ccc(frame_t *st, uint8_t *buf, int buflen)
 {
-    const uint8_t *buf = st->ccc_buf;
+    buflen = unescape_hdlc(buf, buflen);
 
     // padding
-    if (st->ccc_idx == 0)
+    if (buflen == 0)
         return;
 
     // ignore new CCC packets (XXX they shouldn't change)
     if (st->fixed_ready)
         return;
 
-    if (fcs16(buf, st->ccc_idx) != VALIDFCS16)
+    if (fcs16(buf, buflen) != VALIDFCS16)
     {
         log_info("bad CCC checksum");
         return;
@@ -351,7 +324,7 @@ static void process_fixed_ccc(frame_t *st)
         subch->mode = 0;
         subch->length = 0;
 
-        if (5 + i * 4 <= st->ccc_idx)
+        if (5 + i * 4 <= buflen)
         {
             uint16_t mode = *(uint16_t *)&buf[1 + i * 4];
             uint16_t length = *(uint16_t *)&buf[3 + i * 4];
@@ -363,7 +336,7 @@ static void process_fixed_ccc(frame_t *st)
                 subch->length = length;
                 subch->block_idx = 0;
                 subch->blocks = malloc(255 + 4);
-                subch->idx = 0;
+                subch->idx = -1;
                 subch->data = malloc(MAX_AAS_LEN);
             }
             else
@@ -380,21 +353,7 @@ static void process_fixed_ccc(frame_t *st)
 static void process_fixed_block(frame_t *st, int i)
 {
     fixed_subchannel_t *subch = &st->subchannel[i];
-    uint8_t *p = &subch->blocks[4];
-    for (int j = 0; j < 255; j++)
-    {
-        uint8_t byte = p[j];
-        // TODO eliminate duplication with parse_psd
-        if (byte == 0x7E)
-        {
-            aas_push(st, subch->data, subch->idx);
-            subch->idx = 0;
-        }
-        else
-        {
-            subch->data[subch->idx++] = byte;
-        }
-    }
+    parse_hdlc(st, aas_push, subch->data, &subch->idx, MAX_AAS_LEN, &subch->blocks[4], 255);
 }
 
 static void process_fixed_data(frame_t *st)
@@ -414,27 +373,7 @@ static void process_fixed_data(frame_t *st)
             return;
     }
 
-    for (unsigned int i = 0; i < st->sync_width; i++)
-    {
-        uint8_t byte = st->buffer[PDU_LEN - st->sync_width - 1 + i];
-        // TODO eliminate duplication with parse_psd
-        if (byte == 0x7E)
-        {
-            unescape_hdlc(st->ccc_buf, st->ccc_idx);
-            process_fixed_ccc(st);
-            st->ccc_idx = 0;
-        }
-        else
-        {
-            st->ccc_buf[st->ccc_idx++] = byte;
-        }
-
-        if (st->ccc_idx == sizeof(st->ccc_buf))
-        {
-            log_info("CCC overflow");
-            st->ccc_idx = 0;
-        }
-    }
+    parse_hdlc(st, process_fixed_ccc, st->ccc_buf, &st->ccc_idx, sizeof(st->ccc_buf), &st->buffer[PDU_LEN - st->sync_width - 1], st->sync_width);
 
     // wait until we have subchannel information
     if (!st->fixed_ready)
@@ -498,7 +437,7 @@ void frame_process(frame_t *st, size_t length)
     }
 
     if (hdr.la_location < i || hdr.la_location >= length) return;
-    parse_psd(st, &buf[i], hdr.la_location-i+1);
+    parse_hdlc(st, aas_push, st->psd_buf, &st->psd_idx, MAX_AAS_LEN, &buf[i], hdr.la_location-i+1);
     i = hdr.la_location + 1;
     seq = hdr.seq;
     for (j = 0; j < hdr.nop; ++j)
@@ -600,12 +539,12 @@ void frame_reset(frame_t *st)
     st->pdu_idx = 0;
     st->pci = 0;
     st->ready = 0;
-    st->psd_idx = 0;
+    st->psd_idx = -1;
 
     st->fixed_ready = 0;
     st->sync_width = 0;
     st->sync_count = 0;
-    st->ccc_idx = 0;
+    st->ccc_idx = -1;
 }
 
 void frame_set_program(frame_t *st, unsigned int program)
@@ -618,7 +557,7 @@ void frame_init(frame_t *st, input_t *input)
     st->input = input;
     st->buffer = malloc(PDU_LEN);
     st->pdu = malloc(0x10000);
-    st->psd_buf = malloc(2048);
+    st->psd_buf = malloc(MAX_AAS_LEN);
 
     rs_init();
 

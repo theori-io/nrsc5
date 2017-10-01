@@ -437,7 +437,7 @@ void frame_process(frame_t *st, size_t length)
     }
 
     if (hdr.la_location < i || hdr.la_location >= length) return;
-    parse_hdlc(st, aas_push, st->psd_buf, &st->psd_idx,MAX_AAS_LEN, &buf[i], hdr.la_location-i+1);
+    parse_hdlc(st, aas_push, st->psd_buf, &st->psd_idx, MAX_AAS_LEN, &buf[i], hdr.la_location-i+1);
     i = hdr.la_location + 1;
     seq = hdr.seq;
     for (j = 0; j < hdr.nop; ++j)

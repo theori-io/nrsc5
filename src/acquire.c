@@ -28,7 +28,7 @@ void acquire_process(acquire_t *st)
     float complex max_v = 0;
     float angle, max_mag = -1.0f;
     unsigned int samperr = 0, i, j;
-    unsigned int mink = 0, maxk = FFT;
+    unsigned int mink = 0, maxk = FFTCP;
 
     if (st->idx != FFTCP * (M + 1))
         return;
@@ -170,7 +170,7 @@ void acquire_init(acquire_t *st, input_t *input)
 
     st->input = input;
     st->buffer = malloc(sizeof(float complex) * FFTCP * (M + 1));
-    st->sums = malloc(sizeof(float complex) * FFTCP);
+    st->sums = malloc(sizeof(float complex) * (FFTCP + CP));
     st->idx = 0;
     st->ready = 0;
     st->samperr = 0;

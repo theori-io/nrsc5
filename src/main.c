@@ -45,23 +45,29 @@ pthread_mutex_t rtlsdr_usb_mutex;
 #endif
 
 // signal and noise are squared magnitudes
-static int agc_callback(void *arg, float power)
+static int snr_callback(void *arg, float snr, float signal, float noise)
 {
+    static int best_gain;
+    static float best_snr;
     int result = 0;
     rtlsdr_dev_t *dev = arg;
 
     if (gain_count == 0)
         return result;
 
-    log_info("Gain: %0.1f dB, Power: %f dBFS", gain_list[gain_index] / 10.0, 10 * log10f(power));
-
-    if (power > 0.1)
+    // choose the best gain level
+    if (snr >= best_snr)
     {
-        if (gain_index > 0) gain_index--;
-        gain_count = 0;
+        best_gain = gain_index;
+        best_snr = snr;
     }
-    else if (gain_index + 1 >= gain_count)
+
+    log_info("Gain: %0.1f dB, CNR: %f dB", gain_list[gain_index] / 10.0, 10 * log10f(snr));
+
+    if (gain_index + 1 >= gain_count || snr < best_snr * 0.5)
     {
+        log_debug("Best gain: %d", gain_list[best_gain]);
+        gain_index = best_gain;
         gain_count = 0;
     }
     else
@@ -70,9 +76,6 @@ static int agc_callback(void *arg, float power)
         // continue searching
         result = 1;
     }
-
-    if (gain_count == 0)
-        log_debug("Best gain: %d", gain_list[gain_index]);
 
 #ifdef USE_THREADS
     pthread_mutex_lock(&rtlsdr_usb_mutex);
@@ -288,7 +291,7 @@ int main(int argc, char *argv[])
     }
     else
     {
-        uint8_t *buf = malloc(128 * 1024);
+        uint8_t *buf = malloc(128 * SNR_FFT_COUNT);
         rtlsdr_dev_t *dev;
 
         err = rtlsdr_open(&dev, 0);
@@ -307,7 +310,7 @@ int main(int argc, char *argv[])
             gain_count = rtlsdr_get_tuner_gains(dev, gain_list);
             if (gain_count > 0)
             {
-                input_set_agc_callback(&input, agc_callback, dev);
+                input_set_snr_callback(&input, snr_callback, dev);
                 err = rtlsdr_set_tuner_gain(dev, gain_list[0]);
                 if (err) FATAL_EXIT("rtlsdr_set_tuner_gain error: %d", err);
             }
@@ -329,7 +332,7 @@ int main(int argc, char *argv[])
         while (gain_count)
         {
             // use a smaller buffer during auto gain
-            int len = 32768;
+            int len = 128 * SNR_FFT_COUNT;
 
 #ifdef USE_THREADS
             pthread_mutex_lock(&rtlsdr_usb_mutex);

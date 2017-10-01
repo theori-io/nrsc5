@@ -11,6 +11,8 @@
 
 #define FATAL_EXIT(x,...) do { log_fatal(x, ##__VA_ARGS__); exit(1); } while (0)
 
+#define SNR_FFT_COUNT 256
+
 // FFT length in samples
 #define FFT 2048
 // cyclic preflex length in samples

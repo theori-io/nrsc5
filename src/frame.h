@@ -27,7 +27,7 @@ typedef struct
     unsigned int sync_width;
     unsigned int sync_count;
     uint8_t ccc_buf[32];
-    unsigned int ccc_idx;
+    int ccc_idx;
     fixed_subchannel_t subchannel[4];
     int fixed_ready;
 } frame_t;

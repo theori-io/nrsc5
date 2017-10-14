@@ -31,12 +31,14 @@ index 740b056..d0b9035 100644
  AC_ARG_WITH(mpeg4ip, [  --with-mpeg4ip          compile mpeg4ip plugin],
  		     WITHMPEG4IP=$withval, WITHMPEG4IP=no)
  
-@@ -154,6 +157,10 @@ if test x$WITHDRM = xyes; then
+@@ -154,6 +157,12 @@ if test x$WITHDRM = xyes; then
    AC_DEFINE(DRM_PS, 1, [Define if you want support for Digital Radio Mondiale (DRM) parametric stereo])
  fi
  
 +if test x$WITHHDC = xyes; then
 +  AC_DEFINE(HDC, 1, [Define if you want to use libfaad with HDC])
++  AC_DEFINE(DRM, 1, [Define if you want to use libfaad together with Digital Radio Mondiale (DRM)])
++  AC_DEFINE(DRM_PS, 1, [Define if you want support for Digital Radio Mondiale (DRM) parametric stereo])
 +fi
 +
  AC_CONFIG_FILES(libfaad/Makefile)
@@ -180,6 +182,19 @@ index 85dd423..afbe760 100644
  void NEAACDECAPI NeAACDecClose(NeAACDecHandle hpDecoder)
  {
      uint8_t i;
+diff --git a/libfaad/sbr_dec.c b/libfaad/sbr_dec.c
+index 0705ddd..cb103cf 100644
+--- a/libfaad/sbr_dec.c
++++ b/libfaad/sbr_dec.c
+@@ -648,7 +648,7 @@ uint8_t sbrDecodeSingleFramePS(sbr_info *sbr, real_t *left_channel, real_t *righ
+ 
+     /* perform parametric stereo */
+ #ifdef DRM_PS
+-    if (sbr->Is_DRM_SBR)
++    if (sbr->Is_DRM_SBR || sbr->Is_HDC_SBR)
+     {
+         drm_ps_decode(sbr->drm_ps, (sbr->ret > 0), X_left, X_right);
+     } else {
 diff --git a/libfaad/sbr_dec.h b/libfaad/sbr_dec.h
 index 40c1d53..5693c6b 100644
 --- a/libfaad/sbr_dec.h

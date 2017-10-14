@@ -232,6 +232,18 @@ index 6c9b97c..643596f 100644
  
      if ((result = sbr_grid(ld, sbr, 0)) > 0)
          return result;
+@@ -888,9 +900,9 @@ static uint16_t sbr_extension(bitfile *ld, sbr_info *sbr,
+         return drm_ps_data(sbr->drm_ps, ld);
+ #endif
+     default:
+-        sbr->bs_extension_data = (uint8_t)faad_getbits(ld, 6
++        sbr->bs_extension_data = (uint8_t)faad_getbits(ld, num_bits_left
+             DEBUGVAR(1,279,"sbr_single_channel_element(): bs_extension_data"));
+-        return 6;
++        return num_bits_left;
+     }
+ }
+
 diff --git a/libfaad/syntax.c b/libfaad/syntax.c
 index f8e808c..cafe01e 100644
 --- a/libfaad/syntax.c

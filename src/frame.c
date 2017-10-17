@@ -26,6 +26,7 @@
 
 #define BBM 0x42E23A7D
 #define MAX_AAS_LEN 8212
+#define MAX_AUDIO_PACKETS 64
 
 typedef struct
 {
@@ -39,6 +40,17 @@ typedef struct
     unsigned int la_location;
     unsigned int hef;
 } frame_header_t;
+
+typedef struct
+{
+    unsigned int class_ind;
+    unsigned int prog_num;
+    unsigned int pdu_len;
+    unsigned int prog_type;
+    unsigned int access;
+    unsigned int applied_services;
+    unsigned int pdu_marker;
+} hef_t;
 
 static const uint8_t crc8_tab[] = {
     0, 0x31, 0x62, 0x53, 0xC4, 0xF5, 0xA6, 0x97, 0xB9,
@@ -164,6 +176,75 @@ static void parse_header(uint8_t *buf, frame_header_t *hdr)
     hdr->hef = buf[12] & 0x80;
 }
 
+static unsigned int parse_hef(uint8_t *buf, unsigned int length, hef_t *hef)
+{
+    uint8_t *byte = buf, *end = buf + length;
+
+    do
+    {
+        if (byte >= end) return length;
+
+        switch ((*byte >> 4) & 0x7)
+        {
+            case 0:
+                hef->class_ind = *byte & 0xf;
+                break;
+            case 1:
+                hef->prog_num = (*byte >> 1) & 0x7;
+                if (*byte & 0x1)
+                {
+                    if (byte + 2 >= end) return length;
+                    byte++;
+                    hef->pdu_len = (*byte & 0x7f) << 7;
+                    byte++;
+                    hef->pdu_len |= (*byte & 0x7f);
+                }
+                break;
+            case 2:
+                if (byte + 1 >= end) return length;
+                hef->access = (*byte >> 3) & 0x1;
+                hef->prog_type = (*byte & 0x1) << 7;
+                byte++;
+                hef->prog_type |= (*byte & 0x7f);
+                break;
+            case 3:
+                if (*byte & 0x8)
+                {
+                    if (byte + 4 >= end) return length;
+                    byte += 4;
+                }
+                else
+                {
+                    if (byte + 3 >= end) return length;
+                    byte += 3;
+                }
+                break;
+            case 4:
+                if (*byte & 0x8)
+                {
+                    if (byte + 3 >= end) return length;
+                    hef->applied_services = (*byte & 0x7);
+                    byte++;
+                    hef->pdu_marker = (*byte & 0x7f) << 14;
+                    byte++;
+                    hef->pdu_marker |= (*byte & 0x7f) << 7;
+                    byte++;
+                    hef->pdu_marker |= (*byte & 0x7f);
+                }
+                else
+                {
+                    if (byte + 1 >= end) return length;
+                    byte++;
+                }
+                break;
+            default:
+                log_debug("unknown header expansion ID");
+        }
+    } while (*(byte++) & 0x80);
+
+    return byte - buf;
+}
+
 static unsigned int calc_lc_bits(frame_header_t *hdr)
 {
     switch(hdr->codec)
@@ -189,53 +270,14 @@ static unsigned int calc_lc_bits(frame_header_t *hdr)
 static unsigned int parse_location(uint8_t *buf, unsigned int lc_bits, unsigned int i)
 {
     if (lc_bits == 16)
-        return (buf[14 + 2*i + 1] << 8) | buf[14 + 2*i];
+        return (buf[2*i + 1] << 8) | buf[2*i];
     else
     {
         if (i % 2 == 0)
-            return ((buf[14 + i/2*3 + 1] & 0xf) << 8) | buf[14 + i/2*3];
+            return ((buf[i/2*3 + 1] & 0xf) << 8) | buf[i/2*3];
         else
-            return (buf[14 + i/2*3 + 2] << 4) | (buf[14 + i/2*3 + 1] >> 4);
+            return (buf[i/2*3 + 2] << 4) | (buf[i/2*3 + 1] >> 4);
     }
-}
-
-static int find_program(uint8_t *buf, int program, size_t length)
-{
-    unsigned int i = 0, lc_bits;
-
-    while (i < length - 96)
-    {
-        unsigned int start = i;
-        frame_header_t hdr;
-
-        if (!fix_header(&buf[i]))
-            return -1;
-
-        parse_header(&buf[i], &hdr);
-        lc_bits = calc_lc_bits(&hdr);
-        i += 14 + ((lc_bits * hdr.nop) + 4) / 8;
-
-        // inspect first extended header
-        if (hdr.hef)
-        {
-            // skip class indication flag
-            if (buf[i] >> 4 == 8)
-                ++i;
-            // compare program id flag
-            if (((buf[i] >> 4) & 7) == 1 && program == ((buf[i] >> 1) & 7))
-                return start;
-        }
-        else
-        {
-            if (program == 0)
-                return start;
-        }
-
-        // skip remaining bytes using last location
-        i = start + parse_location(buf + start, lc_bits, hdr.nop - 1) + 1;
-    }
-
-    return -1;
 }
 
 static int unescape_hdlc(uint8_t *data, int length)
@@ -411,80 +453,98 @@ static void process_fixed_data(frame_t *st)
 
 void frame_process(frame_t *st, size_t length)
 {
-    int offset;
-    unsigned int i, j, hef, seq, lc_bits;
-    uint8_t *buf;
-    frame_header_t hdr;
+    int offset = 0;
 
     if (has_fixed(st))
         process_fixed_data(st);
 
-    offset = find_program(st->buffer, st->program, length);
-    if (offset == -1)
-        return;
-
-    buf = &st->buffer[offset];
-    parse_header(buf, &hdr);
-
-    lc_bits = calc_lc_bits(&hdr);
-
-    i = 14 + ((lc_bits * hdr.nop) + 4) / 8;
-    // skip extended headers
-    for (hef = hdr.hef; hef; ++i)
+    while (offset < length - 96)
     {
-        if (i >= length) return;
-        hef = buf[i] >> 7;
-    }
+        unsigned int start = offset;
+        unsigned int j, seq, lc_bits, loc_bytes;
+        unsigned short locations[MAX_AUDIO_PACKETS];
+        frame_header_t hdr = {0};
+        hef_t hef = {0};
 
-    if (hdr.la_location < i || hdr.la_location >= length) return;
-    parse_hdlc(st, aas_push, st->psd_buf, &st->psd_idx, MAX_AAS_LEN, &buf[i], hdr.la_location-i+1);
-    i = hdr.la_location + 1;
-    seq = hdr.seq;
-    for (j = 0; j < hdr.nop; ++j)
-    {
-        unsigned int location = parse_location(buf, lc_bits, j);
-        if (location < i || location >= length) break;
-        unsigned int cnt = location - i;
-        if (crc8(&buf[i], cnt + 1) != 0)
+        if (!fix_header(st->buffer + offset))
+            return;
+
+        parse_header(st->buffer + offset, &hdr);
+        offset += 14;
+        lc_bits = calc_lc_bits(&hdr);
+        loc_bytes = ((lc_bits * hdr.nop) + 4) / 8;
+        if (start + hdr.la_location < offset + loc_bytes || start + hdr.la_location >= length)
+            return;
+
+        for (j = 0; j < hdr.nop; j++)
         {
-            log_warn("crc mismatch!");
-            i += cnt + 1;
-            continue;
+            locations[j] = parse_location(st->buffer + offset, lc_bits, j);
+            if (j == 0 && locations[j] <= hdr.la_location) return;
+            if (j > 0 && locations[j] <= locations[j-1]) return;
+            if (start + locations[j] >= length) return;
         }
+        offset += loc_bytes;
 
-        if (j == 0 && hdr.pfirst)
-        {
-            if (st->pdu_idx)
-            {
-                memcpy(&st->pdu[st->pdu_idx], &buf[i], cnt);
-                if (st->ready)
-                    input_pdu_push(st->input, st->pdu, cnt + st->pdu_idx);
-            }
-            else
-            {
-                log_debug("ignoring partial pdu");
-            }
-        }
-        else if (j == hdr.nop - 1 && hdr.plast)
-        {
-            memcpy(st->pdu, &buf[i], cnt);
-            st->pdu_idx = cnt;
+        if (hdr.hef)
+            offset += parse_hef(st->buffer + offset, length - offset, &hef);
 
-            if (seq == 0)
-                st->ready = 1;
-            seq = (seq + 1) % 64;
+        if (hef.prog_num == st->program)
+        {
+            parse_hdlc(st, aas_push, st->psd_buf, &st->psd_idx, MAX_AAS_LEN, st->buffer + offset, start + hdr.la_location + 1 - offset);
+            offset = start + hdr.la_location + 1;
+
+            seq = hdr.seq;
+            for (j = 0; j < hdr.nop; ++j)
+            {
+                unsigned int cnt = start + locations[j] - offset;
+                if (crc8(st->buffer + offset, cnt + 1) != 0)
+                {
+                    log_warn("crc mismatch!");
+                    offset += cnt + 1;
+                    continue;
+                }
+
+                if (j == 0 && hdr.pfirst)
+                {
+                    if (st->pdu_idx)
+                    {
+                        memcpy(&st->pdu[st->pdu_idx], st->buffer + offset, cnt);
+                        if (st->ready)
+                            input_pdu_push(st->input, st->pdu, cnt + st->pdu_idx);
+                    }
+                    else
+                    {
+                        log_debug("ignoring partial pdu");
+                    }
+                }
+                else if (j == hdr.nop - 1 && hdr.plast)
+                {
+                    memcpy(st->pdu, st->buffer + offset, cnt);
+                    st->pdu_idx = cnt;
+
+                    if (seq == 0)
+                        st->ready = 1;
+                    seq = (seq + 1) % 64;
+                }
+                else
+                {
+                    if (seq == 0)
+                        st->ready = 1;
+                    seq = (seq + 1) % 64;
+                    if (st->ready)
+                        input_pdu_push(st->input, st->buffer + offset, cnt);
+                }
+
+                offset += cnt + 1;
+            }
         }
         else
         {
-            if (seq == 0)
-                st->ready = 1;
-            seq = (seq + 1) % 64;
-            if (st->ready)
-                input_pdu_push(st->input, &buf[i], cnt);
+            // skip remaining bytes using last location
+            offset = start + locations[hdr.nop - 1] + 1;
         }
-
-        i += cnt + 1;
     }
+
 }
 
 void frame_push(frame_t *st, uint8_t *bits, size_t length)

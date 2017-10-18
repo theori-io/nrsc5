@@ -119,8 +119,10 @@ void audio_play(output_t *st, void *buffer)
     ao_play(st->dev, buffer, AUDIO_FRAME_BYTES);
 }
 
-void output_push(output_t *st, uint8_t *pkt, unsigned int len)
+void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int program)
 {
+    if (program != st->program) return;
+
     st->audio_packets++;
     st->audio_bytes += len;
     if (st->audio_packets >= 32) {
@@ -583,7 +585,8 @@ void output_aas_push(output_t *st, uint8_t *buf, unsigned int len)
     if (port == 0x5100 || (port >= 0x5201 && port <= 0x5207))
     {
         // PSD ports
-        output_id3(buf + 4, len - 4);
+        if ((port & 0x7) == st->program)
+            output_id3(buf + 4, len - 4);
     }
     else if (port == 0x20)
     {
@@ -600,6 +603,11 @@ void output_aas_push(output_t *st, uint8_t *buf, unsigned int len)
     {
         log_warn("unknown AAS port %x, seq %x, length %d", port, seq, len);
     }
+}
+
+void output_set_program(output_t *st, unsigned int program)
+{
+    st->program = program;
 }
 
 void output_set_aas_files_path(output_t *st, const char *path)

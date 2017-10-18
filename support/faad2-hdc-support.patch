@@ -532,6 +532,21 @@ index f8e808c..cafe01e 100644
      if (ics->window_sequence != EIGHT_SHORT_SEQUENCE)
      {
          if ((ics->predictor_data_present = faad_get1bit(ld
+@@ -1102,6 +1280,14 @@ static uint8_t fill_element(NeAACDecStruct *hDecoder, bitfile *ld, drc_info *drc
+                 hDecoder->ps_used_global = 1;
+             }
+ #endif
++        } else if (bs_extension_type == 0) {
++            // padding
++            int i;
++            for (i = 0; i < count; i++)
++            {
++                if ((uint8_t)faad_getbits(ld, 8) != 0)
++                    fprintf(stderr, "sbr_extension_data: zero fil data not zero\n");
++            }
+         } else {
+ #endif
+ #ifndef DRM
 @@ -1286,12 +1464,12 @@ void DRM_aac_scalable_main_element(NeAACDecStruct *hDecoder, NeAACDecFrameInfo *
      }
      /* Stereo4 / Mono2 */

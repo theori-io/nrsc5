@@ -138,9 +138,9 @@ static void *input_worker(void *arg)
 }
 #endif
 
-void input_pdu_push(input_t *st, uint8_t *pdu, unsigned int len)
+void input_pdu_push(input_t *st, uint8_t *pdu, unsigned int len, unsigned int program)
 {
-    output_push(st->output, pdu, len);
+    output_push(st->output, pdu, len, program);
 }
 
 void input_rate_adjust(input_t *st, float adj)
@@ -356,7 +356,7 @@ void input_init(input_t *st, output_t *output, double center, unsigned int progr
     acquire_init(&st->acq, st);
     decode_init(&st->decode, st);
     frame_init(&st->frame, st);
-    frame_set_program(&st->frame, program);
+    output_set_program(st->output, program);
     sync_init(&st->sync, st);
 }
 

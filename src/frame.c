@@ -461,7 +461,7 @@ void frame_process(frame_t *st, size_t length)
     while (offset < length - 96)
     {
         unsigned int start = offset;
-        unsigned int j, seq, lc_bits, loc_bytes;
+        unsigned int j, seq, lc_bits, loc_bytes, prog;
         unsigned short locations[MAX_AUDIO_PACKETS];
         frame_header_t hdr = {0};
         hef_t hef = {0};
@@ -487,61 +487,54 @@ void frame_process(frame_t *st, size_t length)
 
         if (hdr.hef)
             offset += parse_hef(st->buffer + offset, length - offset, &hef);
+        prog = hef.prog_num;
 
-        if (hef.prog_num == st->program)
+        parse_hdlc(st, aas_push, st->psd_buf[prog], &st->psd_idx[prog], MAX_AAS_LEN, st->buffer + offset, start + hdr.la_location + 1 - offset);
+        offset = start + hdr.la_location + 1;
+
+        seq = hdr.seq;
+        for (j = 0; j < hdr.nop; ++j)
         {
-            parse_hdlc(st, aas_push, st->psd_buf, &st->psd_idx, MAX_AAS_LEN, st->buffer + offset, start + hdr.la_location + 1 - offset);
-            offset = start + hdr.la_location + 1;
-
-            seq = hdr.seq;
-            for (j = 0; j < hdr.nop; ++j)
+            unsigned int cnt = start + locations[j] - offset;
+            if (crc8(st->buffer + offset, cnt + 1) != 0)
             {
-                unsigned int cnt = start + locations[j] - offset;
-                if (crc8(st->buffer + offset, cnt + 1) != 0)
-                {
-                    log_warn("crc mismatch!");
-                    offset += cnt + 1;
-                    continue;
-                }
+                log_warn("crc mismatch!");
+                offset += cnt + 1;
+                continue;
+            }
 
-                if (j == 0 && hdr.pfirst)
+            if (j == 0 && hdr.pfirst)
+            {
+                if (st->pdu_idx[prog])
                 {
-                    if (st->pdu_idx)
-                    {
-                        memcpy(&st->pdu[st->pdu_idx], st->buffer + offset, cnt);
-                        if (st->ready)
-                            input_pdu_push(st->input, st->pdu, cnt + st->pdu_idx);
-                    }
-                    else
-                    {
-                        log_debug("ignoring partial pdu");
-                    }
-                }
-                else if (j == hdr.nop - 1 && hdr.plast)
-                {
-                    memcpy(st->pdu, st->buffer + offset, cnt);
-                    st->pdu_idx = cnt;
-
-                    if (seq == 0)
-                        st->ready = 1;
-                    seq = (seq + 1) % 64;
+                    memcpy(&st->pdu[prog][st->pdu_idx[prog]], st->buffer + offset, cnt);
+                    if (st->ready)
+                        input_pdu_push(st->input, st->pdu[prog], cnt + st->pdu_idx[prog], prog);
                 }
                 else
                 {
-                    if (seq == 0)
-                        st->ready = 1;
-                    seq = (seq + 1) % 64;
-                    if (st->ready)
-                        input_pdu_push(st->input, st->buffer + offset, cnt);
+                    log_debug("ignoring partial pdu");
                 }
-
-                offset += cnt + 1;
             }
-        }
-        else
-        {
-            // skip remaining bytes using last location
-            offset = start + locations[hdr.nop - 1] + 1;
+            else if (j == hdr.nop - 1 && hdr.plast)
+            {
+                memcpy(st->pdu[prog], st->buffer + offset, cnt);
+                st->pdu_idx[prog] = cnt;
+
+                if (seq == 0)
+                    st->ready = 1;
+                seq = (seq + 1) % 64;
+            }
+            else
+            {
+                if (seq == 0)
+                    st->ready = 1;
+                seq = (seq + 1) % 64;
+                if (st->ready)
+                    input_pdu_push(st->input, st->buffer + offset, cnt, prog);
+            }
+
+            offset += cnt + 1;
         }
     }
 
@@ -596,10 +589,15 @@ void frame_push(frame_t *st, uint8_t *bits, size_t length)
 
 void frame_reset(frame_t *st)
 {
-    st->pdu_idx = 0;
+    unsigned int i;
+
     st->pci = 0;
     st->ready = 0;
-    st->psd_idx = -1;
+    for (i = 0; i < MAX_PROGRAMS; i++)
+    {
+        st->pdu_idx[i] = 0;
+        st->psd_idx[i] = -1;
+    }
 
     st->fixed_ready = 0;
     st->sync_width = 0;
@@ -607,17 +605,17 @@ void frame_reset(frame_t *st)
     st->ccc_idx = -1;
 }
 
-void frame_set_program(frame_t *st, unsigned int program)
-{
-    st->program = program;
-}
-
 void frame_init(frame_t *st, input_t *input)
 {
+    unsigned int i;
+
     st->input = input;
     st->buffer = malloc(PDU_LEN);
-    st->pdu = malloc(0x10000);
-    st->psd_buf = malloc(MAX_AAS_LEN);
+    for (i = 0; i < MAX_PROGRAMS; i++)
+    {
+        st->pdu[i] = malloc(0x10000);
+        st->psd_buf[i] = malloc(MAX_AAS_LEN);
+    }
 
     rs_init();
 

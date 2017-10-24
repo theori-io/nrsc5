@@ -66,6 +66,7 @@ typedef struct
     pthread_cond_t cond;
 #endif
 
+    unsigned int program;
     char *aas_files_path;
     aas_port_t ports[32];
     unsigned int first_audio_packet;
@@ -73,7 +74,7 @@ typedef struct
     unsigned int audio_bytes;
 } output_t;
 
-void output_push(output_t *st, uint8_t *pkt, unsigned int len);
+void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int program);
 void output_begin(output_t *st);
 void output_reset(output_t *st);
 void output_init_adts(output_t *st, const char *name);
@@ -83,4 +84,5 @@ void output_init_wav(output_t *st, const char *name);
 void output_init_live(output_t *st);
 #endif
 void output_aas_push(output_t *st, uint8_t *psd, unsigned int len);
+void output_set_program(output_t *st, unsigned int program);
 void output_set_aas_files_path(output_t *st, const char *path);

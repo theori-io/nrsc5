@@ -3,8 +3,6 @@
 #include <complex.h>
 #include <fftw3.h>
 
-#define ACQ_HISTORY 16
-
 typedef struct
 {
     struct input_t *input;
@@ -15,12 +13,7 @@ typedef struct
     float *shape;
     fftwf_plan fft;
 
-    float samperr;
-    float slope;
     unsigned int idx;
-    int ready;
-    int history[ACQ_HISTORY];
-    unsigned int history_size;
     float prev_angle;
 } acquire_t;
 

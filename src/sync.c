@@ -33,15 +33,14 @@ static void dump_ref(uint8_t *ref_buf)
     // log_debug("REF %08X", value);
 }
 
-static void calc_phase(float complex *buf, unsigned int ref, float *out_phase, float *out_slope)
+static void adjust_ref(float complex *buf, float *phases, unsigned int ref)
 {
+    // sync bits (after DBPSK)
+    static const signed char sync[] = {
+        -1, 1, -1, -1, -1, 1, 1
+    };
     float phase, slope;
     float complex sum;
-
-    sum = 0;
-    for (int r = 0; r < BLKSZ; r++)
-        sum += buf[ref * BLKSZ + r] * buf[ref * BLKSZ + r];
-    phase = cargf(sum) * 0.5;
 
     sum = 0;
     for (int r = 1; r < BLKSZ; r++)
@@ -51,26 +50,18 @@ static void calc_phase(float complex *buf, unsigned int ref, float *out_phase, f
     }
     slope = cargf(sum) * 0.5;
 
-    *out_phase = phase;
-    *out_slope = slope;
-}
-
-static void adjust_ref(float complex *buf, float *phases, unsigned int ref)
-{
-    // sync bits (after DBPSK)
-    static const signed char sync[] = {
-        -1, 1, -1, -1, -1, 1, 1
-    };
-    float phase, slope;
-    calc_phase(buf, ref, &phase, &slope);
-
     if (prev_slope[ref])
         slope = slope * 0.1 + prev_slope[ref] * 0.9;
     prev_slope[ref] = slope;
 
+    sum = 0;
+    for (int r = 0; r < BLKSZ; r++)
+        sum += buf[ref * BLKSZ + r] * buf[ref * BLKSZ + r] * cexpf(-I * 2 * slope * r);
+    phase = cargf(sum) * 0.5;
+
     for (int n = 0; n < BLKSZ; n++)
     {
-        float item_phase = phase + slope * (n - ((BLKSZ-1)/2));
+        float item_phase = phase + slope * n;
         phases[ref * BLKSZ + n] = item_phase;
         buf[ref * BLKSZ + n] *= cexpf(-I * item_phase);
     }

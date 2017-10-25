@@ -21,7 +21,6 @@ typedef struct
     uint8_t *pdu[MAX_PROGRAMS];
     unsigned int pdu_idx[MAX_PROGRAMS];
     unsigned int pci;
-    int ready;
     unsigned int program;
     uint8_t *psd_buf[MAX_PROGRAMS];
     int psd_idx[MAX_PROGRAMS];

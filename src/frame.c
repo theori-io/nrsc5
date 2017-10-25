@@ -461,7 +461,7 @@ void frame_process(frame_t *st, size_t length)
     while (offset < length - 96)
     {
         unsigned int start = offset;
-        unsigned int j, seq, lc_bits, loc_bytes, prog;
+        unsigned int j, lc_bits, loc_bytes, prog;
         unsigned short locations[MAX_AUDIO_PACKETS];
         frame_header_t hdr = {0};
         hef_t hef = {0};
@@ -492,7 +492,6 @@ void frame_process(frame_t *st, size_t length)
         parse_hdlc(st, aas_push, st->psd_buf[prog], &st->psd_idx[prog], MAX_AAS_LEN, st->buffer + offset, start + hdr.la_location + 1 - offset);
         offset = start + hdr.la_location + 1;
 
-        seq = hdr.seq;
         for (j = 0; j < hdr.nop; ++j)
         {
             unsigned int cnt = start + locations[j] - offset;
@@ -508,8 +507,7 @@ void frame_process(frame_t *st, size_t length)
                 if (st->pdu_idx[prog])
                 {
                     memcpy(&st->pdu[prog][st->pdu_idx[prog]], st->buffer + offset, cnt);
-                    if (st->ready)
-                        input_pdu_push(st->input, st->pdu[prog], cnt + st->pdu_idx[prog], prog);
+                    input_pdu_push(st->input, st->pdu[prog], cnt + st->pdu_idx[prog], prog);
                 }
                 else
                 {
@@ -520,18 +518,10 @@ void frame_process(frame_t *st, size_t length)
             {
                 memcpy(st->pdu[prog], st->buffer + offset, cnt);
                 st->pdu_idx[prog] = cnt;
-
-                if (seq == 0)
-                    st->ready = 1;
-                seq = (seq + 1) % 64;
             }
             else
             {
-                if (seq == 0)
-                    st->ready = 1;
-                seq = (seq + 1) % 64;
-                if (st->ready)
-                    input_pdu_push(st->input, st->buffer + offset, cnt, prog);
+                input_pdu_push(st->input, st->buffer + offset, cnt, prog);
             }
 
             offset += cnt + 1;
@@ -592,7 +582,6 @@ void frame_reset(frame_t *st)
     unsigned int i;
 
     st->pci = 0;
-    st->ready = 0;
     for (i = 0; i < MAX_PROGRAMS; i++)
     {
         st->pdu_idx[i] = 0;

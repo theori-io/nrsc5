@@ -27,16 +27,16 @@ void acquire_process(acquire_t *st)
 {
     float complex max_v = 0;
     float angle, max_mag = -1.0f;
-    unsigned int samperr = 0, i, j;
+    unsigned int samperr = 0, i, j, keep;
     unsigned int mink = 0, maxk = FFTCP;
 
     if (st->idx != FFTCP * (M + 1))
         return;
 
-    if (st->ready && fabsf(st->slope) < 1 && st->samperr > 10)
+    if (st->input->sync.ready)
     {
-        mink = st->samperr - 10;
-        maxk = st->samperr + 10;
+        mink = FFTCP / 2 - 25;
+        maxk = FFTCP / 2 + 25;
     }
 
     memset(st->sums, 0, sizeof(float complex) * FFTCP);
@@ -74,81 +74,30 @@ void acquire_process(acquire_t *st)
         angle = 0.5 * st->prev_angle + 0.5 * angle;
     }
     st->prev_angle = angle;
-    st->samperr = samperr;
 
-    // compare with previous timing offset
-    if (abs((int)samperr - (int)st->history[(st->history_size-1) % ACQ_HISTORY]) > FFT/2)
+    for (i = 0; i < M; ++i)
     {
-        // clear the history if we "rolled over"
-        st->history_size = 0;
+        int j;
+        for (j = 0; j < FFTCP; ++j)
+        {
+            int n = i * FFTCP + j;
+            float complex sample = fast_cexpf(angle * n / FFT) * st->buffer[i * FFTCP + j + samperr];
+            if (j < CP)
+                st->fftin[j] = st->shape[j] * sample;
+            else if (j < FFT)
+                st->fftin[j] = sample;
+            else
+                st->fftin[j - FFT] += st->shape[j] * sample;
+        }
+
+        fftwf_execute(st->fft);
+        fftshift(st->fftout, FFT);
+        sync_push(&st->input->sync, st->fftout);
     }
 
-    st->history[st->history_size % ACQ_HISTORY] = samperr;
-    if (++st->history_size > ACQ_HISTORY)
-    {
-        float avgerr, slope;
-        int sum = 0;
-        for (i = 0; i < ACQ_HISTORY; i++)
-            sum += st->history[i];
-        avgerr = sum / (float)ACQ_HISTORY;
-        slope = ((float)samperr - avgerr) / (ACQ_HISTORY / 2 * SYMBOLS);
-        st->ready = 1;
-        st->slope = slope;
-
-        if ((st->history_size % ACQ_HISTORY) == 0)
-            log_debug("Timing offset: %f, slope: %f", avgerr, slope);
-
-        // avoid adjusting the rate too much
-        if (fabsf(slope) > 1.0)
-        {
-            log_info("Timing offset: %f, slope: %f (adjust)", avgerr, slope);
-
-            input_rate_adjust(st->input, (-slope / BLKSZ) / FFTCP);
-
-            // clear the history so we don't overadjust
-            st->history_size = 0;
-        }
-        // we don't want the samperr to go < 0
-        else if (slope < 0)
-        {
-            input_rate_adjust(st->input, (-slope / BLKSZ / 8) / FFTCP);
-            st->history_size = 0;
-        }
-
-        // skip samples instead of having samperr > FFT
-        // NB adjustment must be greater than FFT/2
-        if (samperr > 7*FFT/8)
-        {
-            input_set_skip(st->input, 6*FFT/8);
-            st->samperr = 0;
-        }
-    }
-
-    if (st->ready)
-    {
-        for (i = 0; i < M; ++i)
-        {
-            int j;
-            for (j = 0; j < FFTCP; ++j)
-            {
-                int n = i * FFTCP + j;
-                float complex sample = fast_cexpf(angle * n / FFT) * st->buffer[i * FFTCP + j + samperr];
-                if (j < CP)
-                    st->fftin[j] = st->shape[j] * sample;
-                else if (j < FFT)
-                    st->fftin[j] = sample;
-                else
-                    st->fftin[j - FFT] += st->shape[j] * sample;
-            }
-
-            fftwf_execute(st->fft);
-            fftshift(st->fftout, FFT);
-            sync_push(&st->input->sync, st->fftout);
-        }
-    }
-
-    memmove(&st->buffer[0], &st->buffer[st->idx - FFTCP], sizeof(float complex) * FFTCP);
-    st->idx = FFTCP;
+    keep = FFTCP * 3 / 2 - samperr;
+    memmove(&st->buffer[0], &st->buffer[st->idx - keep], sizeof(float complex) * keep);
+    st->idx = keep;
 }
 
 unsigned int acquire_push(acquire_t *st, float complex *buf, unsigned int length)
@@ -172,9 +121,6 @@ void acquire_init(acquire_t *st, input_t *input)
     st->buffer = malloc(sizeof(float complex) * FFTCP * (M + 1));
     st->sums = malloc(sizeof(float complex) * (FFTCP + CP));
     st->idx = 0;
-    st->ready = 0;
-    st->samperr = 0;
-    st->slope = 0;
     st->prev_angle = 0;
 
     st->shape = malloc(sizeof(float) * FFTCP);
@@ -188,10 +134,6 @@ void acquire_init(acquire_t *st, input_t *input)
         else
             st->shape[i] = cosf(M_PI / 2 * (i - FFT) / CP);
     }
-
-    st->history_size = 0;
-    for (i = 0; i < ACQ_HISTORY; ++i)
-        st->history[i] = 0;
 
     st->fftin = malloc(sizeof(float complex) * FFT);
     st->fftout = malloc(sizeof(float complex) * FFT);

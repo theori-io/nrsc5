@@ -2,6 +2,8 @@
 
 #include <stdint.h>
 
+#define MAX_PROGRAMS 8
+
 typedef struct
 {
     uint16_t mode;
@@ -16,13 +18,12 @@ typedef struct
 {
     struct input_t *input;
     uint8_t *buffer;
-    uint8_t *pdu;
-    unsigned int pdu_idx;
+    uint8_t *pdu[MAX_PROGRAMS];
+    unsigned int pdu_idx[MAX_PROGRAMS];
     unsigned int pci;
-    int ready;
     unsigned int program;
-    uint8_t *psd_buf;
-    int psd_idx;
+    uint8_t *psd_buf[MAX_PROGRAMS];
+    int psd_idx[MAX_PROGRAMS];
 
     unsigned int sync_width;
     unsigned int sync_count;

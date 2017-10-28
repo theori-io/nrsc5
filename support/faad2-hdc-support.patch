@@ -31,12 +31,14 @@ index 740b056..d0b9035 100644
  AC_ARG_WITH(mpeg4ip, [  --with-mpeg4ip          compile mpeg4ip plugin],
  		     WITHMPEG4IP=$withval, WITHMPEG4IP=no)
  
-@@ -154,6 +157,10 @@ if test x$WITHDRM = xyes; then
+@@ -154,6 +157,12 @@ if test x$WITHDRM = xyes; then
    AC_DEFINE(DRM_PS, 1, [Define if you want support for Digital Radio Mondiale (DRM) parametric stereo])
  fi
  
 +if test x$WITHHDC = xyes; then
 +  AC_DEFINE(HDC, 1, [Define if you want to use libfaad with HDC])
++  AC_DEFINE(DRM, 1, [Define if you want to use libfaad together with Digital Radio Mondiale (DRM)])
++  AC_DEFINE(DRM_PS, 1, [Define if you want support for Digital Radio Mondiale (DRM) parametric stereo])
 +fi
 +
  AC_CONFIG_FILES(libfaad/Makefile)
@@ -180,6 +182,19 @@ index 85dd423..afbe760 100644
  void NEAACDECAPI NeAACDecClose(NeAACDecHandle hpDecoder)
  {
      uint8_t i;
+diff --git a/libfaad/sbr_dec.c b/libfaad/sbr_dec.c
+index 0705ddd..cb103cf 100644
+--- a/libfaad/sbr_dec.c
++++ b/libfaad/sbr_dec.c
+@@ -648,7 +648,7 @@ uint8_t sbrDecodeSingleFramePS(sbr_info *sbr, real_t *left_channel, real_t *righ
+ 
+     /* perform parametric stereo */
+ #ifdef DRM_PS
+-    if (sbr->Is_DRM_SBR)
++    if (sbr->Is_DRM_SBR || sbr->Is_HDC_SBR)
+     {
+         drm_ps_decode(sbr->drm_ps, (sbr->ret > 0), X_left, X_right);
+     } else {
 diff --git a/libfaad/sbr_dec.h b/libfaad/sbr_dec.h
 index 40c1d53..5693c6b 100644
 --- a/libfaad/sbr_dec.h
@@ -232,6 +247,18 @@ index 6c9b97c..643596f 100644
  
      if ((result = sbr_grid(ld, sbr, 0)) > 0)
          return result;
+@@ -888,9 +900,9 @@ static uint16_t sbr_extension(bitfile *ld, sbr_info *sbr,
+         return drm_ps_data(sbr->drm_ps, ld);
+ #endif
+     default:
+-        sbr->bs_extension_data = (uint8_t)faad_getbits(ld, 6
++        sbr->bs_extension_data = (uint8_t)faad_getbits(ld, num_bits_left
+             DEBUGVAR(1,279,"sbr_single_channel_element(): bs_extension_data"));
+-        return 6;
++        return num_bits_left;
+     }
+ }
+
 diff --git a/libfaad/syntax.c b/libfaad/syntax.c
 index f8e808c..cafe01e 100644
 --- a/libfaad/syntax.c
@@ -505,6 +532,21 @@ index f8e808c..cafe01e 100644
      if (ics->window_sequence != EIGHT_SHORT_SEQUENCE)
      {
          if ((ics->predictor_data_present = faad_get1bit(ld
+@@ -1102,6 +1280,14 @@ static uint8_t fill_element(NeAACDecStruct *hDecoder, bitfile *ld, drc_info *drc
+                 hDecoder->ps_used_global = 1;
+             }
+ #endif
++        } else if (bs_extension_type == 0) {
++            // padding
++            int i;
++            for (i = 0; i < count; i++)
++            {
++                if ((uint8_t)faad_getbits(ld, 8) != 0)
++                    fprintf(stderr, "sbr_extension_data: zero fil data not zero\n");
++            }
+         } else {
+ #endif
+ #ifndef DRM
 @@ -1286,12 +1464,12 @@ void DRM_aac_scalable_main_element(NeAACDecStruct *hDecoder, NeAACDecFrameInfo *
      }
      /* Stereo4 / Mono2 */

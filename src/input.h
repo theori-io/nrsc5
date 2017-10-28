@@ -13,7 +13,6 @@
 #include "firdecim_q15.h"
 #include "frame.h"
 #include "output.h"
-#include "resamp_q15.h"
 #include "sync.h"
 
 typedef int (*input_snr_cb_t) (void *, float, float, float);
@@ -24,8 +23,6 @@ typedef struct input_t
     FILE *outfp;
 
     firdecim_q15 filter;
-    resamp_q15 resamp;
-    float resamp_rate;
     float complex *buffer;
     double center;
     unsigned int avail, used, skip;
@@ -55,9 +52,8 @@ typedef struct input_t
 void input_init(input_t *st, output_t *output, double center, unsigned int program, FILE *outfp);
 void input_cb(uint8_t *, uint32_t, void *);
 void input_set_snr_callback(input_t *st, input_snr_cb_t cb, void *);
-void input_rate_adjust(input_t *st, float adj);
 void input_cfo_adjust(input_t *st, int cfo);
 void input_set_skip(input_t *st, unsigned int skip);
 void input_wait(input_t *st, int flush);
-void input_pdu_push(input_t *st, uint8_t *pdu, unsigned int len);
+void input_pdu_push(input_t *st, uint8_t *pdu, unsigned int len, unsigned int program);
 void input_aas_push(input_t *st, uint8_t *psd, unsigned int len);

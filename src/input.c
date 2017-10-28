@@ -24,12 +24,6 @@
 
 #define INPUT_BUF_LEN (2160 * 512)
 
-#ifdef USE_FAST_MATH
-#define RESAMP_NUM_TAPS 8
-#else
-#define RESAMP_NUM_TAPS 16
-#endif
-
 static float filter_taps[] = {
 #ifdef USE_FAST_MATH
     /*
@@ -138,14 +132,9 @@ static void *input_worker(void *arg)
 }
 #endif
 
-void input_pdu_push(input_t *st, uint8_t *pdu, unsigned int len)
+void input_pdu_push(input_t *st, uint8_t *pdu, unsigned int len, unsigned int program)
 {
-    output_push(st->output, pdu, len);
-}
-
-void input_rate_adjust(input_t *st, float adj)
-{
-    st->resamp_rate += adj;
+    output_push(st->output, pdu, len, program);
 }
 
 void input_set_skip(input_t *st, unsigned int skip)
@@ -264,7 +253,6 @@ void input_cb(uint8_t *buf, uint32_t len, void *arg)
         }
     }
     new_avail = st->avail;
-    resamp_q15_set_rate(st->resamp, st->resamp_rate);
 #ifdef USE_THREADS
     pthread_mutex_unlock(&st->mutex);
 #endif
@@ -278,7 +266,6 @@ void input_cb(uint8_t *buf, uint32_t len, void *arg)
 
     for (i = 0; i < cnt; i++)
     {
-        unsigned int nw;
         cint16_t x[2], y;
 
         x[0].r = U8_Q15(buf[i * 4 + 0]);
@@ -287,9 +274,7 @@ void input_cb(uint8_t *buf, uint32_t len, void *arg)
         x[1].i = -U8_Q15(buf[i * 4 + 3]);
 
         firdecim_q15_execute(st->filter, x, &y);
-        resamp_q15_execute(st->resamp, &y, &st->buffer[new_avail], &nw);
-
-        new_avail += nw;
+        st->buffer[new_avail++] = y.r / 32768.0 + _Complex_I * y.i / 32768.0;
     }
 
 #ifdef USE_THREADS
@@ -318,7 +303,6 @@ void input_reset(input_t *st)
     st->avail = 0;
     st->used = 0;
     st->skip = 0;
-    st->resamp_rate = 1.0f;
     st->cfo = 0;
     st->cfo_idx = 0;
     st->cfo_used = 0;
@@ -339,7 +323,6 @@ void input_init(input_t *st, output_t *output, double center, unsigned int progr
     st->snr_cb_arg = NULL;
 
     st->filter = firdecim_q15_create(2, filter_taps, sizeof(filter_taps) / sizeof(filter_taps[0]));
-    st->resamp = resamp_q15_create(RESAMP_NUM_TAPS / 2, 0.45f, 60.0f, 16);
     st->snr_fft = fftwf_plan_dft_1d(64, st->snr_fft_in, st->snr_fft_out, FFTW_FORWARD, 0);
 
     input_reset(st);
@@ -356,7 +339,7 @@ void input_init(input_t *st, output_t *output, double center, unsigned int progr
     acquire_init(&st->acq, st);
     decode_init(&st->decode, st);
     frame_init(&st->frame, st);
-    frame_set_program(&st->frame, program);
+    output_set_program(st->output, program);
     sync_init(&st->sync, st);
 }
 

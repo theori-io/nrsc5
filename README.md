@@ -39,7 +39,7 @@ You can test the program using the included sample capture:
 
 This was designed for use with an RTL-SDR dongle since that was our testing platform.
 
-Options:
+### Options:
 
        frequency                       rtl-sdr center frequency in MHz or Hz
                                          (do not provide frequency when reading from file)
@@ -59,10 +59,20 @@ Options:
                                          (1 = DEBUG, 2 = INFO, 3 = WARN)
        -v                              print the version number and exit
 
-Examples:
+### Examples:
 
-     $ nrsc5 -p 63 -g 490 -w samples1071 107.1 0
+Tune to 107.1 MHz and play audio program 0:
+
+     $ nrsc5 107.1 0
+
+Tune to 107.1 MHz and play audio program 0. Manually set gain to 49.0 dB and save raw RF samples to a file:
+
+     $ nrsc5 -g 490 -w samples1071 107.1 0
+
+Read raw RF samples from a file and play back audio program 0:
 
      $ nrsc5 -r samples1071 0
+
+Tune to 90.5 MHz and convert audio program 0 to ADTS format for playback in an external media player:
 
      $ nrsc5 -o - -f adts 90.5 0 | mplayer -

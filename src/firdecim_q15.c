@@ -59,7 +59,7 @@ static void push(firdecim_q15 q, cint16_t x)
     if (q->idx == WINDOW_SIZE)
     {
         for (int i = 0; i < q->ntaps - 1; i++)
-            q->window[i] = q->window[q->idx - q->ntaps + i];
+            q->window[i] = q->window[q->idx - q->ntaps + 1 + i];
         q->idx = q->ntaps - 1;
     }
     q->window[q->idx++] = x;

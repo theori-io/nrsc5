@@ -20,10 +20,6 @@
 #define FFTCP (FFT + CP)
 // OFDM symbols per L1 block
 #define BLKSZ 32
-// number of data subcarriers per sideband
-#define P1_DATA_PER_BAND 180
-// number of subcarriers per sideband
-#define P1_BAND_LENGTH (11 + P1_DATA_PER_BAND)
 // index of first lower sideband subcarrier
 #define LB_START (1024 - 546)
 // index of last upper sideband subcarrier

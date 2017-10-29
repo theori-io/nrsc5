@@ -245,13 +245,13 @@ void sync_process(sync_t *st, float complex *buffer)
             for (i = -38; i < 38; ++i)
             {
                 int offset2;
-                adjust_ref(buffer, st->phases, LB_START + 190 + i);
-                offset = find_ref(buffer, LB_START + 190 + i, 0);
+                adjust_ref(buffer, st->phases, LB_START + (PM_PARTITIONS * 19) + i);
+                offset = find_ref(buffer, LB_START + (PM_PARTITIONS * 19) + i, 0);
                 if (offset < 0)
                     continue;
                 // We think we found the start. Check upperband to confirm.
-                adjust_ref(buffer, st->phases, UB_END - 190 + i);
-                offset2 = find_ref(buffer, UB_END - 190 + i, 0);
+                adjust_ref(buffer, st->phases, UB_END - (PM_PARTITIONS * 19) + i);
+                offset2 = find_ref(buffer, UB_END - (PM_PARTITIONS * 19) + i, 0);
                 if (offset2 == offset)
                 {
                     // The offsets matched, so 'i' is likely the CFO.
@@ -328,7 +328,7 @@ void sync_process(sync_t *st, float complex *buffer)
         for (int n = 0; n < BLKSZ; n++)
         {
             float complex c;
-            for (i = LB_START; i < LB_START + 190; i += 19)
+            for (i = LB_START; i < LB_START + (PM_PARTITIONS * 19); i += 19)
             {
                 unsigned int j;
                 for (j = 1; j < 19; j++)
@@ -338,7 +338,7 @@ void sync_process(sync_t *st, float complex *buffer)
                     decode_push_pm(&st->input->decode, DEMOD(cimagf(c)) * mult_lb);
                 }
             }
-            for (i = UB_END - 190; i < UB_END; i += 19)
+            for (i = UB_END - (PM_PARTITIONS * 19); i < UB_END; i += 19)
             {
                 unsigned int j;
                 for (j = 1; j < 19; j++)
@@ -349,7 +349,7 @@ void sync_process(sync_t *st, float complex *buffer)
                 }
             }
             if (psmi == 3) {
-                for (i = LB_START + 190; i < LB_START + 190 + 38; i += 19)
+                for (i = LB_START + (PM_PARTITIONS * 19); i < LB_START + (PM_PARTITIONS * 19) + 38; i += 19)
                 {
                     unsigned int j;
                     for (j = 1; j < 19; j++)
@@ -359,7 +359,7 @@ void sync_process(sync_t *st, float complex *buffer)
                         decode_push_px1(&st->input->decode, DEMOD(cimagf(c)) * mult_lb);
                     }
                 }
-                for (i = UB_END - 190 - 38; i < UB_END - 190; i += 19)
+                for (i = UB_END - (PM_PARTITIONS * 19) - 38; i < UB_END - (PM_PARTITIONS * 19); i += 19)
                 {
                     unsigned int j;
                     for (j = 1; j < 19; j++)

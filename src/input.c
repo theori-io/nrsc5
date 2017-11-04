@@ -274,7 +274,7 @@ void input_cb(uint8_t *buf, uint32_t len, void *arg)
         x[1].i = -U8_Q15(buf[i * 4 + 3]);
 
         firdecim_q15_execute(st->filter, x, &y);
-        st->buffer[new_avail++] = y.r / 32768.0 + _Complex_I * y.i / 32768.0;
+        st->buffer[new_avail++] = cq15_to_cf(y);
     }
 
 #ifdef USE_THREADS

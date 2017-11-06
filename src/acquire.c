@@ -26,7 +26,7 @@
 void acquire_process(acquire_t *st)
 {
     float complex max_v = 0;
-    float angle, max_mag = -1.0f;
+    float angle, angle_diff, angle_factor, max_mag = -1.0f;
     unsigned int samperr = 0, i, j, keep;
     unsigned int mink = 0, maxk = FFTCP;
 
@@ -63,16 +63,9 @@ void acquire_process(acquire_t *st)
         }
     }
 
-    // limited to (-pi, pi)
-    angle = cargf(max_v);
-    if (st->prev_angle)
-    {
-        if (st->prev_angle > M_PI*15/16 && angle < -M_PI*15/16)
-            angle += M_PI * 2;
-        else if (st->prev_angle < -M_PI*15/16 && angle > M_PI*15/16)
-            angle -= M_PI * 2;
-        angle = 0.5 * st->prev_angle + 0.5 * angle;
-    }
+    angle_diff = cargf(max_v * cexpf(I * -st->prev_angle));
+    angle_factor = (st->prev_angle) ? 0.1 : 1.0;
+    angle = st->prev_angle + (angle_diff * angle_factor);
     st->prev_angle = angle;
 
     for (i = 0; i < M; ++i)

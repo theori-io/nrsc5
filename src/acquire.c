@@ -64,7 +64,7 @@ void acquire_process(acquire_t *st)
     }
 
     angle_diff = cargf(max_v * cexpf(I * -st->prev_angle));
-    angle_factor = (st->prev_angle) ? 0.1 : 1.0;
+    angle_factor = (st->prev_angle) ? 0.25 : 1.0;
     angle = st->prev_angle + (angle_diff * angle_factor);
     st->prev_angle = angle;
 

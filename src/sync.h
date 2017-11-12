@@ -15,11 +15,15 @@ typedef struct
     unsigned int used;
     int ready;
     int cfo_wait;
+    int samperr;
+    float angle;
+    float angle_adj;
 
     int mer_cnt;
     float error_lb;
     float error_ub;
 } sync_t;
 
+void sync_adjust(sync_t *st, float angle_adj);
 void sync_push(sync_t *st, float complex *fft);
 void sync_init(sync_t *st, struct input_t *input);

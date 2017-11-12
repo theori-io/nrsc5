@@ -15,6 +15,7 @@ typedef struct
 
     unsigned int idx;
     float prev_angle;
+    float complex phase;
 } acquire_t;
 
 void acquire_process(acquire_t *st);

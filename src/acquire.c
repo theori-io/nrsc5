@@ -25,9 +25,10 @@
 
 void acquire_process(acquire_t *st)
 {
-    float complex max_v = 0;
+    float complex max_v = 0, phase_increment;
     float angle, angle_diff, angle_factor, max_mag = -1.0f;
-    unsigned int samperr = 0, i, j, keep;
+    int samperr = 0;
+    unsigned int i, j, keep;
     unsigned int mink = 0, maxk = FFTCP;
 
     if (st->idx != FFTCP * (M + 1))
@@ -35,62 +36,76 @@ void acquire_process(acquire_t *st)
 
     if (st->input->sync.ready)
     {
-        mink = FFTCP / 2 - 25;
-        maxk = FFTCP / 2 + 25;
+        samperr = FFTCP / 2 + st->input->sync.samperr;
+        st->input->sync.samperr = 0;
+
+        angle_diff = -st->input->sync.angle;
+        st->input->sync.angle = 0;
+        angle = st->prev_angle + angle_diff;
+        st->prev_angle = angle;
     }
-
-    memset(st->sums, 0, sizeof(float complex) * FFTCP);
-    for (i = mink; i < maxk + CP; ++i)
+    else
     {
-        for (j = 0; j < M; ++j)
-            st->sums[i] += st->buffer[i + j * FFTCP] * conjf(st->buffer[i + j * FFTCP + FFT]);
-    }
-
-    for (i = mink; i < maxk - 1; ++i)
-    {
-        float mag;
-        float complex v = 0;
-
-        for (j = 0; j < CP; ++j)
-            v += st->sums[(i + j) % FFTCP];
-
-        mag = normf(v);
-        if (mag > max_mag)
+        memset(st->sums, 0, sizeof(float complex) * FFTCP);
+        for (i = mink; i < maxk + CP; ++i)
         {
-            max_mag = mag;
-            max_v = v;
-            samperr = i;
+            for (j = 0; j < M; ++j)
+                st->sums[i] += st->buffer[i + j * FFTCP] * conjf(st->buffer[i + j * FFTCP + FFT]);
         }
+
+        for (i = mink; i < maxk - 1; ++i)
+        {
+            float mag;
+            float complex v = 0;
+
+            for (j = 0; j < CP; ++j)
+                v += st->sums[(i + j) % FFTCP];
+
+            mag = normf(v);
+            if (mag > max_mag)
+            {
+                max_mag = mag;
+                max_v = v;
+                samperr = i;
+            }
+        }
+
+        angle_diff = cargf(max_v * cexpf(I * -st->prev_angle));
+        angle_factor = (st->prev_angle) ? 0.25 : 1.0;
+        angle = st->prev_angle + (angle_diff * angle_factor);
+        st->prev_angle = angle;
     }
 
-    angle_diff = cargf(max_v * cexpf(I * -st->prev_angle));
-    angle_factor = (st->prev_angle) ? 0.25 : 1.0;
-    angle = st->prev_angle + (angle_diff * angle_factor);
-    st->prev_angle = angle;
+    sync_adjust(&st->input->sync, angle_diff);
 
+    phase_increment = cexpf(angle / FFT * I);
     for (i = 0; i < M; ++i)
     {
         int j;
         for (j = 0; j < FFTCP; ++j)
         {
-            int n = i * FFTCP + j;
-            float complex sample = fast_cexpf(angle * n / FFT) * st->buffer[i * FFTCP + j + samperr];
+            float complex sample = st->phase * st->buffer[i * FFTCP + j + samperr];
             if (j < CP)
                 st->fftin[j] = st->shape[j] * sample;
             else if (j < FFT)
                 st->fftin[j] = sample;
             else
                 st->fftin[j - FFT] += st->shape[j] * sample;
+
+            st->phase *= phase_increment;
         }
+        st->phase /= cabsf(st->phase);
 
         fftwf_execute(st->fft);
         fftshift(st->fftout, FFT);
         sync_push(&st->input->sync, st->fftout);
     }
 
-    keep = FFTCP * 3 / 2 - samperr;
+    keep = FFTCP + (FFTCP / 2 - samperr);
     memmove(&st->buffer[0], &st->buffer[st->idx - keep], sizeof(float complex) * keep);
     st->idx = keep;
+
+    st->phase *= cexpf((FFTCP / 2 - samperr) * angle / FFT * I);
 }
 
 unsigned int acquire_push(acquire_t *st, float complex *buf, unsigned int length)
@@ -115,6 +130,7 @@ void acquire_init(acquire_t *st, input_t *input)
     st->sums = malloc(sizeof(float complex) * (FFTCP + CP));
     st->idx = 0;
     st->prev_angle = 0;
+    st->phase = 1;
 
     st->shape = malloc(sizeof(float) * FFTCP);
     for (i = 0; i < FFTCP; ++i)

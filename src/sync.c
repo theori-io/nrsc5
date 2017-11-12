@@ -178,6 +178,14 @@ static void adjust_data(float complex *buf, float *phases, unsigned int lower, u
     }
 }
 
+float phase_diff(float a, float b)
+{
+    float diff = a - b;
+    while (diff > M_PI / 2) diff -= M_PI;
+    while (diff < -M_PI / 2) diff += M_PI;
+    return diff;
+}
+
 void sync_process(sync_t *st, float complex *buffer)
 {
     int i;
@@ -202,9 +210,12 @@ void sync_process(sync_t *st, float complex *buffer)
 
     for (i = 0; i < partitions_per_band * 19 + 1; i += 19)
     {
+        prev_slope[LB_START + i] += st->angle_adj;
         adjust_ref(buffer, st->phases, LB_START + i);
+        prev_slope[UB_END - i] += st->angle_adj;
         adjust_ref(buffer, st->phases, UB_END - i);
     }
+    st->angle_adj = 0;
 
     // check if we lost synchronization or now have it
     if (st->ready)
@@ -276,11 +287,25 @@ void sync_process(sync_t *st, float complex *buffer)
     // if we are still synchronized
     if (st->ready)
     {
+        float samperr = 0, angle = 0;
         for (i = 0; i < partitions_per_band * 19; i += 19)
         {
             adjust_data(buffer, st->phases, LB_START + i, LB_START + i + 19);
             adjust_data(buffer, st->phases, UB_END - i - 19, UB_END - i);
+
+            samperr += phase_diff(st->phases[(LB_START + i) * BLKSZ], st->phases[(LB_START + i + 19) * BLKSZ]);
+            samperr += phase_diff(st->phases[(UB_END - i - 19) * BLKSZ], st->phases[(UB_END - i) * BLKSZ]);
         }
+        samperr = samperr / (partitions_per_band * 2) * 2048 / 19 / (2 * M_PI);
+        st->samperr = roundf(samperr);
+
+        for (i = 0; i < partitions_per_band * 19 + 1; i += 19)
+        {
+            angle += prev_slope[LB_START + i];
+            angle += prev_slope[UB_END - i];
+        }
+        angle /= (partitions_per_band + 1) * 2;
+        st->angle = angle;
 
         // Calculate modulation error
         float error_lb = 0, error_ub = 0;
@@ -376,6 +401,11 @@ void sync_process(sync_t *st, float complex *buffer)
             if (n == 0) dump_ref(st->ref_buf);
         }
     }
+}
+
+void sync_adjust(sync_t *st, float angle_adj)
+{
+  st->angle_adj += angle_adj;
 }
 
 void sync_push(sync_t *st, float complex *fftout)

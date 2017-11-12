@@ -388,52 +388,8 @@ void sync_push(sync_t *st, float complex *fftout)
     {
         st->idx = 0;
 
-#ifdef USE_THREADS
-        pthread_mutex_lock(&st->mutex);
-        while ((st->buf_idx + 1) % BUFS == st->used)
-            pthread_cond_wait(&st->cond, &st->mutex);
-        st->buf_idx = (st->buf_idx + 1) % BUFS;
-        pthread_mutex_unlock(&st->mutex);
-
-        pthread_cond_signal(&st->cond);
-#else
         sync_process(st, st->buffer);
-#endif
     }
-}
-
-#ifdef USE_THREADS
-static void *sync_worker(void *arg)
-{
-    sync_t *st = arg;
-    while(1)
-    {
-        pthread_mutex_lock(&st->mutex);
-        while (st->buf_idx == st->used)
-            pthread_cond_wait(&st->cond, &st->mutex);
-        pthread_mutex_unlock(&st->mutex);
-
-        sync_process(st, &st->buffer[st->used * BLKSZ * FFT]);
-
-        pthread_mutex_lock(&st->mutex);
-        st->used = (st->used + 1) % BUFS;
-        pthread_mutex_unlock(&st->mutex);
-
-        pthread_cond_signal(&st->cond);
-    }
-
-    return NULL;
-}
-#endif
-
-void sync_wait(sync_t *st)
-{
-#ifdef USE_THREADS
-    pthread_mutex_lock(&st->mutex);
-    while (st->buf_idx != st->used)
-        pthread_cond_wait(&st->cond, &st->mutex);
-    pthread_mutex_unlock(&st->mutex);
-#endif
 }
 
 void sync_init(sync_t *st, input_t *input)
@@ -450,13 +406,4 @@ void sync_init(sync_t *st, input_t *input)
     st->mer_cnt = 0;
     st->error_lb = 0;
     st->error_ub = 0;
-
-#ifdef USE_THREADS
-    pthread_cond_init(&st->cond, NULL);
-    pthread_mutex_init(&st->mutex, NULL);
-    pthread_create(&st->worker_thread, NULL, sync_worker, st);
-#ifdef HAVE_PTHREAD_SETNAME_NP
-    pthread_setname_np(st->worker_thread, "sync_worker");
-#endif
-#endif
 }

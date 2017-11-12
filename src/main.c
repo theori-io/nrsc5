@@ -40,10 +40,6 @@
 static int gain_list[128];
 static int gain_index, gain_count;
 
-#ifdef USE_THREADS
-pthread_mutex_t rtlsdr_usb_mutex;
-#endif
-
 // signal and noise are squared magnitudes
 static int snr_callback(void *arg, float snr, float signal, float noise)
 {
@@ -77,14 +73,8 @@ static int snr_callback(void *arg, float snr, float signal, float noise)
         result = 1;
     }
 
-#ifdef USE_THREADS
-    pthread_mutex_lock(&rtlsdr_usb_mutex);
-#endif
     rtlsdr_set_tuner_gain(dev, gain_list[gain_index]);
     rtlsdr_reset_buffer(dev);
-#ifdef USE_THREADS
-    pthread_mutex_unlock(&rtlsdr_usb_mutex);
-#endif
     return result;
 }
 
@@ -285,9 +275,7 @@ int main(int argc, char *argv[])
             cnt = fread(tmp, 4, sizeof(tmp) / 4, infp);
             if (cnt > 0)
                 input_cb(tmp, cnt * 4, &input);
-            input_wait(&input, 0);
         }
-        input_wait(&input, 1);
     }
     else
     {
@@ -324,24 +312,14 @@ int main(int argc, char *argv[])
         err = rtlsdr_reset_buffer(dev);
         if (err) FATAL_EXIT("rtlsdr_reset_buffer error: %d", err);
 
-#ifdef USE_THREADS
-        pthread_mutex_init(&rtlsdr_usb_mutex, NULL);
-#endif
-
         // special loop for modifying gain (we can't use async transfers)
         while (gain_count)
         {
             // use a smaller buffer during auto gain
             int len = 128 * SNR_FFT_COUNT;
 
-#ifdef USE_THREADS
-            pthread_mutex_lock(&rtlsdr_usb_mutex);
-#endif
             err = rtlsdr_read_sync(dev, buf, len, &len);
             if (err) FATAL_EXIT("rtlsdr_read_sync error: %d", err);
-#ifdef USE_THREADS
-            pthread_mutex_unlock(&rtlsdr_usb_mutex);
-#endif
 
             input_cb(buf, len, &input);
         }

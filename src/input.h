@@ -3,9 +3,6 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <complex.h>
-#ifdef USE_THREADS
-#include <pthread.h>
-#endif
 
 #include "acquire.h"
 #include "decode.h"
@@ -37,12 +34,6 @@ typedef struct input_t
     input_snr_cb_t snr_cb;
     void *snr_cb_arg;
 
-#ifdef USE_THREADS
-    pthread_t worker_thread;
-    pthread_cond_t cond;
-    pthread_mutex_t mutex;
-#endif
-
     acquire_t acq;
     decode_t decode;
     frame_t frame;
@@ -54,6 +45,5 @@ void input_cb(uint8_t *, uint32_t, void *);
 void input_set_snr_callback(input_t *st, input_snr_cb_t cb, void *);
 void input_cfo_adjust(input_t *st, int cfo);
 void input_set_skip(input_t *st, unsigned int skip);
-void input_wait(input_t *st, int flush);
 void input_pdu_push(input_t *st, uint8_t *pdu, unsigned int len, unsigned int program);
 void input_aas_push(input_t *st, uint8_t *psd, unsigned int len);

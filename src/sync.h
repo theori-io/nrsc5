@@ -18,6 +18,7 @@ typedef struct
     int samperr;
     float angle;
     float angle_adj;
+    float prev_slope[FFT];
 
     int mer_cnt;
     float error_lb;

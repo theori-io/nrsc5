@@ -23,8 +23,6 @@
 
 #define BUFS 4
 
-float prev_slope[FFT];
-
 static void dump_ref(uint8_t *ref_buf)
 {
     uint32_t value = ref_buf[0];
@@ -33,7 +31,7 @@ static void dump_ref(uint8_t *ref_buf)
     // log_debug("REF %08X", value);
 }
 
-static void adjust_ref(float complex *buf, float *phases, unsigned int ref)
+static void adjust_ref(sync_t *st, float complex *buf, unsigned int ref)
 {
     // sync bits (after DBPSK)
     static const signed char sync[] = {
@@ -50,9 +48,10 @@ static void adjust_ref(float complex *buf, float *phases, unsigned int ref)
     }
     slope = cargf(sum) * 0.5;
 
-    if (prev_slope[ref])
-        slope = slope * 0.1 + prev_slope[ref] * 0.9;
-    prev_slope[ref] = slope;
+    if (st->ready)
+        slope = slope * 0.1 + st->prev_slope[ref] * 0.9;
+    slope += st->angle_adj;
+    st->prev_slope[ref] = slope;
 
     sum = 0;
     for (int r = 0; r < BLKSZ; r++)
@@ -62,7 +61,7 @@ static void adjust_ref(float complex *buf, float *phases, unsigned int ref)
     for (int n = 0; n < BLKSZ; n++)
     {
         float item_phase = phase + slope * n;
-        phases[ref * BLKSZ + n] = item_phase;
+        st->phases[ref * BLKSZ + n] = item_phase;
         buf[ref * BLKSZ + n] *= cexpf(-I * item_phase);
     }
 
@@ -75,7 +74,7 @@ static void adjust_ref(float complex *buf, float *phases, unsigned int ref)
         // adjust phase by pi to compensate
         for (int n = 0; n < BLKSZ; n++)
         {
-            phases[ref * BLKSZ + n] += M_PI;
+            st->phases[ref * BLKSZ + n] += M_PI;
             buf[ref * BLKSZ + n] *= -1;
         }
     }
@@ -210,12 +209,9 @@ void sync_process(sync_t *st, float complex *buffer)
 
     for (i = 0; i < partitions_per_band * 19 + 1; i += 19)
     {
-        prev_slope[LB_START + i] += st->angle_adj;
-        adjust_ref(buffer, st->phases, LB_START + i);
-        prev_slope[UB_END - i] += st->angle_adj;
-        adjust_ref(buffer, st->phases, UB_END - i);
+        adjust_ref(st, buffer, LB_START + i);
+        adjust_ref(st, buffer, UB_END - i);
     }
-    st->angle_adj = 0;
 
     // check if we lost synchronization or now have it
     if (st->ready)
@@ -231,9 +227,6 @@ void sync_process(sync_t *st, float complex *buffer)
     }
     else
     {
-        for (i = 0; i < FFT; i++)
-            prev_slope[i] = 0;
-
         // First and last reference subcarriers have the same data. Try both
         // in case one of the sidebands is too corrupted.
         int offset = find_first_block(buffer, LB_START, &psmi);
@@ -256,12 +249,12 @@ void sync_process(sync_t *st, float complex *buffer)
             for (i = -38; i < 38; ++i)
             {
                 int offset2;
-                adjust_ref(buffer, st->phases, LB_START + (PM_PARTITIONS * 19) + i);
+                adjust_ref(st, buffer, LB_START + (PM_PARTITIONS * 19) + i);
                 offset = find_ref(buffer, LB_START + (PM_PARTITIONS * 19) + i, 0);
                 if (offset < 0)
                     continue;
                 // We think we found the start. Check upperband to confirm.
-                adjust_ref(buffer, st->phases, UB_END - (PM_PARTITIONS * 19) + i);
+                adjust_ref(st, buffer, UB_END - (PM_PARTITIONS * 19) + i);
                 offset2 = find_ref(buffer, UB_END - (PM_PARTITIONS * 19) + i, 0);
                 if (offset2 == offset)
                 {
@@ -284,6 +277,8 @@ void sync_process(sync_t *st, float complex *buffer)
         }
     }
 
+    st->angle_adj = 0;
+
     // if we are still synchronized
     if (st->ready)
     {
@@ -301,8 +296,8 @@ void sync_process(sync_t *st, float complex *buffer)
 
         for (i = 0; i < partitions_per_band * 19 + 1; i += 19)
         {
-            angle += prev_slope[LB_START + i];
-            angle += prev_slope[UB_END - i];
+            angle += st->prev_slope[LB_START + i];
+            angle += st->prev_slope[UB_END - i];
         }
         angle /= (partitions_per_band + 1) * 2;
         st->angle = angle;
@@ -405,7 +400,7 @@ void sync_process(sync_t *st, float complex *buffer)
 
 void sync_adjust(sync_t *st, float angle_adj)
 {
-  st->angle_adj += angle_adj;
+    st->angle_adj += angle_adj;
 }
 
 void sync_push(sync_t *st, float complex *fftout)

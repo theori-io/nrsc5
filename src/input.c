@@ -109,29 +109,6 @@ static void input_push_to_acquire(input_t *st)
     st->cfo_used = st->avail - st->used;
 }
 
-#ifdef USE_THREADS
-static void *input_worker(void *arg)
-{
-    input_t *st = arg;
-
-    while (1)
-    {
-        pthread_mutex_lock(&st->mutex);
-        while (st->avail - st->used < FFTCP)
-            pthread_cond_wait(&st->cond, &st->mutex);
-
-        input_push_to_acquire(st);
-
-        pthread_mutex_unlock(&st->mutex);
-        pthread_cond_signal(&st->cond);
-
-        acquire_process(&st->acq);
-    }
-
-    return NULL;
-}
-#endif
-
 void input_pdu_push(input_t *st, uint8_t *pdu, unsigned int len, unsigned int program)
 {
     output_push(st->output, pdu, len, program);
@@ -153,21 +130,6 @@ void input_cfo_adjust(input_t *st, int cfo)
 
     for (int i = 0; i < FFT; ++i)
         st->cfo_tbl[i] *= cexpf(-I * (float)(2 * M_PI * st->cfo * i / FFT));
-}
-
-void input_wait(input_t *st, int flush)
-{
-#ifdef USE_THREADS
-    pthread_mutex_lock(&st->mutex);
-    while (st->avail - st->used > (flush ? 1 : 256) * FFTCP)
-        pthread_cond_wait(&st->cond, &st->mutex);
-    pthread_mutex_unlock(&st->mutex);
-
-    if (flush)
-    {
-        sync_wait(&st->sync);
-    }
-#endif
 }
 
 static void measure_snr(input_t *st, uint8_t *buf, uint32_t len)
@@ -235,9 +197,6 @@ void input_cb(uint8_t *buf, uint32_t len, void *arg)
         return;
     }
 
-#ifdef USE_THREADS
-    pthread_mutex_lock(&st->mutex);
-#endif
     if (cnt + st->avail > INPUT_BUF_LEN)
     {
         if (st->avail > st->used)
@@ -253,9 +212,6 @@ void input_cb(uint8_t *buf, uint32_t len, void *arg)
         }
     }
     new_avail = st->avail;
-#ifdef USE_THREADS
-    pthread_mutex_unlock(&st->mutex);
-#endif
 
     if (cnt + new_avail > INPUT_BUF_LEN)
     {
@@ -277,19 +233,12 @@ void input_cb(uint8_t *buf, uint32_t len, void *arg)
         st->buffer[new_avail++] = cq15_to_cf(y);
     }
 
-#ifdef USE_THREADS
-    pthread_mutex_lock(&st->mutex);
-    st->avail = new_avail;
-    pthread_mutex_unlock(&st->mutex);
-    pthread_cond_signal(&st->cond);
-#else
     st->avail = new_avail;
     while (st->avail - st->used >= FFTCP)
     {
         input_push_to_acquire(st);
         acquire_process(&st->acq);
     }
-#endif
 }
 
 void input_set_snr_callback(input_t *st, input_snr_cb_t cb, void *arg)
@@ -326,15 +275,6 @@ void input_init(input_t *st, output_t *output, double center, unsigned int progr
     st->snr_fft = fftwf_plan_dft_1d(64, st->snr_fft_in, st->snr_fft_out, FFTW_FORWARD, 0);
 
     input_reset(st);
-
-#ifdef USE_THREADS
-    pthread_cond_init(&st->cond, NULL);
-    pthread_mutex_init(&st->mutex, NULL);
-    pthread_create(&st->worker_thread, NULL, input_worker, st);
-#ifdef HAVE_PTHREAD_SETNAME_NP
-    pthread_setname_np(st->worker_thread, "worker");
-#endif
-#endif
 
     acquire_init(&st->acq, st);
     decode_init(&st->decode, st);

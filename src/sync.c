@@ -23,8 +23,6 @@
 
 #define BUFS 4
 
-float prev_slope[FFT];
-
 static void dump_ref(uint8_t *ref_buf)
 {
     uint32_t value = ref_buf[0];
@@ -33,7 +31,7 @@ static void dump_ref(uint8_t *ref_buf)
     // log_debug("REF %08X", value);
 }
 
-static void adjust_ref(float complex *buf, float *phases, unsigned int ref)
+static void adjust_ref(sync_t *st, float complex *buf, unsigned int ref)
 {
     // sync bits (after DBPSK)
     static const signed char sync[] = {
@@ -50,9 +48,9 @@ static void adjust_ref(float complex *buf, float *phases, unsigned int ref)
     }
     slope = cargf(sum) * 0.5;
 
-    if (prev_slope[ref])
-        slope = slope * 0.1 + prev_slope[ref] * 0.9;
-    prev_slope[ref] = slope;
+    if (st->ready)
+        slope = slope * 0.1 + (st->prev_slope[ref] + st->angle_adj) * 0.9;
+    st->prev_slope[ref] = slope;
 
     sum = 0;
     for (int r = 0; r < BLKSZ; r++)
@@ -62,7 +60,7 @@ static void adjust_ref(float complex *buf, float *phases, unsigned int ref)
     for (int n = 0; n < BLKSZ; n++)
     {
         float item_phase = phase + slope * n;
-        phases[ref * BLKSZ + n] = item_phase;
+        st->phases[ref * BLKSZ + n] = item_phase;
         buf[ref * BLKSZ + n] *= cexpf(-I * item_phase);
     }
 
@@ -75,7 +73,7 @@ static void adjust_ref(float complex *buf, float *phases, unsigned int ref)
         // adjust phase by pi to compensate
         for (int n = 0; n < BLKSZ; n++)
         {
-            phases[ref * BLKSZ + n] += M_PI;
+            st->phases[ref * BLKSZ + n] += M_PI;
             buf[ref * BLKSZ + n] *= -1;
         }
     }
@@ -178,6 +176,14 @@ static void adjust_data(float complex *buf, float *phases, unsigned int lower, u
     }
 }
 
+float phase_diff(float a, float b)
+{
+    float diff = a - b;
+    while (diff > M_PI / 2) diff -= M_PI;
+    while (diff < -M_PI / 2) diff += M_PI;
+    return diff;
+}
+
 void sync_process(sync_t *st, float complex *buffer)
 {
     int i;
@@ -202,8 +208,8 @@ void sync_process(sync_t *st, float complex *buffer)
 
     for (i = 0; i < partitions_per_band * 19 + 1; i += 19)
     {
-        adjust_ref(buffer, st->phases, LB_START + i);
-        adjust_ref(buffer, st->phases, UB_END - i);
+        adjust_ref(st, buffer, LB_START + i);
+        adjust_ref(st, buffer, UB_END - i);
     }
 
     // check if we lost synchronization or now have it
@@ -220,9 +226,6 @@ void sync_process(sync_t *st, float complex *buffer)
     }
     else
     {
-        for (i = 0; i < FFT; i++)
-            prev_slope[i] = 0;
-
         // First and last reference subcarriers have the same data. Try both
         // in case one of the sidebands is too corrupted.
         int offset = find_first_block(buffer, LB_START, &psmi);
@@ -245,12 +248,12 @@ void sync_process(sync_t *st, float complex *buffer)
             for (i = -38; i < 38; ++i)
             {
                 int offset2;
-                adjust_ref(buffer, st->phases, LB_START + (PM_PARTITIONS * 19) + i);
+                adjust_ref(st, buffer, LB_START + (PM_PARTITIONS * 19) + i);
                 offset = find_ref(buffer, LB_START + (PM_PARTITIONS * 19) + i, 0);
                 if (offset < 0)
                     continue;
                 // We think we found the start. Check upperband to confirm.
-                adjust_ref(buffer, st->phases, UB_END - (PM_PARTITIONS * 19) + i);
+                adjust_ref(st, buffer, UB_END - (PM_PARTITIONS * 19) + i);
                 offset2 = find_ref(buffer, UB_END - (PM_PARTITIONS * 19) + i, 0);
                 if (offset2 == offset)
                 {
@@ -273,14 +276,30 @@ void sync_process(sync_t *st, float complex *buffer)
         }
     }
 
+    st->angle_adj = 0;
+
     // if we are still synchronized
     if (st->ready)
     {
+        float samperr = 0, angle = 0;
         for (i = 0; i < partitions_per_band * 19; i += 19)
         {
             adjust_data(buffer, st->phases, LB_START + i, LB_START + i + 19);
             adjust_data(buffer, st->phases, UB_END - i - 19, UB_END - i);
+
+            samperr += phase_diff(st->phases[(LB_START + i) * BLKSZ], st->phases[(LB_START + i + 19) * BLKSZ]);
+            samperr += phase_diff(st->phases[(UB_END - i - 19) * BLKSZ], st->phases[(UB_END - i) * BLKSZ]);
         }
+        samperr = samperr / (partitions_per_band * 2) * 2048 / 19 / (2 * M_PI);
+        st->samperr = roundf(samperr);
+
+        for (i = 0; i < partitions_per_band * 19 + 1; i += 19)
+        {
+            angle += st->prev_slope[LB_START + i];
+            angle += st->prev_slope[UB_END - i];
+        }
+        angle /= (partitions_per_band + 1) * 2;
+        st->angle = angle;
 
         // Calculate modulation error
         float error_lb = 0, error_ub = 0;
@@ -378,6 +397,11 @@ void sync_process(sync_t *st, float complex *buffer)
     }
 }
 
+void sync_adjust(sync_t *st, float angle_adj)
+{
+    st->angle_adj += angle_adj;
+}
+
 void sync_push(sync_t *st, float complex *fftout)
 {
     unsigned int i;
@@ -388,52 +412,8 @@ void sync_push(sync_t *st, float complex *fftout)
     {
         st->idx = 0;
 
-#ifdef USE_THREADS
-        pthread_mutex_lock(&st->mutex);
-        while ((st->buf_idx + 1) % BUFS == st->used)
-            pthread_cond_wait(&st->cond, &st->mutex);
-        st->buf_idx = (st->buf_idx + 1) % BUFS;
-        pthread_mutex_unlock(&st->mutex);
-
-        pthread_cond_signal(&st->cond);
-#else
         sync_process(st, st->buffer);
-#endif
     }
-}
-
-#ifdef USE_THREADS
-static void *sync_worker(void *arg)
-{
-    sync_t *st = arg;
-    while(1)
-    {
-        pthread_mutex_lock(&st->mutex);
-        while (st->buf_idx == st->used)
-            pthread_cond_wait(&st->cond, &st->mutex);
-        pthread_mutex_unlock(&st->mutex);
-
-        sync_process(st, &st->buffer[st->used * BLKSZ * FFT]);
-
-        pthread_mutex_lock(&st->mutex);
-        st->used = (st->used + 1) % BUFS;
-        pthread_mutex_unlock(&st->mutex);
-
-        pthread_cond_signal(&st->cond);
-    }
-
-    return NULL;
-}
-#endif
-
-void sync_wait(sync_t *st)
-{
-#ifdef USE_THREADS
-    pthread_mutex_lock(&st->mutex);
-    while (st->buf_idx != st->used)
-        pthread_cond_wait(&st->cond, &st->mutex);
-    pthread_mutex_unlock(&st->mutex);
-#endif
 }
 
 void sync_init(sync_t *st, input_t *input)
@@ -450,13 +430,4 @@ void sync_init(sync_t *st, input_t *input)
     st->mer_cnt = 0;
     st->error_lb = 0;
     st->error_ub = 0;
-
-#ifdef USE_THREADS
-    pthread_cond_init(&st->cond, NULL);
-    pthread_mutex_init(&st->mutex, NULL);
-    pthread_create(&st->worker_thread, NULL, sync_worker, st);
-#ifdef HAVE_PTHREAD_SETNAME_NP
-    pthread_setname_np(st->worker_thread, "sync_worker");
-#endif
-#endif
 }

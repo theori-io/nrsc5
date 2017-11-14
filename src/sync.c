@@ -166,10 +166,13 @@ static void adjust_data(float complex *buf, float *phases, unsigned int lower, u
 
     for (int n = 0; n < BLKSZ; n++)
     {
+        float complex upper_phase = cexpf(phases[upper * BLKSZ + n] * I);
+        float complex lower_phase = cexpf(phases[lower * BLKSZ + n] * I);
+
         for (int k = 1; k < 19; k++)
         {
             // average phase difference
-            float complex C = CMPLXF(19,19) / (k * smag19 * fast_cexpf(phases[upper * BLKSZ + n]) + (19 - k) * smag0 * fast_cexpf(phases[lower * BLKSZ + n]));
+            float complex C = CMPLXF(19,19) / (k * smag19 * upper_phase + (19 - k) * smag0 * lower_phase);
             // adjust sample
             buf[(lower + k) * BLKSZ + n] *= C;
         }

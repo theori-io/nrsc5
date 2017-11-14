@@ -263,7 +263,6 @@ int main(int argc, char *argv[])
 
     output_set_aas_files_path(&output, files_path);
 
-    math_init();
     input_init(&input, &output, frequency, program, outfp);
 
     if (infp)

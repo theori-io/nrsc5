@@ -80,18 +80,3 @@ static inline void fftshift(float complex *x, unsigned int size)
         x[i+3 + h] = t4;
     }
 }
-
-void math_init();
-
-#ifdef USE_FAST_MATH
-static inline float complex fast_cexpf(float x)
-{
-    extern float complex cexpf_tbl[4096];
-    return cexpf_tbl[(int)truncf(x / (2.0f * (float)M_PI / 4096.0f)) & 4095];
-}
-#else
-static inline float complex fast_cexpf(float x)
-{
-    return cexpf(I * x);
-}
-#endif

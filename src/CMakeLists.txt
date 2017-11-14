@@ -28,7 +28,6 @@ add_executable (
     sync.c
 
     firdecim_q15.c
-    math.c
 
     conv_dec.c
 

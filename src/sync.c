@@ -49,8 +49,7 @@ static void adjust_ref(sync_t *st, float complex *buf, unsigned int ref)
     slope = cargf(sum) * 0.5;
 
     if (st->ready)
-        slope = slope * 0.1 + st->prev_slope[ref] * 0.9;
-    slope += st->angle_adj;
+        slope = slope * 0.1 + (st->prev_slope[ref] + st->angle_adj) * 0.9;
     st->prev_slope[ref] = slope;
 
     sum = 0;

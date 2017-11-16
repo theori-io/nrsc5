@@ -285,6 +285,7 @@ void sync_process(sync_t *st, float complex *buffer)
     if (st->ready)
     {
         float samperr = 0, angle = 0;
+        float sum_xy = 0, sum_x2 = 0;
         for (i = 0; i < partitions_per_band * 19; i += 19)
         {
             adjust_data(buffer, st->phases, LB_START + i, LB_START + i + 19);
@@ -294,13 +295,26 @@ void sync_process(sync_t *st, float complex *buffer)
             samperr += phase_diff(st->phases[(UB_END - i - 19) * BLKSZ], st->phases[(UB_END - i) * BLKSZ]);
         }
         samperr = samperr / (partitions_per_band * 2) * 2048 / 19 / (2 * M_PI);
-        st->samperr = roundf(samperr);
 
         for (i = 0; i < partitions_per_band * 19 + 1; i += 19)
         {
-            angle += st->prev_slope[LB_START + i];
-            angle += st->prev_slope[UB_END - i];
+            float x, y;
+
+            x = LB_START + i - 1024;
+            y = st->prev_slope[LB_START + i];
+            angle += y;
+            sum_xy += x * y;
+            sum_x2 += x * x;
+
+            x = UB_END - i - 1024;
+            y = st->prev_slope[UB_END - i];
+            angle += y;
+            sum_xy += x * y;
+            sum_x2 += x * x;
         }
+        samperr -= (sum_xy / sum_x2) * 2048 / (2 * M_PI) * ACQUIRE_SYMBOLS;
+        st->samperr = roundf(samperr);
+
         angle /= (partitions_per_band + 1) * 2;
         st->angle = angle;
 

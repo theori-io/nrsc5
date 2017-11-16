@@ -58,7 +58,7 @@ static int snr_callback(void *arg, float snr, float signal, float noise)
         best_snr = snr;
     }
 
-    log_info("Gain: %0.1f dB, CNR: %f dB", gain_list[gain_index] / 10.0, 10 * log10f(snr));
+    log_info("Gain: %.1f dB, CNR: %.1f dB", gain_list[gain_index] / 10.0, 20 * log10f(snr));
 
     if (gain_index + 1 >= gain_count || snr < best_snr * 0.5)
     {

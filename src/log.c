@@ -123,6 +123,8 @@ void log_log(int level, const char *file, int line, const char *fmt, ...) {
     vfprintf(stderr, fmt, args);
     va_end(args);
     fprintf(stderr, "\n");
+    /* XXX required for correct output on Windows */
+    fflush(stderr);
   }
 
   /* Log to file */

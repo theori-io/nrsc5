@@ -76,3 +76,81 @@ Read raw RF samples from a file and play back audio program 0:
 Tune to 90.5 MHz and convert audio program 0 to ADTS format for playback in an external media player:
 
      $ nrsc5 -o - -f adts 90.5 0 | mplayer -
+
+## Windows
+
+The only build environment that has been tested on Windows is MSYS2 with MinGW. Unfortunately, some of the dependencies need to be compiled manually. The instructions below build and install fftw, libao, libusb, and rtl-sdr, as well as nrsc5. 
+
+### Building with [MSYS2](http://www.msys2.org)
+
+Install MSYS2. Open a terminal using the "MSYS2 MinGW 32-bit" shortcut.
+
+     $ pacman -Syu
+
+If this is the first time running pacman, you will be told to close the terminal window. After doing so, reopen using the same shortcut as before.
+
+     $ pacman -Su
+     $ pacman -S autoconf automake git gzip make mingw-w64-i686-gcc mingw-w64-i686-cmake mingw-w64-i686-libtool patch tar xz
+
+Download and install fftw:
+
+     $ cd ~
+     $ curl -L http://www.fftw.org/fftw-3.3.7.tar.gz | tar xvz
+     $ cd fftw-3.3.7
+     $ ./configure --enable-float --enable-sse2 --with-our-malloc && make && make install
+
+Download and install libao:
+
+     $ cd ~
+     $ git clone https://git.xiph.org/libao.git
+     $ cd libao
+     $ ./autogen.sh
+     $ LDFLAGS=-lksuser ./configure && make && make install
+
+Download and install libusb:
+
+     $ cd ~
+     $ git clone https://github.com/libusb/libusb.git
+     $ cd libusb
+     $ ./autogen.sh
+     $ make && make install
+
+Download and install rtl-sdr:
+
+     $ cd ~
+     $ git clone git://git.osmocom.org/rtl-sdr.git
+     $ mkdir rtl-sdr/build && cd rtl-sdr/build
+     $ cmake -G "MSYS Makefiles" -D LIBUSB_FOUND=1 -D LIBUSB_INCLUDE_DIR=/mingw32/include/libusb-1.0 -D "LIBUSB_LIBRARIES=-L/mingw32/lib -lusb-1.0" -D THREADS_PTHREADS_WIN32_LIBRARY=/mingw32/i686-w64-mingw32/lib/libpthread.a -D THREADS_PTHREADS_INCLUDE_DIR=/mingw32/i686-w64-mingw32/include -D CMAKE_INSTALL_PREFIX=/mingw32 ..
+     $ make && make install
+
+Finally, download and install nrsc5:
+
+     $ cd ~
+     $ git clone https://github.com/theori-io/nrsc5
+     $ mkdir nrsc5/build && cd nrsc5/build
+     $ cmake -G "MSYS Makefiles" -D USE_COLOR=OFF -D USE_SSE=ON -D CMAKE_INSTALL_PREFIX=/mingw32 ..
+     $ make && make install
+
+You can test your installation using the included sample file:
+
+     $ cd ~/nrsc5/support
+     $ xz -dc sample.xz | nrsc5 -r - 0
+
+If the sample file does not work, make sure you followed all of the instructions. If it still doesn't work, file an issue with the error message. Please put "[Windows]" in the title of the issue.
+
+### Packaging
+
+Once everything is built, you can run nrsc5 independently of MSYS2. Copy the following files from your MSYS2/mingw32 directory (e.g. C:\msys64\mingw32\bin):
+
+ * libao-4.dll
+ * libgcc\_s\_dw2-1.dll
+ * librtlsdr.dll
+ * libusb-1.0.dll
+ * libwinpthread-1.dll
+ * nrsc5.exe
+
+### Running
+
+See **Usage** section above.
+
+If you get errors trying to access your RTL-SDR device, then you may need to use [Zadig](http://zadig.akeo.ie/) to change the USB driver. Once you download and run Zadig, select your RTL-SDR device and then click "Replace Driver". If your device is not listed, enable "Options" -> "List All Devices".

@@ -20,9 +20,6 @@
 #include "defines.h"
 #include "input.h"
 
-#define SYMBOLS 2
-#define M (BLKSZ * SYMBOLS)
-
 void acquire_process(acquire_t *st)
 {
     float complex max_v = 0, phase_increment;
@@ -31,7 +28,7 @@ void acquire_process(acquire_t *st)
     unsigned int i, j, keep;
     unsigned int mink = 0, maxk = FFTCP;
 
-    if (st->idx != FFTCP * (M + 1))
+    if (st->idx != FFTCP * (ACQUIRE_SYMBOLS + 1))
         return;
 
     if (st->input->sync.ready)
@@ -49,7 +46,7 @@ void acquire_process(acquire_t *st)
         memset(st->sums, 0, sizeof(float complex) * FFTCP);
         for (i = mink; i < maxk + CP; ++i)
         {
-            for (j = 0; j < M; ++j)
+            for (j = 0; j < ACQUIRE_SYMBOLS; ++j)
                 st->sums[i] += st->buffer[i + j * FFTCP] * conjf(st->buffer[i + j * FFTCP + FFT]);
         }
 
@@ -79,7 +76,7 @@ void acquire_process(acquire_t *st)
     sync_adjust(&st->input->sync, angle_diff);
 
     phase_increment = cexpf(angle / FFT * I);
-    for (i = 0; i < M; ++i)
+    for (i = 0; i < ACQUIRE_SYMBOLS; ++i)
     {
         int j;
         for (j = 0; j < FFTCP; ++j)
@@ -126,7 +123,7 @@ void acquire_init(acquire_t *st, input_t *input)
     int i;
 
     st->input = input;
-    st->buffer = malloc(sizeof(float complex) * FFTCP * (M + 1));
+    st->buffer = malloc(sizeof(float complex) * FFTCP * (ACQUIRE_SYMBOLS + 1));
     st->sums = malloc(sizeof(float complex) * (FFTCP + CP));
     st->idx = 0;
     st->prev_angle = 0;

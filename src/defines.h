@@ -20,6 +20,8 @@
 #define FFTCP (FFT + CP)
 // OFDM symbols per L1 block
 #define BLKSZ 32
+// symbols processed by each invocation of acquire_process
+#define ACQUIRE_SYMBOLS (BLKSZ * 2)
 // number of primary main partitions
 #define PM_PARTITIONS 10
 // index of first lower sideband subcarrier

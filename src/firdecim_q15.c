@@ -13,12 +13,7 @@
 
 #include "firdecim_q15.h"
 
-#ifdef USE_FAST_MATH
-#define NUM_TAPS 16
-#else
 #define NUM_TAPS 32
-#endif
-
 #define WINDOW_SIZE 2048
 
 struct firdecim_q15 {
@@ -74,14 +69,12 @@ static cint16_t dotprod(cint16_t *a, int16_t *b, int n)
     int16x8_t s4 = vqdmulhq_s16(vld1q_s16((int16_t *)&a[12]), vld1q_s16(&b[12*2]));
     int16x8_t sum = vqaddq_s16(vqaddq_s16(s1, s2), vqaddq_s16(s3, s4));
 
-#if NUM_TAPS == 32
     s1 = vqdmulhq_s16(vld1q_s16((int16_t *)&a[16]), vld1q_s16(&b[16*2]));
     s2 = vqdmulhq_s16(vld1q_s16((int16_t *)&a[20]), vld1q_s16(&b[20*2]));
     s3 = vqdmulhq_s16(vld1q_s16((int16_t *)&a[24]), vld1q_s16(&b[24*2]));
     s4 = vqdmulhq_s16(vld1q_s16((int16_t *)&a[28]), vld1q_s16(&b[28*2]));
     sum = vqaddq_s16(vqaddq_s16(s1, s2), sum);
     sum = vqaddq_s16(vqaddq_s16(s3, s4), sum);
-#endif
 
     int16x4x2_t sum2 = vuzp_s16(vget_high_s16(sum), vget_low_s16(sum));
     int16x4_t sum3 = vpadd_s16(sum2.val[0], sum2.val[1]);

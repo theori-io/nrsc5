@@ -262,7 +262,7 @@ void sync_process(sync_t *st, float complex *buffer)
                 {
                     // The offsets matched, so 'i' is likely the CFO.
                     input_set_skip(st->input, offset * FFTCP);
-                    input_cfo_adjust(st->input, i);
+                    acquire_cfo_adjust(&st->input->acq, i);
 
                     log_debug("First block @ %d", offset);
 

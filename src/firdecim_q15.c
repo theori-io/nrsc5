@@ -13,11 +13,9 @@
 
 #include "firdecim_q15.h"
 
-#define NUM_TAPS 32
 #define WINDOW_SIZE 2048
 
 struct firdecim_q15 {
-    unsigned int decim;
     int16_t * taps;
     unsigned int ntaps;
     cint16_t * window;
@@ -29,14 +27,10 @@ firdecim_q15 firdecim_q15_create(unsigned int decim, const float * taps, unsigne
     firdecim_q15 q;
 
     q = malloc(sizeof(*q));
-    q->decim = decim;
-    q->ntaps = ntaps;
+    q->ntaps = (ntaps == 32) ? 32 : 15;
     q->taps = malloc(sizeof(int16_t) * ntaps * 2);
     q->window = calloc(sizeof(cint16_t), WINDOW_SIZE);
-    q->idx = ntaps - 1;
-
-    assert(decim == 2);
-    assert(ntaps == NUM_TAPS);
+    q->idx = q->ntaps - 1;
 
     // reverse order so we can push into the window
     // duplicate for neon
@@ -61,7 +55,7 @@ static void push(firdecim_q15 q, cint16_t x)
 }
 
 #ifdef HAVE_NEON
-static cint16_t dotprod(cint16_t *a, int16_t *b, int n)
+static cint16_t dotprod_32(cint16_t *a, int16_t *b)
 {
     int16x8_t s1 = vqdmulhq_s16(vld1q_s16((int16_t *)&a[0]), vld1q_s16(&b[0*2]));
     int16x8_t s2 = vqdmulhq_s16(vld1q_s16((int16_t *)&a[4]), vld1q_s16(&b[4*2]));
@@ -86,21 +80,74 @@ static cint16_t dotprod(cint16_t *a, int16_t *b, int n)
     return result[0];
 }
 #else
-static cint16_t dotprod(cint16_t *a, int16_t *b, int n)
+static cint16_t dotprod_32(cint16_t *a, int16_t *b)
 {
     cint16_t sum = { 0 };
-    for (int i = 0; i < n; ++i)
+    int i;
+
+    for (i = 1; i < 16; i++)
     {
-        sum.r += (a[i].r * b[i * 2]) >> 15;
-        sum.i += (a[i].i * b[i * 2]) >> 15;
+        sum.r += ((a[i].r + a[32-i].r) * b[i * 2]) >> 15;
+        sum.i += ((a[i].i + a[32-i].i) * b[i * 2]) >> 15;
     }
+    sum.r += (a[i].r * b[i * 2]) >> 15;
+    sum.i += (a[i].i * b[i * 2]) >> 15;
+
     return sum;
 }
 #endif
 
-void firdecim_q15_execute(firdecim_q15 q, const cint16_t *x, cint16_t *y)
+#ifdef HAVE_NEON
+static cint16_t dotprod_halfband_4(cint16_t *a, int16_t *b)
+{
+    cint16_t pairs[4];
+    int i;
+
+    for (i = 0; i < 7; i += 2)
+    {
+        pairs[i/2].r = a[i].r + a[14-i].r;
+        pairs[i/2].i = a[i].i + a[14-i].i;
+    }
+
+    int16x8_t prod = vqdmulhq_s16(vld1q_s16((int16_t *)pairs), vld1q_s16(b));
+    int16x4x2_t prod2 = vuzp_s16(vget_high_s16(prod), vget_low_s16(prod));
+    int16x4_t sum = vpadd_s16(prod2.val[0], prod2.val[1]);
+    sum = vpadd_s16(sum, sum);
+
+    cint16_t result[2];
+    vst1_s16((int16_t*)&result, sum);
+
+    result[0].r += a[7].r;
+    result[0].i += a[7].i;
+    return result[0];
+}
+#else
+static cint16_t dotprod_halfband_4(cint16_t *a, int16_t *b)
+{
+    cint16_t sum = { 0 };
+    int i;
+
+    for (i = 0; i < 7; i += 2)
+    {
+        sum.r += ((a[i].r + a[14-i].r) * b[i]) >> 15;
+        sum.i += ((a[i].i + a[14-i].i) * b[i]) >> 15;
+    }
+    sum.r += a[7].r;
+    sum.i += a[7].i;
+
+    return sum;
+}
+#endif
+
+void fir_q15_execute(firdecim_q15 q, const cint16_t *x, cint16_t *y)
 {
     push(q, x[0]);
-    *y = dotprod(&q->window[q->idx - q->ntaps], q->taps, q->ntaps);
+    *y = dotprod_32(&q->window[q->idx - q->ntaps], q->taps);
+}
+
+void halfband_q15_execute(firdecim_q15 q, const cint16_t *x, cint16_t *y)
+{
+    push(q, x[0]);
+    *y = dotprod_halfband_4(&q->window[q->idx - q->ntaps], q->taps);
     push(q, x[1]);
 }

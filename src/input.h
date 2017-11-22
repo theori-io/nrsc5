@@ -19,12 +19,10 @@ typedef struct input_t
     output_t *output;
     FILE *outfp;
 
-    firdecim_q15 filter;
-    float complex *buffer;
+    firdecim_q15 decim;
+    cint16_t *buffer;
     double center;
     unsigned int avail, used, skip;
-    int cfo, cfo_idx, cfo_used;
-    float complex cfo_tbl[FFT];
 
     fftwf_plan snr_fft;
     float complex snr_fft_in[64];
@@ -43,7 +41,6 @@ typedef struct input_t
 void input_init(input_t *st, output_t *output, double center, unsigned int program, FILE *outfp);
 void input_cb(uint8_t *, uint32_t, void *);
 void input_set_snr_callback(input_t *st, input_snr_cb_t cb, void *);
-void input_cfo_adjust(input_t *st, int cfo);
 void input_set_skip(input_t *st, unsigned int skip);
 void input_pdu_push(input_t *st, uint8_t *pdu, unsigned int len, unsigned int program);
 void input_aas_push(input_t *st, uint8_t *psd, unsigned int len);

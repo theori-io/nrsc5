@@ -24,73 +24,15 @@
 
 #define INPUT_BUF_LEN (2160 * 512)
 
-static float filter_taps[] = {
-#ifdef USE_FAST_MATH
-    /*
-     * http://t-filter.engineerjs.com/
-     *    0 Hz - 80,000 Hz (-40 dB)
-     *    120,000 Hz - 200,000 Hz (5 dB)
-     *    300,000 Hz - 700,000 Hz (-30 dB)
-     */
-    0.0753194224484977,
-    0.04765846660553231,
-    -0.014652799369167866,
-    -0.10253099542978061,
-    -0.14104873779974123,
-    -0.07894851027726302,
-    0.05494952393379453,
-    0.16461021103340587,
-    0.16461021103340587,
-    0.05494952393379453,
-    -0.07894851027726302,
-    -0.14104873779974123,
-    -0.10253099542978061,
-    -0.014652799369167866,
-    0.04765846660553231,
-    0.0753194224484977
-#else
-    -0.006910541036924275,
-    -0.013268228805145532,
-    -0.006644557670245421,
-    0.018375039238181595,
-    0.04259143500924495,
-    0.03712705276833042,
-    0.0017215227032129474,
-    -0.024593813581821018,
-    -0.009907236685353248,
-    0.01767132823382834,
-    -0.008287758762202712,
-    -0.10098124598840287,
-    -0.17157955612468512,
-    -0.10926609589776617,
-    0.08158909906685183,
-    0.25361698433482543,
-    0.25361698433482543,
-    0.08158909906685183,
-    -0.10926609589776617,
-    -0.17157955612468512,
-    -0.10098124598840287,
-    -0.008287758762202712,
-    0.01767132823382834,
-    -0.009907236685353248,
-    -0.024593813581821018,
-    0.0017215227032129474,
-    0.03712705276833042,
-    0.04259143500924495,
-    0.018375039238181595,
-    -0.006644557670245421,
-    -0.013268228805145532,
-    -0.006910541036924275
-#endif
+static float decim_taps[] = {
+    0.6062333583831787,
+    -0.13481467962265015,
+    0.032919470220804214,
+    -0.00410953676328063
 };
 
 static void input_push_to_acquire(input_t *st)
 {
-    // CFO is modified in sync, and is expected to be "immediately" applied
-    for (unsigned int j = st->used + st->cfo_used; j < st->avail; j++)
-        st->buffer[j] *= st->cfo_tbl[st->cfo_idx++ % FFT];
-    st->cfo_idx %= FFT;
-
     if (st->skip)
     {
         if (st->skip > st->avail - st->used)
@@ -106,7 +48,6 @@ static void input_push_to_acquire(input_t *st)
     }
 
     st->used += acquire_push(&st->acq, &st->buffer[st->used], st->avail - st->used);
-    st->cfo_used = st->avail - st->used;
 }
 
 void input_pdu_push(input_t *st, uint8_t *pdu, unsigned int len, unsigned int program)
@@ -117,19 +58,6 @@ void input_pdu_push(input_t *st, uint8_t *pdu, unsigned int len, unsigned int pr
 void input_set_skip(input_t *st, unsigned int skip)
 {
     st->skip += skip;
-}
-
-void input_cfo_adjust(input_t *st, int cfo)
-{
-    if (cfo == 0)
-        return;
-
-    st->cfo += cfo;
-    float hz = st->cfo * 744187.5 / FFT;
-    log_info("CFO: %f Hz (%d ppm)", hz, (int)round(hz * 1000000.0 / st->center));
-
-    for (int i = 0; i < FFT; ++i)
-        st->cfo_tbl[i] *= cexpf(-I * (float)(2 * M_PI * st->cfo * i / FFT));
 }
 
 static void measure_snr(input_t *st, uint8_t *buf, uint32_t len)
@@ -222,15 +150,14 @@ void input_cb(uint8_t *buf, uint32_t len, void *arg)
 
     for (i = 0; i < cnt; i++)
     {
-        cint16_t x[2], y;
+        cint16_t x[2];
 
         x[0].r = U8_Q15(buf[i * 4 + 0]);
         x[0].i = -U8_Q15(buf[i * 4 + 1]);
         x[1].r = U8_Q15(buf[i * 4 + 2]);
         x[1].i = -U8_Q15(buf[i * 4 + 3]);
 
-        firdecim_q15_execute(st->filter, x, &y);
-        st->buffer[new_avail++] = cq15_to_cf(y);
+        halfband_q15_execute(st->decim, x, &st->buffer[new_avail++]);
     }
 
     st->avail = new_avail;
@@ -252,11 +179,6 @@ void input_reset(input_t *st)
     st->avail = 0;
     st->used = 0;
     st->skip = 0;
-    st->cfo = 0;
-    st->cfo_idx = 0;
-    st->cfo_used = 0;
-    for (int i = 0; i < FFT; ++i)
-        st->cfo_tbl[i] = 1;
     for (int i = 0; i < 64; ++i)
         st->snr_power[i] = 0;
     st->snr_cnt = 0;
@@ -264,14 +186,14 @@ void input_reset(input_t *st)
 
 void input_init(input_t *st, output_t *output, double center, unsigned int program, FILE *outfp)
 {
-    st->buffer = malloc(sizeof(float complex) * INPUT_BUF_LEN);
+    st->buffer = malloc(sizeof(cint16_t) * INPUT_BUF_LEN);
     st->output = output;
     st->outfp = outfp;
     st->center = center;
     st->snr_cb = NULL;
     st->snr_cb_arg = NULL;
 
-    st->filter = firdecim_q15_create(2, filter_taps, sizeof(filter_taps) / sizeof(filter_taps[0]));
+    st->decim = firdecim_q15_create(2, decim_taps, sizeof(decim_taps) / sizeof(decim_taps[0]));
     st->snr_fft = fftwf_plan_dft_1d(64, st->snr_fft_in, st->snr_fft_out, FFTW_FORWARD, 0);
 
     input_reset(st);

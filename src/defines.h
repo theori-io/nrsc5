@@ -40,7 +40,7 @@
 #define PDU_LEN ((P1_FRAME_LEN - PCI_LEN) / 8)
 
 #define U8_F(x) ( (((float)(x)) - 127) / 128 )
-#define U8_Q15(x) ( ((int16_t)(x) - 127) << 7 )
+#define U8_Q15(x) ( ((int16_t)(x) - 127) << 6 )
 
 typedef struct {
     int16_t r, i;

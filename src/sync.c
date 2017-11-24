@@ -31,51 +31,44 @@ static void dump_ref(uint8_t *ref_buf)
     // log_debug("REF %08X", value);
 }
 
-static void adjust_ref(sync_t *st, float complex *buf, unsigned int ref)
+static void adjust_ref(sync_t *st, float complex *buf, unsigned int ref, int cfo)
 {
+    unsigned int n;
+    float cfo_freq = 2 * M_PI * cfo * CP / FFTCP;
+
     // sync bits (after DBPSK)
     static const signed char sync[] = {
         -1, 1, -1, -1, -1, 1, 1
     };
-    float phase, slope;
-    float complex sum;
 
-    sum = 0;
-    for (int r = 1; r < BLKSZ; r++)
+    for (n = 0; n < BLKSZ; n++)
     {
-        float complex tmp = conjf(buf[ref * BLKSZ + r - 1]) * buf[ref * BLKSZ + r];
-        sum += tmp * tmp;
-    }
-    slope = cargf(sum) * 0.5;
+        float error = cargf(buf[ref * BLKSZ + n] * buf[ref * BLKSZ + n] * cexpf(-I * 2 * st->costas_phase[ref])) * 0.5;
 
-    if (st->ready)
-        slope = slope * 0.1 + (st->prev_slope[ref] + st->angle_adj) * 0.9;
-    st->prev_slope[ref] = slope;
+        st->phases[ref * BLKSZ + n] = st->costas_phase[ref];
+        buf[ref * BLKSZ + n] *= cexpf(-I * st->costas_phase[ref]);
 
-    sum = 0;
-    for (int r = 0; r < BLKSZ; r++)
-        sum += buf[ref * BLKSZ + r] * buf[ref * BLKSZ + r] * cexpf(-I * 2 * slope * r);
-    phase = cargf(sum) * 0.5;
-
-    for (int n = 0; n < BLKSZ; n++)
-    {
-        float item_phase = phase + slope * n;
-        st->phases[ref * BLKSZ + n] = item_phase;
-        buf[ref * BLKSZ + n] *= cexpf(-I * item_phase);
+        st->costas_freq[ref] += st->beta * error;
+        if (st->costas_freq[ref] > 0.5) st->costas_freq[ref] = 0.5;
+        if (st->costas_freq[ref] < -0.5) st->costas_freq[ref] = -0.5;
+        st->costas_phase[ref] += st->costas_freq[ref] + cfo_freq + (st->alpha * error);
+        if (st->costas_phase[ref] > M_PI) st->costas_phase[ref] -= 2 * M_PI;
+        if (st->costas_phase[ref] < -M_PI) st->costas_phase[ref] += 2 * M_PI;
     }
 
     // compare to sync bits
     float x = 0;
-    for (unsigned int n = 0; n < sizeof(sync); n++)
+    for (n = 0; n < sizeof(sync); n++)
         x += crealf(buf[ref * BLKSZ + n]) * sync[n];
     if (x < 0)
     {
         // adjust phase by pi to compensate
-        for (int n = 0; n < BLKSZ; n++)
+        for (n = 0; n < BLKSZ; n++)
         {
             st->phases[ref * BLKSZ + n] += M_PI;
             buf[ref * BLKSZ + n] *= -1;
         }
+        st->costas_phase[ref] += M_PI;
     }
 }
 
@@ -134,19 +127,9 @@ static int find_ref(float complex *buf, unsigned int ref, unsigned int rsid)
         0, 1, 1, 0, 0, 1, 0, -1, -1, 1, rsid >> 1, rsid & 1, 0, (rsid >> 1) ^ (rsid & 1), 0, -1, -1, -1, -1, -1, -1, 1, 1, 1
     };
     unsigned char data[BLKSZ];
-    int n;
 
     decode_dbpsk(&buf[ref * BLKSZ], data, BLKSZ);
-    n = fuzzy_match(needle, sizeof(needle), data, BLKSZ);
-    if (n < 0)
-    {
-        // Try again with the data inverted. This handles phase ambiguity due
-        // to CFO (e.g. if frequency is offset by more than 1,815 Hz).
-        for (int i = 0; i < BLKSZ; i++)
-            data[i] = !data[i];
-        n = fuzzy_match(needle, sizeof(needle), data, BLKSZ);
-    }
-    return n;
+    return fuzzy_match(needle, sizeof(needle), data, BLKSZ);
 }
 
 static float calc_smag(float complex *buf, unsigned int ref)
@@ -211,8 +194,8 @@ void sync_process(sync_t *st, float complex *buffer)
 
     for (i = 0; i < partitions_per_band * 19 + 1; i += 19)
     {
-        adjust_ref(st, buffer, LB_START + i);
-        adjust_ref(st, buffer, UB_END - i);
+        adjust_ref(st, buffer, LB_START + i, 0);
+        adjust_ref(st, buffer, UB_END - i, 0);
     }
 
     // check if we lost synchronization or now have it
@@ -251,12 +234,12 @@ void sync_process(sync_t *st, float complex *buffer)
             for (i = -38; i < 38; ++i)
             {
                 int offset2;
-                adjust_ref(st, buffer, LB_START + (PM_PARTITIONS * 19) + i);
+                adjust_ref(st, buffer, LB_START + (PM_PARTITIONS * 19) + i, i);
                 offset = find_ref(buffer, LB_START + (PM_PARTITIONS * 19) + i, 0);
                 if (offset < 0)
                     continue;
                 // We think we found the start. Check upperband to confirm.
-                adjust_ref(st, buffer, UB_END - (PM_PARTITIONS * 19) + i);
+                adjust_ref(st, buffer, UB_END - (PM_PARTITIONS * 19) + i, i);
                 offset2 = find_ref(buffer, UB_END - (PM_PARTITIONS * 19) + i, 0);
                 if (offset2 == offset)
                 {
@@ -279,8 +262,6 @@ void sync_process(sync_t *st, float complex *buffer)
         }
     }
 
-    st->angle_adj = 0;
-
     // if we are still synchronized
     if (st->ready)
     {
@@ -301,13 +282,13 @@ void sync_process(sync_t *st, float complex *buffer)
             float x, y;
 
             x = LB_START + i - 1024;
-            y = st->prev_slope[LB_START + i];
+            y = st->costas_freq[LB_START + i];
             angle += y;
             sum_xy += x * y;
             sum_x2 += x * x;
 
             x = UB_END - i - 1024;
-            y = st->prev_slope[UB_END - i];
+            y = st->costas_freq[UB_END - i];
             angle += y;
             sum_xy += x * y;
             sum_x2 += x * x;
@@ -414,9 +395,11 @@ void sync_process(sync_t *st, float complex *buffer)
     }
 }
 
-void sync_adjust(sync_t *st, float angle_adj)
+void sync_adjust(sync_t *st, int sample_adj)
 {
-    st->angle_adj += angle_adj;
+    int i;
+    for (i = 0; i < FFT; i++)
+        st->costas_phase[i] -= sample_adj * (i - 1024) * 2 * M_PI / FFT;
 }
 
 void sync_push(sync_t *st, float complex *fftout)
@@ -435,6 +418,17 @@ void sync_push(sync_t *st, float complex *fftout)
 
 void sync_init(sync_t *st, input_t *input)
 {
+    unsigned int i;
+    float loop_bw = 0.05, damping = 0.70710678;
+    float denom = 1 + (2 * damping * loop_bw) + (loop_bw * loop_bw);
+    st->alpha = (4 * damping * loop_bw) / denom;
+    st->beta = (4 * loop_bw * loop_bw) / denom;
+    for (i = 0; i < FFT; i++)
+    {
+        st->costas_freq[i] = 0;
+        st->costas_phase[i] = 0;
+    }
+
     st->input = input;
     st->buffer = malloc(sizeof(float complex) * BLKSZ * FFT * BUFS);
     st->phases = malloc(sizeof(float) * BLKSZ * FFT);

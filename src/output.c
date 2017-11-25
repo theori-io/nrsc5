@@ -396,6 +396,72 @@ static void output_id3(uint8_t *buf, unsigned int len)
             log_debug("Album: %s", album);
             free(album);
         }
+        else if (memcmp(buf + off, "TCON", 4) == 0)
+        {
+            char *genre = id3_text(buf + off + 10, frame_len);
+            log_debug("Genre: %s", genre);
+            free(genre);
+        }
+        else if (memcmp(buf + off, "UFID", 4) == 0)
+        {
+            uint8_t *delim = memchr(buf + off + 10, 0, frame_len);
+            uint8_t *end = buf + off + 10 + frame_len;
+
+            if (delim)
+            {
+                char *owner_id = (char *) buf + off + 10;
+                char *id = (char *) malloc(end - delim);
+                memcpy(id, delim + 1, end - delim - 1);
+                id[end - delim - 1] = 0;
+                log_debug("Unique file identifier: %s %s", owner_id, id);
+                free(id);
+            }
+        }
+        else if (memcmp(buf + off, "COMR", 4) == 0)
+        {
+            int i;
+            uint8_t *delim[4];
+            uint8_t *pos = buf + off + 10 + 1;
+            uint8_t *end = buf + off + 10 + frame_len;
+
+            char *price, until[11], *url, *seller, *desc;
+            int received_as;
+
+            for (i = 0; i < 4; i++)
+            {
+                if (pos >= end)
+                    break;
+                if ((delim[i] = memchr(pos, 0, end - pos)) == NULL)
+                    break;
+
+                pos = delim[i] + 1;
+                if (i == 0)
+                    pos += 8;
+                else if (i == 1)
+                    pos += 1;
+            }
+
+            if (i == 4)
+            {
+                price = (char *) buf + off + 10 + 1;
+                sprintf(until, "%.4s-%.2s-%.2s", delim[0] + 1, delim[0] + 5, delim[0] + 7);
+                url = (char *) delim[0] + 9;
+                received_as = *(delim[1] + 1);
+                seller = (char *) delim[1] + 2;
+                desc = (char *) delim[2] + 1;
+                log_debug("Commercial: price=%s until=%s url=\"%s\" seller=\"%s\" desc=\"%s\" received_as=%d",
+                          price, until, url, seller, desc, received_as);
+            }
+        }
+        else
+        {
+            int i;
+            char *hex = malloc(3 * frame_len + 1);
+            for (i = 0; i < frame_len; i++)
+                sprintf(hex + (3 * i), "%02X ", buf[off + 10 + i]);
+            hex[3 * i - 1] = 0;
+            log_debug("%c%c%c%c tag: %s", buf[off], buf[off+1], buf[off+2], buf[off+3], hex);
+        }
 
         off += 10 + frame_len;
     }

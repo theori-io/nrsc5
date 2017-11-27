@@ -147,7 +147,7 @@ void acquire_process(acquire_t *st)
     }
 
     keep = FFTCP + (FFTCP / 2 - samperr);
-    memmove(&st->in_buffer[0], &st->in_buffer[st->idx - keep], sizeof(float complex) * keep);
+    memmove(&st->in_buffer[0], &st->in_buffer[st->idx - keep], sizeof(cint16_t) * keep);
     st->idx = keep;
 
     st->phase *= cexpf((FFTCP / 2 - samperr) * angle / FFT * I);

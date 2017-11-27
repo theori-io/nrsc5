@@ -405,6 +405,7 @@ static void parse_port_info(output_t *st, uint8_t *buf, unsigned int len)
 {
     static int dump = 1;
     unsigned int idx = 0;
+    unsigned int service_data_type = 0, program = 0;
     uint8_t *p = buf;
     while (p < buf + len)
     {
@@ -415,6 +416,8 @@ static void parse_port_info(output_t *st, uint8_t *buf, unsigned int len)
         {
             if (dump)
                 log_debug("%02X %02X %02X %02X", type, p[0], p[1], p[2]);
+            service_data_type = type;
+            program = (type == 0x40) ? (p[0] - 1) : 0;
             p += 3;
             break;
         }
@@ -436,6 +439,8 @@ static void parse_port_info(output_t *st, uint8_t *buf, unsigned int len)
                 port->port = *(uint16_t*)&p[1];
                 port->pkt_size = *(uint16_t*)&p[3];
                 port->type = p[5];
+                port->service_data_type = service_data_type;
+                port->program = program;
                 if (dump)
                     log_debug("Port %02X, type %d, size %d", port->port, port->type, port->pkt_size);
             }
@@ -545,7 +550,7 @@ static void process_port(output_t *st, uint16_t port_id, uint8_t *buf, unsigned 
             port->u.file.idx = len;
             port->u.file.seq = 1;
 
-            log_info("File %s, size %d", port->u.file.name, port->u.file.size);
+            log_info("File %s, size %d, port %04X", port->u.file.name, port->u.file.size, port->port);
         }
         else if (seq == port->u.file.seq)
         {
@@ -560,10 +565,13 @@ static void process_port(output_t *st, uint16_t port_id, uint8_t *buf, unsigned 
 
             if (port->u.file.idx == port->u.file.size)
             {
-                log_info("Received %s", port->u.file.name);
+                log_info("Received %s, port %04X", port->u.file.name, port->port);
                 if (st->aas_files_path)
                 {
-                    write_file(st->aas_files_path, port->u.file.name, port->u.file.data, port->u.file.idx);
+                    if (port->service_data_type != 0x40 || port->program == st->program)
+                    {
+                        write_file(st->aas_files_path, port->u.file.name, port->u.file.data, port->u.file.idx);
+                    }
                 }
             }
         }

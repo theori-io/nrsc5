@@ -120,8 +120,10 @@ void acquire_process(acquire_t *st)
     for (i = 0; i < FFTCP * (ACQUIRE_SYMBOLS + 1); i++)
         st->buffer[i] = cq15_to_cf(st->in_buffer[i]);
 
-    sync_adjust(&st->input->sync, angle_diff);
+    sync_adjust(&st->input->sync, FFTCP / 2 - samperr);
     angle -= 2 * M_PI * st->cfo;
+
+    st->phase *= cexpf(-(FFTCP / 2 - samperr) * angle / FFT * I);
 
     phase_increment = cexpf(angle / FFT * I);
     for (i = 0; i < ACQUIRE_SYMBOLS; ++i)
@@ -149,8 +151,6 @@ void acquire_process(acquire_t *st)
     keep = FFTCP + (FFTCP / 2 - samperr);
     memmove(&st->in_buffer[0], &st->in_buffer[st->idx - keep], sizeof(cint16_t) * keep);
     st->idx = keep;
-
-    st->phase *= cexpf((FFTCP / 2 - samperr) * angle / FFT * I);
 }
 
 void acquire_cfo_adjust(acquire_t *st, int cfo)

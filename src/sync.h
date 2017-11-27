@@ -17,14 +17,17 @@ typedef struct
     int cfo_wait;
     int samperr;
     float angle;
-    float angle_adj;
-    float prev_slope[FFT];
+
+    float alpha;
+    float beta;
+    float costas_freq[FFT];
+    float costas_phase[FFT];
 
     int mer_cnt;
     float error_lb;
     float error_ub;
 } sync_t;
 
-void sync_adjust(sync_t *st, float angle_adj);
+void sync_adjust(sync_t *st, int sample_adj);
 void sync_push(sync_t *st, float complex *fft);
 void sync_init(sync_t *st, struct input_t *input);

@@ -34,6 +34,8 @@ typedef struct
     uint16_t port;
     uint16_t pkt_size;
     uint8_t type;
+    unsigned int service_data_type;
+    unsigned int program;
 
     union
     {

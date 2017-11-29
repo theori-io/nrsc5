@@ -396,6 +396,72 @@ static void output_id3(uint8_t *buf, unsigned int len)
             log_debug("Album: %s", album);
             free(album);
         }
+        else if (memcmp(buf + off, "TCON", 4) == 0)
+        {
+            char *genre = id3_text(buf + off + 10, frame_len);
+            log_debug("Genre: %s", genre);
+            free(genre);
+        }
+        else if (memcmp(buf + off, "UFID", 4) == 0)
+        {
+            uint8_t *delim = memchr(buf + off + 10, 0, frame_len);
+            uint8_t *end = buf + off + 10 + frame_len;
+
+            if (delim)
+            {
+                char *owner_id = (char *) buf + off + 10;
+                char *id = (char *) malloc(end - delim);
+                memcpy(id, delim + 1, end - delim - 1);
+                id[end - delim - 1] = 0;
+                log_debug("Unique file identifier: %s %s", owner_id, id);
+                free(id);
+            }
+        }
+        else if (memcmp(buf + off, "COMR", 4) == 0)
+        {
+            int i;
+            uint8_t *delim[4];
+            uint8_t *pos = buf + off + 10 + 1;
+            uint8_t *end = buf + off + 10 + frame_len;
+
+            char *price, until[11], *url, *seller, *desc;
+            int received_as;
+
+            for (i = 0; i < 4; i++)
+            {
+                if (pos >= end)
+                    break;
+                if ((delim[i] = memchr(pos, 0, end - pos)) == NULL)
+                    break;
+
+                pos = delim[i] + 1;
+                if (i == 0)
+                    pos += 8;
+                else if (i == 1)
+                    pos += 1;
+            }
+
+            if (i == 4)
+            {
+                price = (char *) buf + off + 10 + 1;
+                sprintf(until, "%.4s-%.2s-%.2s", delim[0] + 1, delim[0] + 5, delim[0] + 7);
+                url = (char *) delim[0] + 9;
+                received_as = *(delim[1] + 1);
+                seller = (char *) delim[1] + 2;
+                desc = (char *) delim[2] + 1;
+                log_debug("Commercial: price=%s until=%s url=\"%s\" seller=\"%s\" desc=\"%s\" received_as=%d",
+                          price, until, url, seller, desc, received_as);
+            }
+        }
+        else
+        {
+            int i;
+            char *hex = malloc(3 * frame_len + 1);
+            for (i = 0; i < frame_len; i++)
+                sprintf(hex + (3 * i), "%02X ", buf[off + 10 + i]);
+            hex[3 * i - 1] = 0;
+            log_debug("%c%c%c%c tag: %s", buf[off], buf[off+1], buf[off+2], buf[off+3], hex);
+        }
 
         off += 10 + frame_len;
     }
@@ -405,6 +471,7 @@ static void parse_port_info(output_t *st, uint8_t *buf, unsigned int len)
 {
     static int dump = 1;
     unsigned int idx = 0;
+    unsigned int service_data_type = 0, program = 0;
     uint8_t *p = buf;
     while (p < buf + len)
     {
@@ -415,6 +482,8 @@ static void parse_port_info(output_t *st, uint8_t *buf, unsigned int len)
         {
             if (dump)
                 log_debug("%02X %02X %02X %02X", type, p[0], p[1], p[2]);
+            service_data_type = type;
+            program = (type == 0x40) ? (p[0] - 1) : 0;
             p += 3;
             break;
         }
@@ -436,6 +505,8 @@ static void parse_port_info(output_t *st, uint8_t *buf, unsigned int len)
                 port->port = *(uint16_t*)&p[1];
                 port->pkt_size = *(uint16_t*)&p[3];
                 port->type = p[5];
+                port->service_data_type = service_data_type;
+                port->program = program;
                 if (dump)
                     log_debug("Port %02X, type %d, size %d", port->port, port->type, port->pkt_size);
             }
@@ -545,7 +616,7 @@ static void process_port(output_t *st, uint16_t port_id, uint8_t *buf, unsigned 
             port->u.file.idx = len;
             port->u.file.seq = 1;
 
-            log_info("File %s, size %d", port->u.file.name, port->u.file.size);
+            log_info("File %s, size %d, port %04X", port->u.file.name, port->u.file.size, port->port);
         }
         else if (seq == port->u.file.seq)
         {
@@ -560,10 +631,13 @@ static void process_port(output_t *st, uint16_t port_id, uint8_t *buf, unsigned 
 
             if (port->u.file.idx == port->u.file.size)
             {
-                log_info("Received %s", port->u.file.name);
+                log_info("Received %s, port %04X", port->u.file.name, port->port);
                 if (st->aas_files_path)
                 {
-                    write_file(st->aas_files_path, port->u.file.name, port->u.file.data, port->u.file.idx);
+                    if (port->service_data_type != 0x40 || port->program == st->program)
+                    {
+                        write_file(st->aas_files_path, port->u.file.name, port->u.file.data, port->u.file.idx);
+                    }
                 }
             }
         }

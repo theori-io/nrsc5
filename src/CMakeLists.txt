@@ -8,10 +8,6 @@ if (USE_THREADS)
     endif()
 endif()
 
-if (USE_FAST_MATH)
-    add_compile_options (-ffast-math)
-endif()
-
 configure_file (config.h.in config.h)
 include_directories ("${CMAKE_CURRENT_BINARY_DIR}")
 

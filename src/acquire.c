@@ -20,6 +20,43 @@
 #include "defines.h"
 #include "input.h"
 
+#define FILTER_DELAY 15
+
+static float filter_taps[] = {
+    -0.000685643230099231,
+    0.005636964458972216,
+    0.009015781804919243,
+    -0.015486305579543114,
+    -0.035108357667922974,
+    0.017446253448724747,
+    0.08155813068151474,
+    0.007995186373591423,
+    -0.13311293721199036,
+    -0.0727422907948494,
+    0.15914097428321838,
+    0.16498781740665436,
+    -0.1324498951435089,
+    -0.2484012246131897,
+    0.051773931831121445,
+    0.2821577787399292,
+    0.051773931831121445,
+    -0.2484012246131897,
+    -0.1324498951435089,
+    0.16498781740665436,
+    0.15914097428321838,
+    -0.0727422907948494,
+    -0.13311293721199036,
+    0.007995186373591423,
+    0.08155813068151474,
+    0.017446253448724747,
+    -0.035108357667922974,
+    -0.015486305579543114,
+    0.009015781804919243,
+    0.005636964458972216,
+    -0.000685643230099231,
+    0
+};
+
 void acquire_process(acquire_t *st)
 {
     float complex max_v = 0, phase_increment;
@@ -43,6 +80,13 @@ void acquire_process(acquire_t *st)
     }
     else
     {
+        cint16_t y;
+        for (i = 0; i < FFTCP * (ACQUIRE_SYMBOLS + 1); i++)
+        {
+            fir_q15_execute(st->filter, &st->in_buffer[i], &y);
+            st->buffer[i] = cq15_to_cf(y);
+        }
+
         memset(st->sums, 0, sizeof(float complex) * FFTCP);
         for (i = mink; i < maxk + CP; ++i)
         {
@@ -63,7 +107,7 @@ void acquire_process(acquire_t *st)
             {
                 max_mag = mag;
                 max_v = v;
-                samperr = i;
+                samperr = (i + FFTCP - FILTER_DELAY) % FFTCP;
             }
         }
 
@@ -73,7 +117,13 @@ void acquire_process(acquire_t *st)
         st->prev_angle = angle;
     }
 
-    sync_adjust(&st->input->sync, angle_diff);
+    for (i = 0; i < FFTCP * (ACQUIRE_SYMBOLS + 1); i++)
+        st->buffer[i] = cq15_to_cf(st->in_buffer[i]);
+
+    sync_adjust(&st->input->sync, FFTCP / 2 - samperr);
+    angle -= 2 * M_PI * st->cfo;
+
+    st->phase *= cexpf(-(FFTCP / 2 - samperr) * angle / FFT * I);
 
     phase_increment = cexpf(angle / FFT * I);
     for (i = 0; i < ACQUIRE_SYMBOLS; ++i)
@@ -99,20 +149,28 @@ void acquire_process(acquire_t *st)
     }
 
     keep = FFTCP + (FFTCP / 2 - samperr);
-    memmove(&st->buffer[0], &st->buffer[st->idx - keep], sizeof(float complex) * keep);
+    memmove(&st->in_buffer[0], &st->in_buffer[st->idx - keep], sizeof(cint16_t) * keep);
     st->idx = keep;
-
-    st->phase *= cexpf((FFTCP / 2 - samperr) * angle / FFT * I);
 }
 
-unsigned int acquire_push(acquire_t *st, float complex *buf, unsigned int length)
+void acquire_cfo_adjust(acquire_t *st, int cfo)
+{
+    if (cfo == 0)
+        return;
+
+    st->cfo += cfo;
+    float hz = st->cfo * 744187.5 / FFT;
+    log_info("CFO: %f Hz (%d ppm)", hz, (int)round(hz * 1000000.0 / st->input->center));
+}
+
+unsigned int acquire_push(acquire_t *st, cint16_t *buf, unsigned int length)
 {
     unsigned int needed = FFTCP - st->idx % FFTCP;
 
     if (length < needed)
         return 0;
 
-    memcpy(&st->buffer[st->idx], buf, sizeof(float complex) * needed);
+    memcpy(&st->in_buffer[st->idx], buf, sizeof(cint16_t) * needed);
     st->idx += needed;
 
     return needed;
@@ -123,11 +181,14 @@ void acquire_init(acquire_t *st, input_t *input)
     int i;
 
     st->input = input;
+    st->filter = firdecim_q15_create(1, filter_taps, sizeof(filter_taps) / sizeof(filter_taps[0]));
+    st->in_buffer = malloc(sizeof(cint16_t) * FFTCP * (ACQUIRE_SYMBOLS + 1));
     st->buffer = malloc(sizeof(float complex) * FFTCP * (ACQUIRE_SYMBOLS + 1));
     st->sums = malloc(sizeof(float complex) * (FFTCP + CP));
     st->idx = 0;
     st->prev_angle = 0;
     st->phase = 1;
+    st->cfo = 0;
 
     st->shape = malloc(sizeof(float) * FFTCP);
     for (i = 0; i < FFTCP; ++i)

@@ -33,10 +33,10 @@ static void adjust_ref(sync_t *st, unsigned int ref, int cfo)
 
     for (n = 0; n < BLKSZ; n++)
     {
-        float error = cargf(st->buffer[ref * BLKSZ + n] * st->buffer[ref * BLKSZ + n] * cexpf(-I * 2 * st->costas_phase[ref])) * 0.5;
+        float error = cargf(st->buffer[ref][n] * st->buffer[ref][n] * cexpf(-I * 2 * st->costas_phase[ref])) * 0.5;
 
-        st->phases[ref * BLKSZ + n] = st->costas_phase[ref];
-        st->buffer[ref * BLKSZ + n] *= cexpf(-I * st->costas_phase[ref]);
+        st->phases[ref][n] = st->costas_phase[ref];
+        st->buffer[ref][n] *= cexpf(-I * st->costas_phase[ref]);
 
         st->costas_freq[ref] += st->beta * error;
         if (st->costas_freq[ref] > 0.5) st->costas_freq[ref] = 0.5;
@@ -49,14 +49,14 @@ static void adjust_ref(sync_t *st, unsigned int ref, int cfo)
     // compare to sync bits
     float x = 0;
     for (n = 0; n < sizeof(sync); n++)
-        x += crealf(st->buffer[ref * BLKSZ + n]) * sync[n];
+        x += crealf(st->buffer[ref][n]) * sync[n];
     if (x < 0)
     {
         // adjust phase by pi to compensate
         for (n = 0; n < BLKSZ; n++)
         {
-            st->phases[ref * BLKSZ + n] += M_PI;
-            st->buffer[ref * BLKSZ + n] *= -1;
+            st->phases[ref][n] += M_PI;
+            st->buffer[ref][n] *= -1;
         }
         st->costas_phase[ref] += M_PI;
     }
@@ -104,7 +104,7 @@ static int find_first_block(sync_t *st, unsigned int ref, int *psmi)
     int n;
 
     *psmi = -1;
-    decode_dbpsk(&st->buffer[ref * BLKSZ], data, BLKSZ);
+    decode_dbpsk(st->buffer[ref], data, BLKSZ);
     n = fuzzy_match(needle, sizeof(needle), data, BLKSZ);
     if (n == 0)
         *psmi = (data[25] << 5) | (data[26] << 4) | (data[27] << 3) | (data[28] << 2) | (data[29] << 1) | data[30];
@@ -118,7 +118,7 @@ static int find_ref(sync_t *st, unsigned int ref, unsigned int rsid)
     };
     unsigned char data[BLKSZ];
 
-    decode_dbpsk(&st->buffer[ref * BLKSZ], data, BLKSZ);
+    decode_dbpsk(st->buffer[ref], data, BLKSZ);
     return fuzzy_match(needle, sizeof(needle), data, BLKSZ);
 }
 
@@ -127,7 +127,7 @@ static float calc_smag(sync_t *st, unsigned int ref)
     float sum = 0;
     // phase was already corrected, so imaginary component is zero
     for (int n = 0; n < BLKSZ; n++)
-        sum += fabsf(crealf(st->buffer[ref * BLKSZ + n]));
+        sum += fabsf(crealf(st->buffer[ref][n]));
     return sum / BLKSZ;
 }
 
@@ -139,15 +139,15 @@ static void adjust_data(sync_t *st, unsigned int lower, unsigned int upper)
 
     for (int n = 0; n < BLKSZ; n++)
     {
-        float complex upper_phase = cexpf(st->phases[upper * BLKSZ + n] * I);
-        float complex lower_phase = cexpf(st->phases[lower * BLKSZ + n] * I);
+        float complex upper_phase = cexpf(st->phases[upper][n] * I);
+        float complex lower_phase = cexpf(st->phases[lower][n] * I);
 
         for (int k = 1; k < 19; k++)
         {
             // average phase difference
             float complex C = CMPLXF(19,19) / (k * smag19 * upper_phase + (19 - k) * smag0 * lower_phase);
             // adjust sample
-            st->buffer[(lower + k) * BLKSZ + n] *= C;
+            st->buffer[lower + k][n] *= C;
         }
     }
 }
@@ -262,8 +262,8 @@ void sync_process(sync_t *st)
             adjust_data(st, LB_START + i, LB_START + i + 19);
             adjust_data(st, UB_END - i - 19, UB_END - i);
 
-            samperr += phase_diff(st->phases[(LB_START + i) * BLKSZ], st->phases[(LB_START + i + 19) * BLKSZ]);
-            samperr += phase_diff(st->phases[(UB_END - i - 19) * BLKSZ], st->phases[(UB_END - i) * BLKSZ]);
+            samperr += phase_diff(st->phases[LB_START + i][0], st->phases[LB_START + i + 19][0]);
+            samperr += phase_diff(st->phases[UB_END - i - 19][0], st->phases[UB_END - i][0]);
         }
         samperr = samperr / (partitions_per_band * 2) * 2048 / 19 / (2 * M_PI);
 
@@ -299,11 +299,11 @@ void sync_process(sync_t *st)
                 unsigned int j;
                 for (j = 1; j < 19; j++)
                 {
-                    c = st->buffer[(LB_START + i + j) * BLKSZ + n];
+                    c = st->buffer[LB_START + i + j][n];
                     ideal = CMPLXF(crealf(c) >= 0 ? 1 : -1, cimagf(c) >= 0 ? 1 : -1);
                     error_lb += normf(ideal - c);
 
-                    c = st->buffer[(UB_END - i - 19 + j) * BLKSZ + n];
+                    c = st->buffer[UB_END - i - 19 + j][n];
                     ideal = CMPLXF(crealf(c) >= 0 ? 1 : -1, cimagf(c) >= 0 ? 1 : -1);
                     error_ub += normf(ideal - c);
                 }
@@ -340,7 +340,7 @@ void sync_process(sync_t *st)
                 unsigned int j;
                 for (j = 1; j < 19; j++)
                 {
-                    c = st->buffer[(i + j) * BLKSZ + n];
+                    c = st->buffer[i + j][n];
                     decode_push_pm(&st->input->decode, DEMOD(crealf(c)) * mult_lb);
                     decode_push_pm(&st->input->decode, DEMOD(cimagf(c)) * mult_lb);
                 }
@@ -350,7 +350,7 @@ void sync_process(sync_t *st)
                 unsigned int j;
                 for (j = 1; j < 19; j++)
                 {
-                    c = st->buffer[(i + j) * BLKSZ + n];
+                    c = st->buffer[i + j][n];
                     decode_push_pm(&st->input->decode, DEMOD(crealf(c)) * mult_ub);
                     decode_push_pm(&st->input->decode, DEMOD(cimagf(c)) * mult_ub);
                 }
@@ -361,7 +361,7 @@ void sync_process(sync_t *st)
                     unsigned int j;
                     for (j = 1; j < 19; j++)
                     {
-                        c = st->buffer[(i + j) * BLKSZ + n];
+                        c = st->buffer[i + j][n];
                         decode_push_px1(&st->input->decode, DEMOD(crealf(c)) * mult_lb);
                         decode_push_px1(&st->input->decode, DEMOD(cimagf(c)) * mult_lb);
                     }
@@ -371,15 +371,12 @@ void sync_process(sync_t *st)
                     unsigned int j;
                     for (j = 1; j < 19; j++)
                     {
-                        c = st->buffer[(i + j) * BLKSZ + n];
+                        c = st->buffer[i + j][n];
                         decode_push_px1(&st->input->decode, DEMOD(crealf(c)) * mult_ub);
                         decode_push_px1(&st->input->decode, DEMOD(cimagf(c)) * mult_ub);
                     }
                 }
             }
-
-            c = st->buffer[LB_START + n];
-            st->ref_buf[n] = crealf(c) <= 0 ? 0 : 1;
         }
     }
 }
@@ -395,7 +392,7 @@ void sync_push(sync_t *st, float complex *fftout)
 {
     unsigned int i;
     for (i = 0; i < FFT; ++i)
-        st->buffer[i * BLKSZ + st->idx] = fftout[i];
+        st->buffer[i][st->idx] = fftout[i];
 
     if (++st->idx == BLKSZ)
     {
@@ -421,10 +418,8 @@ void sync_init(sync_t *st, input_t *input)
     st->input = input;
     st->buffer = malloc(sizeof(float complex) * BLKSZ * FFT);
     st->phases = malloc(sizeof(float) * BLKSZ * FFT);
-    st->ref_buf = malloc(BLKSZ);
     st->ready = 0;
     st->idx = 0;
-    st->used = 0;
     st->cfo_wait = 0;
     st->mer_cnt = 0;
     st->error_lb = 0;

@@ -21,17 +21,7 @@
 #include "input.h"
 #include "sync.h"
 
-#define BUFS 4
-
-static void dump_ref(uint8_t *ref_buf)
-{
-    uint32_t value = ref_buf[0];
-    for (int i = 1; i < 32; i++)
-        value = (value << 1) | (ref_buf[i - 1] ^ ref_buf[i]);
-    // log_debug("REF %08X", value);
-}
-
-static void adjust_ref(sync_t *st, float complex *buf, unsigned int ref, int cfo)
+static void adjust_ref(sync_t *st, unsigned int ref, int cfo)
 {
     unsigned int n;
     float cfo_freq = 2 * M_PI * cfo * CP / FFTCP;
@@ -43,10 +33,10 @@ static void adjust_ref(sync_t *st, float complex *buf, unsigned int ref, int cfo
 
     for (n = 0; n < BLKSZ; n++)
     {
-        float error = cargf(buf[ref * BLKSZ + n] * buf[ref * BLKSZ + n] * cexpf(-I * 2 * st->costas_phase[ref])) * 0.5;
+        float error = cargf(st->buffer[ref][n] * st->buffer[ref][n] * cexpf(-I * 2 * st->costas_phase[ref])) * 0.5;
 
-        st->phases[ref * BLKSZ + n] = st->costas_phase[ref];
-        buf[ref * BLKSZ + n] *= cexpf(-I * st->costas_phase[ref]);
+        st->phases[ref][n] = st->costas_phase[ref];
+        st->buffer[ref][n] *= cexpf(-I * st->costas_phase[ref]);
 
         st->costas_freq[ref] += st->beta * error;
         if (st->costas_freq[ref] > 0.5) st->costas_freq[ref] = 0.5;
@@ -59,14 +49,14 @@ static void adjust_ref(sync_t *st, float complex *buf, unsigned int ref, int cfo
     // compare to sync bits
     float x = 0;
     for (n = 0; n < sizeof(sync); n++)
-        x += crealf(buf[ref * BLKSZ + n]) * sync[n];
+        x += crealf(st->buffer[ref][n]) * sync[n];
     if (x < 0)
     {
         // adjust phase by pi to compensate
         for (n = 0; n < BLKSZ; n++)
         {
-            st->phases[ref * BLKSZ + n] += M_PI;
-            buf[ref * BLKSZ + n] *= -1;
+            st->phases[ref][n] += M_PI;
+            st->buffer[ref][n] *= -1;
         }
         st->costas_phase[ref] += M_PI;
     }
@@ -105,7 +95,7 @@ static int fuzzy_match(const signed char *needle, int needle_size, const unsigne
     return -1;
 }
 
-static int find_first_block(float complex *buf, unsigned int ref, int *psmi)
+static int find_first_block(sync_t *st, unsigned int ref, int *psmi)
 {
     static const signed char needle[] = {
         0, 1, 1, 0, 0, 1, 0, -1, -1, 1, 1, 0, 0, 1, 0, -1, 0, 0, 0, 0, -1, 1, 1, 1
@@ -114,50 +104,50 @@ static int find_first_block(float complex *buf, unsigned int ref, int *psmi)
     int n;
 
     *psmi = -1;
-    decode_dbpsk(&buf[ref * BLKSZ], data, BLKSZ);
+    decode_dbpsk(st->buffer[ref], data, BLKSZ);
     n = fuzzy_match(needle, sizeof(needle), data, BLKSZ);
     if (n == 0)
         *psmi = (data[25] << 5) | (data[26] << 4) | (data[27] << 3) | (data[28] << 2) | (data[29] << 1) | data[30];
     return n;
 }
 
-static int find_ref(float complex *buf, unsigned int ref, unsigned int rsid)
+static int find_ref(sync_t *st, unsigned int ref, unsigned int rsid)
 {
     signed char needle[] = {
         0, 1, 1, 0, 0, 1, 0, -1, -1, 1, rsid >> 1, rsid & 1, 0, (rsid >> 1) ^ (rsid & 1), 0, -1, -1, -1, -1, -1, -1, 1, 1, 1
     };
     unsigned char data[BLKSZ];
 
-    decode_dbpsk(&buf[ref * BLKSZ], data, BLKSZ);
+    decode_dbpsk(st->buffer[ref], data, BLKSZ);
     return fuzzy_match(needle, sizeof(needle), data, BLKSZ);
 }
 
-static float calc_smag(float complex *buf, unsigned int ref)
+static float calc_smag(sync_t *st, unsigned int ref)
 {
     float sum = 0;
     // phase was already corrected, so imaginary component is zero
     for (int n = 0; n < BLKSZ; n++)
-        sum += fabsf(crealf(buf[ref * BLKSZ + n]));
+        sum += fabsf(crealf(st->buffer[ref][n]));
     return sum / BLKSZ;
 }
 
-static void adjust_data(float complex *buf, float *phases, unsigned int lower, unsigned int upper)
+static void adjust_data(sync_t *st, unsigned int lower, unsigned int upper)
 {
     float smag0, smag19;
-    smag0 = calc_smag(buf, lower);
-    smag19 = calc_smag(buf, upper);
+    smag0 = calc_smag(st, lower);
+    smag19 = calc_smag(st, upper);
 
     for (int n = 0; n < BLKSZ; n++)
     {
-        float complex upper_phase = cexpf(phases[upper * BLKSZ + n] * I);
-        float complex lower_phase = cexpf(phases[lower * BLKSZ + n] * I);
+        float complex upper_phase = cexpf(st->phases[upper][n] * I);
+        float complex lower_phase = cexpf(st->phases[lower][n] * I);
 
         for (int k = 1; k < 19; k++)
         {
             // average phase difference
             float complex C = CMPLXF(19,19) / (k * smag19 * upper_phase + (19 - k) * smag0 * lower_phase);
             // adjust sample
-            buf[(lower + k) * BLKSZ + n] *= C;
+            st->buffer[lower + k][n] *= C;
         }
     }
 }
@@ -170,7 +160,7 @@ float phase_diff(float a, float b)
     return diff;
 }
 
-void sync_process(sync_t *st, float complex *buffer)
+void sync_process(sync_t *st)
 {
     int i;
     static int psmi = 1;
@@ -194,18 +184,18 @@ void sync_process(sync_t *st, float complex *buffer)
 
     for (i = 0; i < partitions_per_band * 19 + 1; i += 19)
     {
-        adjust_ref(st, buffer, LB_START + i, 0);
-        adjust_ref(st, buffer, UB_END - i, 0);
+        adjust_ref(st, LB_START + i, 0);
+        adjust_ref(st, UB_END - i, 0);
     }
 
     // check if we lost synchronization or now have it
     if (st->ready)
     {
-        if (decode_get_block(&st->input->decode) == 0 && find_first_block(buffer, LB_START, &psmi) != 0)
+        if (decode_get_block(&st->input->decode) == 0 && find_first_block(st, LB_START, &psmi) != 0)
         {
-            if (find_first_block(buffer, UB_END, &psmi) != 0)
+            if (find_first_block(st, UB_END, &psmi) != 0)
             {
-                log_debug("lost sync (%d, %d)!", find_first_block(buffer, LB_START, &psmi), find_first_block(buffer, UB_END, &psmi));
+                log_debug("lost sync (%d, %d)!", find_first_block(st, LB_START, &psmi), find_first_block(st, UB_END, &psmi));
                 st->ready = 0;
             }
         }
@@ -214,9 +204,9 @@ void sync_process(sync_t *st, float complex *buffer)
     {
         // First and last reference subcarriers have the same data. Try both
         // in case one of the sidebands is too corrupted.
-        int offset = find_first_block(buffer, LB_START, &psmi);
+        int offset = find_first_block(st, LB_START, &psmi);
         if (offset < 0)
-            offset = find_first_block(buffer, UB_END, &psmi);
+            offset = find_first_block(st, UB_END, &psmi);
 
         if (offset > 0)
         {
@@ -234,23 +224,23 @@ void sync_process(sync_t *st, float complex *buffer)
             for (i = -38; i < 38; ++i)
             {
                 int offset2;
-                adjust_ref(st, buffer, LB_START + (PM_PARTITIONS * 19) + i, i);
-                offset = find_ref(buffer, LB_START + (PM_PARTITIONS * 19) + i, 0);
+                adjust_ref(st, LB_START + (PM_PARTITIONS * 19) + i, i);
+                offset = find_ref(st, LB_START + (PM_PARTITIONS * 19) + i, 0);
                 if (offset < 0)
                     continue;
                 // We think we found the start. Check upperband to confirm.
-                adjust_ref(st, buffer, UB_END - (PM_PARTITIONS * 19) + i, i);
-                offset2 = find_ref(buffer, UB_END - (PM_PARTITIONS * 19) + i, 0);
+                adjust_ref(st, UB_END - (PM_PARTITIONS * 19) + i, i);
+                offset2 = find_ref(st, UB_END - (PM_PARTITIONS * 19) + i, 0);
                 if (offset2 == offset)
                 {
                     // The offsets matched, so 'i' is likely the CFO.
                     input_set_skip(st->input, offset * FFTCP);
                     acquire_cfo_adjust(&st->input->acq, i);
 
-                    log_debug("First block @ %d", offset);
+                    log_debug("Block @ %d", offset);
 
                     // Wait until the buffers have cleared before measuring again.
-                    st->cfo_wait = 2 * BUFS;
+                    st->cfo_wait = 8;
                     break;
                 }
             }
@@ -269,11 +259,11 @@ void sync_process(sync_t *st, float complex *buffer)
         float sum_xy = 0, sum_x2 = 0;
         for (i = 0; i < partitions_per_band * 19; i += 19)
         {
-            adjust_data(buffer, st->phases, LB_START + i, LB_START + i + 19);
-            adjust_data(buffer, st->phases, UB_END - i - 19, UB_END - i);
+            adjust_data(st, LB_START + i, LB_START + i + 19);
+            adjust_data(st, UB_END - i - 19, UB_END - i);
 
-            samperr += phase_diff(st->phases[(LB_START + i) * BLKSZ], st->phases[(LB_START + i + 19) * BLKSZ]);
-            samperr += phase_diff(st->phases[(UB_END - i - 19) * BLKSZ], st->phases[(UB_END - i) * BLKSZ]);
+            samperr += phase_diff(st->phases[LB_START + i][0], st->phases[LB_START + i + 19][0]);
+            samperr += phase_diff(st->phases[UB_END - i - 19][0], st->phases[UB_END - i][0]);
         }
         samperr = samperr / (partitions_per_band * 2) * 2048 / 19 / (2 * M_PI);
 
@@ -309,11 +299,11 @@ void sync_process(sync_t *st, float complex *buffer)
                 unsigned int j;
                 for (j = 1; j < 19; j++)
                 {
-                    c = buffer[(LB_START + i + j) * BLKSZ + n];
+                    c = st->buffer[LB_START + i + j][n];
                     ideal = CMPLXF(crealf(c) >= 0 ? 1 : -1, cimagf(c) >= 0 ? 1 : -1);
                     error_lb += normf(ideal - c);
 
-                    c = buffer[(UB_END - i - 19 + j) * BLKSZ + n];
+                    c = st->buffer[UB_END - i - 19 + j][n];
                     ideal = CMPLXF(crealf(c) >= 0 ? 1 : -1, cimagf(c) >= 0 ? 1 : -1);
                     error_ub += normf(ideal - c);
                 }
@@ -350,7 +340,7 @@ void sync_process(sync_t *st, float complex *buffer)
                 unsigned int j;
                 for (j = 1; j < 19; j++)
                 {
-                    c = buffer[(i + j) * BLKSZ + n];
+                    c = st->buffer[i + j][n];
                     decode_push_pm(&st->input->decode, DEMOD(crealf(c)) * mult_lb);
                     decode_push_pm(&st->input->decode, DEMOD(cimagf(c)) * mult_lb);
                 }
@@ -360,7 +350,7 @@ void sync_process(sync_t *st, float complex *buffer)
                 unsigned int j;
                 for (j = 1; j < 19; j++)
                 {
-                    c = buffer[(i + j) * BLKSZ + n];
+                    c = st->buffer[i + j][n];
                     decode_push_pm(&st->input->decode, DEMOD(crealf(c)) * mult_ub);
                     decode_push_pm(&st->input->decode, DEMOD(cimagf(c)) * mult_ub);
                 }
@@ -371,7 +361,7 @@ void sync_process(sync_t *st, float complex *buffer)
                     unsigned int j;
                     for (j = 1; j < 19; j++)
                     {
-                        c = buffer[(i + j) * BLKSZ + n];
+                        c = st->buffer[i + j][n];
                         decode_push_px1(&st->input->decode, DEMOD(crealf(c)) * mult_lb);
                         decode_push_px1(&st->input->decode, DEMOD(cimagf(c)) * mult_lb);
                     }
@@ -381,16 +371,12 @@ void sync_process(sync_t *st, float complex *buffer)
                     unsigned int j;
                     for (j = 1; j < 19; j++)
                     {
-                        c = buffer[(i + j) * BLKSZ + n];
+                        c = st->buffer[i + j][n];
                         decode_push_px1(&st->input->decode, DEMOD(crealf(c)) * mult_ub);
                         decode_push_px1(&st->input->decode, DEMOD(cimagf(c)) * mult_ub);
                     }
                 }
             }
-
-            c = buffer[LB_START + n];
-            st->ref_buf[n] = crealf(c) <= 0 ? 0 : 1;
-            if (n == 0) dump_ref(st->ref_buf);
         }
     }
 }
@@ -406,13 +392,13 @@ void sync_push(sync_t *st, float complex *fftout)
 {
     unsigned int i;
     for (i = 0; i < FFT; ++i)
-        st->buffer[i * BLKSZ + st->idx + st->buf_idx * BLKSZ * FFT] = fftout[i];
+        st->buffer[i][st->idx] = fftout[i];
 
     if (++st->idx == BLKSZ)
     {
         st->idx = 0;
 
-        sync_process(st, st->buffer);
+        sync_process(st);
     }
 }
 
@@ -430,13 +416,10 @@ void sync_init(sync_t *st, input_t *input)
     }
 
     st->input = input;
-    st->buffer = malloc(sizeof(float complex) * BLKSZ * FFT * BUFS);
+    st->buffer = malloc(sizeof(float complex) * BLKSZ * FFT);
     st->phases = malloc(sizeof(float) * BLKSZ * FFT);
-    st->ref_buf = malloc(BLKSZ);
     st->ready = 0;
-    st->buf_idx = 0;
     st->idx = 0;
-    st->used = 0;
     st->cfo_wait = 0;
     st->mer_cnt = 0;
     st->error_lb = 0;

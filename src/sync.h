@@ -7,12 +7,9 @@
 typedef struct
 {
     struct input_t *input;
-    float complex *buffer;
-    float *phases;
-    uint8_t *ref_buf;
+    float complex (*buffer)[BLKSZ];
+    float (*phases)[BLKSZ];
     unsigned int idx;
-    unsigned int buf_idx;
-    unsigned int used;
     int ready;
     int cfo_wait;
     int samperr;

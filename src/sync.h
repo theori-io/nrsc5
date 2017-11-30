@@ -11,7 +11,6 @@ typedef struct
     float *phases;
     uint8_t *ref_buf;
     unsigned int idx;
-    unsigned int buf_idx;
     unsigned int used;
     int ready;
     int cfo_wait;

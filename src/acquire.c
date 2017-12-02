@@ -155,12 +155,18 @@ void acquire_process(acquire_t *st)
 
 void acquire_cfo_adjust(acquire_t *st, int cfo)
 {
+    float hz;
+
     if (cfo == 0)
         return;
 
     st->cfo += cfo;
-    float hz = st->cfo * 744187.5 / FFT;
-    log_info("CFO: %f Hz (%d ppm)", hz, (int)round(hz * 1000000.0 / st->input->center));
+    hz = st->cfo * 744187.5 / FFT;
+
+    if (st->input->center)
+        log_info("CFO: %f Hz (%d ppm)", hz, (int)round(hz * 1e6 / st->input->center));
+    else
+        log_info("CFO: %f Hz", hz);
 }
 
 unsigned int acquire_push(acquire_t *st, cint16_t *buf, unsigned int length)

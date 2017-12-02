@@ -102,7 +102,7 @@ static void measure_snr(input_t *st, uint8_t *buf, uint32_t len)
         float noise = (noise_lo + noise_hi) / 2 / st->snr_cnt;
         float snr = signal / noise;
 
-        if (st->snr_cb(st->snr_cb_arg, snr, signal, noise) == 0)
+        if (st->snr_cb(st->snr_cb_arg, snr) == 0)
             st->snr_cb = NULL;
 
         st->snr_cnt = 0;
@@ -193,7 +193,7 @@ void input_init(input_t *st, output_t *output, double center, unsigned int progr
     st->snr_cb = NULL;
     st->snr_cb_arg = NULL;
 
-    st->decim = firdecim_q15_create(2, decim_taps, sizeof(decim_taps) / sizeof(decim_taps[0]));
+    st->decim = firdecim_q15_create(decim_taps, sizeof(decim_taps) / sizeof(decim_taps[0]));
     st->snr_fft = fftwf_plan_dft_1d(64, st->snr_fft_in, st->snr_fft_out, FFTW_FORWARD, 0);
 
     input_reset(st);

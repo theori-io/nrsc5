@@ -12,7 +12,7 @@
 #include "output.h"
 #include "sync.h"
 
-typedef int (*input_snr_cb_t) (void *, float, float, float);
+typedef int (*input_snr_cb_t) (void *, float);
 
 typedef struct input_t
 {

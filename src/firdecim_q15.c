@@ -22,7 +22,7 @@ struct firdecim_q15 {
     unsigned int idx;
 };
 
-firdecim_q15 firdecim_q15_create(unsigned int decim, const float * taps, unsigned int ntaps)
+firdecim_q15 firdecim_q15_create(const float * taps, unsigned int ntaps)
 {
     firdecim_q15 q;
 

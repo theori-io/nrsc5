@@ -41,7 +41,7 @@ static int gain_list[128];
 static int gain_index, gain_count;
 
 // signal and noise are squared magnitudes
-static int snr_callback(void *arg, float snr, float signal, float noise)
+static int snr_callback(void *arg, float snr)
 {
     static int best_gain;
     static float best_snr;

@@ -187,7 +187,7 @@ void acquire_init(acquire_t *st, input_t *input)
     int i;
 
     st->input = input;
-    st->filter = firdecim_q15_create(1, filter_taps, sizeof(filter_taps) / sizeof(filter_taps[0]));
+    st->filter = firdecim_q15_create(filter_taps, sizeof(filter_taps) / sizeof(filter_taps[0]));
     st->in_buffer = malloc(sizeof(cint16_t) * FFTCP * (ACQUIRE_SYMBOLS + 1));
     st->buffer = malloc(sizeof(float complex) * FFTCP * (ACQUIRE_SYMBOLS + 1));
     st->sums = malloc(sizeof(float complex) * (FFTCP + CP));

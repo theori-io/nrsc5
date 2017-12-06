@@ -116,14 +116,14 @@ void input_cb(uint8_t *buf, uint32_t len, void *arg)
     unsigned int i, new_avail, cnt = len / 4;
     input_t *st = arg;
 
-    if (st->outfp)
-        fwrite(buf, 1, len, st->outfp);
-
     if (st->snr_cb)
     {
         measure_snr(st, buf, len);
         return;
     }
+
+    if (st->outfp)
+        fwrite(buf, 1, len, st->outfp);
 
     if (cnt + st->avail > INPUT_BUF_LEN)
     {

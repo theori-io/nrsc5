@@ -129,11 +129,11 @@ static cint16_t dotprod_halfband_4(cint16_t *a, int16_t *b)
 
     for (i = 0; i < 7; i += 2)
     {
-        sum.r += ((a[i].r + a[14-i].r) * b[i]) >> 15;
-        sum.i += ((a[i].i + a[14-i].i) * b[i]) >> 15;
+        sum.r += ((a[i].r + a[14-i].r) * b[i]) >> 16;
+        sum.i += ((a[i].i + a[14-i].i) * b[i]) >> 16;
     }
-    sum.r += a[7].r;
-    sum.i += a[7].i;
+    sum.r += a[7].r >> 1;
+    sum.i += a[7].i >> 1;
 
     return sum;
 }

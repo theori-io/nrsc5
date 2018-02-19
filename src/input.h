@@ -14,6 +14,8 @@
 #include "output.h"
 #include "sync.h"
 
+#define MAX_DECIM_LOG2 4
+
 typedef int (*input_snr_cb_t) (void *, float);
 
 typedef struct input_t
@@ -23,8 +25,8 @@ typedef struct input_t
 
     float complex phase, phase_increment;
     int decimation;
-    firdecim_q15 firdecim;
-    firdecim_q15 firdecim2;
+    int decim_log2;
+    firdecim_q15 firdecim[MAX_DECIM_LOG2];
     cint16_t *buffer;
     unsigned int avail, used, skip;
 

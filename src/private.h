@@ -17,6 +17,7 @@ struct nrsc5_t
     SoapySDRStream *stream;
     FILE *iq_file;
     float freq;
+    int decimation;
     float gain;
     int auto_gain;
     int auto_gain_snr_ready;

@@ -6,7 +6,7 @@
 #include "private.h"
 
 #define RX_CHAN 0
-#define RX_BUFFER_FFT 32768
+#define RX_BUFFER_FFT (16384)
 #define RX_BUFFER (RX_BUFFER_FFT * 8)
 #define RX_TIMEOUT 5000000
 #define AUTO_GAIN_STEP 4.0
@@ -17,7 +17,7 @@ struct {
     unsigned int decimation;
 } supported_drivers[] = {
     { "rtlsdr", SAMPLE_RATE, 2 },
-    { "hackrf", SAMPLE_RATE * 2, 4 },
+    { "hackrf", SAMPLE_RATE * 4, 8 },
     { "sdrplay", SAMPLE_RATE * 2, 4 },
     { 0 }
 };
@@ -72,7 +72,7 @@ static int do_auto_gain(nrsc5_t *st, void *buf)
         {
             int flags;
             long long timeNs;
-            int count = SoapySDRDevice_readStream(st->dev, st->stream, &buf, RX_BUFFER_FFT,
+            int count = SoapySDRDevice_readStream(st->dev, st->stream, &buf, RX_BUFFER_FFT * st->decimation,
                     &flags, &timeNs, RX_TIMEOUT);
             if (count < 0)
                 goto error;
@@ -105,8 +105,8 @@ error:
 
 static void *worker_thread(void *arg)
 {
-    void *buf = malloc(RX_BUFFER * sizeof(cint16_t));
     nrsc5_t *st = arg;
+    void *buf = malloc(RX_BUFFER * st->decimation * sizeof(cint16_t));
 
     pthread_mutex_lock(&st->worker_mutex);
     while (!st->closed)
@@ -154,14 +154,14 @@ static void *worker_thread(void *arg)
 
             if (st->stream)
             {
-                count = SoapySDRDevice_readStream(st->dev, st->stream, &buf, RX_BUFFER,
+                count = SoapySDRDevice_readStream(st->dev, st->stream, &buf, RX_BUFFER * st->decimation,
                         &flags, &timeNs, RX_TIMEOUT);
                 if (count > 0)
                     input_cb(buf, count, &st->input);
             }
             else if (st->iq_file)
             {
-                count = fread(buf, sizeof(cint16_t), RX_BUFFER, st->iq_file);
+                count = fread(buf, sizeof(cint16_t), RX_BUFFER * st->decimation, st->iq_file);
                 if (count > 0)
                     input_cb(buf, count, &st->input);
                 else
@@ -188,6 +188,7 @@ static void nrsc5_init(nrsc5_t *st)
 
     output_init(&st->output, st);
     input_init(&st->input, st, &st->output);
+    input_set_decimation(&st->input, st->decimation);
 
     // Create worker thread
     pthread_mutex_init(&st->worker_mutex, NULL);
@@ -198,8 +199,7 @@ static void nrsc5_init(nrsc5_t *st)
 int nrsc5_open(nrsc5_t **result, const char *args)
 {
     size_t chan = RX_CHAN;
-    int decimation = 2;
-    float bw, samp_rate = SAMPLE_RATE * decimation / 2;
+    float bw, samp_rate;
     nrsc5_t *st = calloc(1, sizeof(*st));
 
     st->dev = SoapySDRDevice_makeStrArgs(args);
@@ -209,7 +209,10 @@ int nrsc5_open(nrsc5_t **result, const char *args)
     log_info("Driver: %s", SoapySDRDevice_getDriverKey(st->dev));
     log_info("Hardware: %s", SoapySDRDevice_getHardwareKey(st->dev));
 
-    if (find_supported_driver(SoapySDRDevice_getDriverKey(st->dev), &samp_rate, &decimation) != 0)
+    st->decimation = 2;
+    samp_rate = SAMPLE_RATE * st->decimation / 2;
+
+    if (find_supported_driver(SoapySDRDevice_getDriverKey(st->dev), &samp_rate, &st->decimation) != 0)
         log_warn("Unsupported driver (%s). Please report success or failure along with a debug log.");
 
     if (SoapySDRDevice_setSampleRate(st->dev, SOAPY_SDR_RX, chan, samp_rate) != 0)
@@ -221,7 +224,7 @@ int nrsc5_open(nrsc5_t **result, const char *args)
 
     log_info("Sample rate: %.2f", samp_rate);
     log_info("Bandwidth: %.2f", bw);
-    log_debug("Decimation: %d", decimation);
+    log_debug("Decimation: %d", st->decimation);
 
     if (SoapySDRDevice_setGainMode(st->dev, SOAPY_SDR_RX, chan, 0) != 0)
         goto error;
@@ -233,7 +236,6 @@ int nrsc5_open(nrsc5_t **result, const char *args)
         goto error;
 
     nrsc5_init(st);
-    input_set_decimation(&st->input, decimation);
 
     *result = st;
     return 0;
@@ -259,9 +261,9 @@ int nrsc5_open_iq(nrsc5_t **result, const char *path)
         return 1;
 
     st = calloc(1, sizeof(*st));
+    st->decimation = 2;
     st->iq_file = fp;
     nrsc5_init(st);
-    input_set_decimation(&st->input, 2);
     input_set_freq_offset(&st->input, 0.0f);
 
     *result = st;

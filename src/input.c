@@ -124,10 +124,19 @@ static void measure_snr(input_t *st, cint16_t *buf, uint32_t len)
 
 void input_cb(cint16_t *buf, uint32_t len, void *arg)
 {
-    unsigned int i, avail, new_avail;
+    unsigned int i, j, new_avail;
     input_t *st = arg;
 
-    if (st->decimation == 4)
+    // Avoid clipping by immediately decreasing gain.
+    // None of the supported drivers have better than 14-bit resolution,
+    // so this will not lose any information.
+    for (i = 0; i < len; i++)
+    {
+        buf[i].r /= 2;
+        buf[i].i /= 2;
+    }
+
+    for (j = 1; j < st->decim_log2; j++)
     {
         for (i = 0; i < len; i += 2)
         {
@@ -138,7 +147,7 @@ void input_cb(cint16_t *buf, uint32_t len, void *arg)
             x[1].r = buf[i + 1].r;
             x[1].i = buf[i + 1].i;
 
-            halfband_q15_execute(st->firdecim2, x, &buf[i / 2]);
+            halfband_q15_execute(st->firdecim[j], x, &buf[i / 2]);
         }
         len /= 2;
     }
@@ -173,7 +182,6 @@ void input_cb(cint16_t *buf, uint32_t len, void *arg)
             st->used = 0;
         }
     }
-    avail = st->avail;
     new_avail = st->avail;
 
     if (len / 2 + new_avail > INPUT_BUF_LEN)
@@ -191,7 +199,13 @@ void input_cb(cint16_t *buf, uint32_t len, void *arg)
         x[1].r = buf[i + 1].r;
         x[1].i = -buf[i + 1].i;
 
-        halfband_q15_execute(st->firdecim, x, &y);
+        if (x[0].r >= 0x7E00 || x[0].i >= 0x7E00 || x[1].r >= 0x7E00 || x[1].i >= 0x7E00 ||
+            x[0].r <= -0x7E00 || x[0].i <= -0x7E00 || x[1].r <= -0x7E00 || x[1].i <= -0x7E00)
+        {
+            log_warn("Clipping");
+        }
+
+        halfband_q15_execute(st->firdecim[0], x, &y);
         st->buffer[new_avail++] = y;
     }
 
@@ -221,8 +235,15 @@ void input_reset(input_t *st)
 
 int input_set_decimation(input_t *st, int decimation)
 {
-    // we only support two sample rates: 1.488 MHz (2x), 2.977 MHz (4x)
-    if (decimation != 2 && decimation != 4)
+    if (decimation == 2)
+        st->decim_log2 = 1;
+    else if (decimation == 4)
+        st->decim_log2 = 2;
+    else if (decimation == 8)
+        st->decim_log2 = 3;
+    else if (decimation == 16)
+        st->decim_log2 = 4;
+    else
         return 1;
     st->decimation = decimation;
     return 0;
@@ -245,8 +266,10 @@ void input_init(input_t *st, nrsc5_t *radio, output_t *output)
     st->phase_increment = cexpf(2 * M_PI * FREQ_OFFSET / SAMPLE_RATE * I);
     st->phase = st->phase_increment;
     st->decimation = 2;
-    st->firdecim = firdecim_q15_create(decim_taps, sizeof(decim_taps) / sizeof(decim_taps[0]));
-    st->firdecim2 = firdecim_q15_create(decim_taps, sizeof(decim_taps) / sizeof(decim_taps[0]));
+    st->decim_log2 = 1;
+
+    for (int i = 0; i < MAX_DECIM_LOG2; i++)
+        st->firdecim[i] = firdecim_q15_create(decim_taps, sizeof(decim_taps) / sizeof(decim_taps[0]));
     st->snr_fft = fftwf_plan_dft_1d(64, st->snr_fft_in, st->snr_fft_out, FFTW_FORWARD, 0);
 
     input_reset(st);

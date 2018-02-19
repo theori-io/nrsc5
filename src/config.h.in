@@ -2,7 +2,6 @@
 
 #cmakedefine USE_FAAD2
 #cmakedefine USE_COLOR
-#cmakedefine USE_THREADS
 
 #cmakedefine HAVE_PTHREAD_SETNAME_NP
 #cmakedefine HAVE_STRNDUP

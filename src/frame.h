@@ -1,8 +1,6 @@
 #pragma once
 
-#include <stdint.h>
-
-#define MAX_PROGRAMS 8
+#include "defines.h"
 
 typedef struct
 {

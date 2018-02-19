@@ -7,7 +7,6 @@ project (nrsc5 C)
 option (USE_COLOR "Colorize log output")
 option (USE_NEON "Use NEON instructions")
 option (USE_SSE "Use SSE3 instructions")
-option (USE_THREADS "Enable multithreading" ON)
 option (USE_FAAD2 "AAC decoding with FAAD2" ON)
 
 find_program (AUTOCONF autoconf)
@@ -31,7 +30,7 @@ if (NOT PATCH)
 endif()
 
 find_library (FFTW3F_LIBRARY fftw3f)
-find_library (RTL_SDR_LIBRARY rtlsdr)
+find_package (SoapySDR REQUIRED)
 
 if (CMAKE_SYSTEM_PROCESSOR MATCHES "arm.*")
     if (USE_NEON)

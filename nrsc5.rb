@@ -1,5 +1,5 @@
 class Nrsc5 < Formula
-  desc "NRSC-5 receiver for rtl-sdr"
+  desc "NRSC-5 receiver"
   homepage "http://theori.io/research/nrsc-5-c"
   head "https://github.com/theori-io/nrsc5.git"
 
@@ -8,9 +8,9 @@ class Nrsc5 < Formula
   depends_on "automake" => :build
   depends_on "libtool" => :build
   depends_on "git" => :build
-  depends_on "librtlsdr"
   depends_on "libao"
   depends_on "fftw"
+  depends_on "soapysdr"
 
   def install
     mkdir "build" do

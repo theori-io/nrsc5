@@ -2,89 +2,137 @@
 
 #include "config.h"
 
+#include <nrsc5.h>
+
 #ifdef HAVE_FAAD2
-#include <ao/ao.h>
 #include <neaacdec.h>
 #endif
 
-#ifdef USE_THREADS
-#include <pthread.h>
-#endif
-
 #define AUDIO_FRAME_BYTES 8192
-#define LATENCY_FRAMES 10
 #define MAX_PORTS 32
+#define MAX_SIG_SERVICES 8
+#define MAX_SIG_COMPONENTS 8
+#define MAX_LOT_FILES 8
+#define LOT_FRAGMENT_SIZE 256
+#define MAX_FILE_BYTES 65536
+#define MAX_LOT_FRAGMENTS (MAX_FILE_BYTES / LOT_FRAGMENT_SIZE)
+#define MAX_STREAM_BYTES 65543
+
+#define AAS_TYPE_STREAM 0
+#define AAS_TYPE_PACKET 1
+#define AAS_TYPE_LOT    3
 
 typedef enum
 {
-    OUTPUT_ADTS,
-    OUTPUT_HDC,
-    OUTPUT_WAV,
-    OUTPUT_LIVE
-} output_method_t;
+    NonSpecific = 0,
+    News = 1,
+    Sports = 3,
+    Weather = 29,
+    Emergency = 31,
+    Traffic = 65,
+    ImageMaps = 66,
+    Advertising = 256,
+    Financial,
+    StockTicker,
+    Navigation,
+    ElectronicProgramGuide,
+    Audio,
+    PrivateDataNetwork,
+    ServiceMaintenance,
+    HDRadioSystemServices,
+    AudioRelated
+} service_data_type_t;
 
-typedef struct output_buffer_t
+enum
 {
-    struct output_buffer_t *next;
-    uint8_t data[AUDIO_FRAME_BYTES];
-} output_buffer_t;
+    SIG_COMPONENT_NONE,
+    SIG_COMPONENT_DATA,
+    SIG_COMPONENT_AUDIO
+};
+
+enum
+{
+    SIG_SERVICE_NONE,
+    SIG_SERVICE_DATA,
+    SIG_SERVICE_AUDIO
+};
+
+typedef struct
+{
+    unsigned int timestamp;
+    char *name;
+    uint32_t mime;
+    unsigned int lot;
+    unsigned int size;
+    uint8_t **fragments;
+} aas_file_t;
 
 typedef struct
 {
     uint16_t port;
-    uint16_t pkt_size;
     uint8_t type;
-    unsigned int service_data_type;
-    unsigned int program;
+    unsigned int service_number;
+    uint32_t mime;
 
     union
     {
         struct
         {
-            char *name;
-            uint32_t type;
+            uint8_t prev[3];
+            uint8_t type;
+            uint16_t size;
             uint8_t *data;
-            unsigned int size;
             unsigned int idx;
-            unsigned int seq;
-        } file;
-    } u;
+        } stream;
+        struct
+        {
+            aas_file_t files[MAX_LOT_FILES];
+        } lot;
+    };
 } aas_port_t;
 
 typedef struct
 {
-    output_method_t method;
+    uint8_t type;
+    uint8_t id;
 
-    FILE *outfp;
+    union
+    {
+        struct {
+            uint16_t port;
+            uint16_t service_data_type;
+            uint8_t type;
+            uint32_t mime;
+        } data;
+        struct {
+            uint8_t port;
+            uint8_t type;
+            uint32_t mime;
+        } audio;
+    };
+} sig_component_t;
 
+typedef struct
+{
+    uint8_t type;
+    uint16_t number;
+    char *name;
+
+    sig_component_t component[MAX_SIG_COMPONENTS];
+} sig_service_t;
+
+typedef struct
+{
+    nrsc5_t *radio;
 #ifdef HAVE_FAAD2
-    ao_device *dev;
-    NeAACDecHandle handle;
+    NeAACDecHandle aacdec[MAX_PROGRAMS];
 #endif
-#ifdef USE_THREADS
-    output_buffer_t *head, *tail, *free;
-    pthread_t worker_thread;
-    pthread_mutex_t mutex;
-    pthread_cond_t cond;
-#endif
-
-    unsigned int program;
-    char *aas_files_path;
-    aas_port_t ports[32];
-    unsigned int first_audio_packet;
-    unsigned int audio_packets;
-    unsigned int audio_bytes;
+    aas_port_t ports[MAX_PORTS];
+    sig_service_t services[MAX_SIG_SERVICES];
 } output_t;
 
 void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int program);
 void output_begin(output_t *st);
 void output_reset(output_t *st);
-void output_init_adts(output_t *st, const char *name);
-void output_init_hdc(output_t *st, const char *name);
-#ifdef HAVE_FAAD2
-void output_init_wav(output_t *st, const char *name);
-void output_init_live(output_t *st);
-#endif
+void output_init(output_t *st, nrsc5_t *);
 void output_aas_push(output_t *st, uint8_t *psd, unsigned int len);
-void output_set_program(output_t *st, unsigned int program);
-void output_set_aas_files_path(output_t *st, const char *path);

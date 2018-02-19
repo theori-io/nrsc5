@@ -13,6 +13,10 @@
 
 #define SNR_FFT_COUNT 256
 
+// Sample rate before decimation
+#define SAMPLE_RATE 1488375
+// Tuning offset (fix DC bias)
+#define FREQ_OFFSET 90000
 // FFT length in samples
 #define FFT 2048
 // cyclic preflex length in samples
@@ -38,9 +42,10 @@
 #define PCI_LEN 24
 // bytes per L2 PDU (max)
 #define PDU_LEN ((P1_FRAME_LEN - PCI_LEN) / 8)
+// number of programs (max)
+#define MAX_PROGRAMS 8
 
 #define U8_F(x) ( (((float)(x)) - 127) / 128 )
-#define U8_Q15(x) ( ((int16_t)(x) - 127) << 6 )
 
 typedef struct {
     int16_t r, i;

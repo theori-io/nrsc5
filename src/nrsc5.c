@@ -11,6 +11,31 @@
 #define RX_TIMEOUT 5000000
 #define AUTO_GAIN_STEP 4.0
 
+struct {
+    const char *driver;
+    float sample_rate;
+    unsigned int decimation;
+} supported_drivers[] = {
+    { "rtlsdr", SAMPLE_RATE, 2 },
+    { "hackrf", SAMPLE_RATE * 2, 4 },
+    { "sdrplay", SAMPLE_RATE * 2, 4 },
+    { 0 }
+};
+
+static int find_supported_driver(const char *driver, float *samp_rate, int *decimation)
+{
+    for (unsigned int i = 0; supported_drivers[i].driver; i++)
+    {
+        if (strcasecmp(driver, supported_drivers[i].driver) == 0)
+        {
+            *samp_rate = supported_drivers[i].sample_rate;
+            *decimation = supported_drivers[i].decimation;
+            return 0;
+        }
+    }
+    return 1;
+}
+
 static int snr_callback(void *arg, float snr)
 {
     nrsc5_t *st = arg;
@@ -184,23 +209,18 @@ int nrsc5_open(nrsc5_t **result, const char *args)
     log_info("Driver: %s", SoapySDRDevice_getDriverKey(st->dev));
     log_info("Hardware: %s", SoapySDRDevice_getHardwareKey(st->dev));
 
+    if (find_supported_driver(SoapySDRDevice_getDriverKey(st->dev), &samp_rate, &decimation) != 0)
+        log_warn("Unsupported driver (%s). Please report success or failure along with a debug log.");
+
     if (SoapySDRDevice_setSampleRate(st->dev, SOAPY_SDR_RX, chan, samp_rate) != 0)
         goto error;
-    SoapySDRDevice_setBandwidth(st->dev, SOAPY_SDR_RX, chan, 500000);
+    SoapySDRDevice_setBandwidth(st->dev, SOAPY_SDR_RX, chan, samp_rate / 2);
+
+    samp_rate = SoapySDRDevice_getSampleRate(st->dev, SOAPY_SDR_RX, chan);
     bw = SoapySDRDevice_getBandwidth(st->dev, SOAPY_SDR_RX, chan);
-    if (bw > 0.75 * samp_rate)
-    {
-        decimation *= 2;
-        samp_rate *= 2;
 
-        if (SoapySDRDevice_setSampleRate(st->dev, SOAPY_SDR_RX, chan, samp_rate) != 0)
-            goto error;
-        SoapySDRDevice_setBandwidth(st->dev, SOAPY_SDR_RX, chan, 500000);
-        bw = SoapySDRDevice_getBandwidth(st->dev, SOAPY_SDR_RX, chan);
-    }
-
-    log_debug("Sample rate: %.2f", samp_rate);
-    log_debug("Bandwidth: %.2f", bw);
+    log_info("Sample rate: %.2f", samp_rate);
+    log_info("Bandwidth: %.2f", bw);
     log_debug("Decimation: %d", decimation);
 
     if (SoapySDRDevice_setGainMode(st->dev, SOAPY_SDR_RX, chan, 0) != 0)

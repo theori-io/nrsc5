@@ -6,7 +6,8 @@
 #include "private.h"
 
 #define RX_CHAN 0
-#define RX_BUFFER 32768
+#define RX_BUFFER_FFT 32768
+#define RX_BUFFER (RX_BUFFER_FFT * 8)
 #define RX_TIMEOUT 5000000
 #define AUTO_GAIN_STEP 4.0
 
@@ -46,7 +47,7 @@ static int do_auto_gain(nrsc5_t *st, void *buf)
         {
             int flags;
             long long timeNs;
-            int count = SoapySDRDevice_readStream(st->dev, st->stream, &buf, RX_BUFFER,
+            int count = SoapySDRDevice_readStream(st->dev, st->stream, &buf, RX_BUFFER_FFT,
                     &flags, &timeNs, RX_TIMEOUT);
             if (count < 0)
                 goto error;

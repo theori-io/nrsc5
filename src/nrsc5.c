@@ -7,7 +7,8 @@
 
 #define RX_CHAN 0
 #define RX_BUFFER_FFT (16384)
-#define RX_BUFFER (RX_BUFFER_FFT * 8)
+#define RX_BUFFER (RX_BUFFER_FFT * 4)
+#define RX_TRANSITION_BUFFERS 5
 #define RX_TIMEOUT 5000000
 #define AUTO_GAIN_STEP 4.0
 
@@ -67,7 +68,7 @@ static int do_auto_gain(nrsc5_t *st, void *buf)
         // Two issues on RTL-SDR require ignoring the initial samples:
         //   - after changing the gain there are some samples queued with old gain
         //   - on Debian, changing the gain too quickly results in a freeze
-        ignore = 5;
+        ignore = RX_TRANSITION_BUFFERS;
         while (!st->auto_gain_snr_ready)
         {
             int flags;
@@ -107,6 +108,7 @@ static void *worker_thread(void *arg)
 {
     nrsc5_t *st = arg;
     void *buf = malloc(RX_BUFFER * st->decimation * sizeof(cint16_t));
+    unsigned int ignore = RX_TRANSITION_BUFFERS;
 
     pthread_mutex_lock(&st->worker_mutex);
     while (!st->closed)
@@ -157,7 +159,12 @@ static void *worker_thread(void *arg)
                 count = SoapySDRDevice_readStream(st->dev, st->stream, &buf, RX_BUFFER * st->decimation,
                         &flags, &timeNs, RX_TIMEOUT);
                 if (count > 0)
-                    input_cb(buf, count, &st->input);
+                {
+                    if (ignore > 0)
+                        ignore--;
+                    else
+                        input_cb(buf, count, &st->input);
+                }
             }
             else if (st->iq_file)
             {

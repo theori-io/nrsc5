@@ -94,6 +94,7 @@ void decode_sis(pids_t *st, uint8_t *bits)
         int seq;
         int current_frame;
         int last_frame;
+        int fixed_pt_pos;
         float latitude, longitude;
         int category, prog_num;
         asd_t audio_service;
@@ -180,8 +181,9 @@ void decode_sis(pids_t *st, uint8_t *bits)
             if (off > 64 - 27) break;
             if (bits[off++])
             {
-                latitude = (bits[off++] ? -1.0 : 1.0) / 8192;
-                latitude *= decode_int(bits, &off, 21);
+                fixed_pt_pos = decode_int(bits, &off, 22);
+                fixed_pt_pos |= (fixed_pt_pos & 0x200000) ? (~1 ^ 0x1fffff) : 0; // sign extend
+                latitude = fixed_pt_pos / 8192.0;
                 st->altitude = (st->altitude & 0x0f0) | (decode_int(bits, &off, 4) << 8);
                 if ((latitude != st->latitude) && !isnan(st->longitude))
                     log_debug("Station location: %f, %f, %dm", latitude, st->longitude, st->altitude);
@@ -189,8 +191,9 @@ void decode_sis(pids_t *st, uint8_t *bits)
             }
             else
             {
-                longitude = (bits[off++] ? -1.0 : 1.0) / 8192;
-                longitude *= decode_int(bits, &off, 21);
+                fixed_pt_pos = decode_int(bits, &off, 22);
+                fixed_pt_pos |= (fixed_pt_pos & 0x200000) ? (~1 ^ 0x1fffff) : 0; // sign extend
+                longitude = fixed_pt_pos / 8192.0;
                 st->altitude = (st->altitude & 0xf00) | (decode_int(bits, &off, 4) << 4);
                 if ((longitude != st->longitude) && !isnan(st->latitude))
                     log_debug("Station location: %f %f, %dm", st->latitude, longitude, st->altitude);

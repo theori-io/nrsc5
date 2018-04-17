@@ -196,7 +196,7 @@ void decode_sis(pids_t *st, uint8_t *bits)
                 longitude = fixed_pt_pos / 8192.0;
                 st->altitude = (st->altitude & 0xf00) | (decode_int(bits, &off, 4) << 4);
                 if ((longitude != st->longitude) && !isnan(st->latitude))
-                    log_debug("Station location: %f %f, %dm", st->latitude, longitude, st->altitude);
+                    log_debug("Station location: %f, %f, %dm", st->latitude, longitude, st->altitude);
                 st->longitude = longitude;
             }
             break;

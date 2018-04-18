@@ -58,13 +58,19 @@ int check_crc12(uint8_t *bits)
 
 unsigned int decode_int(uint8_t *bits, int *off, int length)
 {
-    int i, result = 0;
+    unsigned int i, result = 0;
     for (i = 0; i < length; i++)
     {
         result <<= 1;
         result |= bits[(*off)++];
     }
     return result;
+}
+
+int decode_signed_int(uint8_t *bits, int *off, int length)
+{
+    int result = (int) decode_int(bits, off, length);
+    return (result & (1 << (length - 1))) ? result - (1 << length) : result;
 }
 
 char decode_char5(uint8_t *bits, int *off)
@@ -94,7 +100,6 @@ void decode_sis(pids_t *st, uint8_t *bits)
         int seq;
         int current_frame;
         int last_frame;
-        int fixed_pt_pos;
         float latitude, longitude;
         int category, prog_num;
         asd_t audio_service;
@@ -181,9 +186,7 @@ void decode_sis(pids_t *st, uint8_t *bits)
             if (off > 64 - 27) break;
             if (bits[off++])
             {
-                fixed_pt_pos = decode_int(bits, &off, 22);
-                fixed_pt_pos |= (fixed_pt_pos & 0x200000) ? (~1 ^ 0x1fffff) : 0; // sign extend
-                latitude = fixed_pt_pos / 8192.0;
+                latitude = decode_signed_int(bits, &off, 22) / 8192.0;
                 st->altitude = (st->altitude & 0x0f0) | (decode_int(bits, &off, 4) << 8);
                 if ((latitude != st->latitude) && !isnan(st->longitude))
                     log_debug("Station location: %f, %f, %dm", latitude, st->longitude, st->altitude);
@@ -191,9 +194,7 @@ void decode_sis(pids_t *st, uint8_t *bits)
             }
             else
             {
-                fixed_pt_pos = decode_int(bits, &off, 22);
-                fixed_pt_pos |= (fixed_pt_pos & 0x200000) ? (~1 ^ 0x1fffff) : 0; // sign extend
-                longitude = fixed_pt_pos / 8192.0;
+                longitude = decode_signed_int(bits, &off, 22) / 8192.0;
                 st->altitude = (st->altitude & 0xf00) | (decode_int(bits, &off, 4) << 4);
                 if ((longitude != st->longitude) && !isnan(st->latitude))
                     log_debug("Station location: %f, %f, %dm", st->latitude, longitude, st->altitude);

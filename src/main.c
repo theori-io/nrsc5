@@ -281,7 +281,7 @@ int main(int argc, char *argv[])
         uint8_t *buf = malloc(128 * SNR_FFT_COUNT);
         rtlsdr_dev_t *dev;
 
-        err = rtlsdr_open(&dev, 0);
+        err = rtlsdr_open(&dev, device_index);
         if (err) FATAL_EXIT("rtlsdr_open error: %d", err);
         err = rtlsdr_set_sample_rate(dev, 1488375);
         if (err) FATAL_EXIT("rtlsdr_set_sample_rate error: %d", err);

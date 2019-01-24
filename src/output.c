@@ -608,6 +608,7 @@ static void process_port(output_t *st, uint16_t port_id, uint8_t *buf, unsigned 
             // unk (4 bytes)
             // unk (4 bytes)
             port->u.file.size = p32[2];
+            free(port->u.file.data);
             port->u.file.data = malloc(port->u.file.size);
             port->u.file.type = p32[3];
             log_debug("%08X %08X %08X", p32[0], p32[1], p32[3]);

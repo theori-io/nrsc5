@@ -111,8 +111,8 @@ int main(int argc, char *argv[])
     unsigned int count, i, frequency = 0, program = 0, device_index = 0;
     char *input_name = NULL, *output_name = NULL, *audio_name = NULL, *format_name = NULL, *files_path = NULL;
     FILE *infp = NULL, *outfp = NULL;
-    input_t input;
-    output_t output;
+    input_t *input;
+    output_t *output;
 
     while ((opt = getopt_long(argc, argv, "r:w:d:p:o:f:g:ql:v", long_opts, NULL)) != -1)
     {
@@ -163,6 +163,9 @@ int main(int argc, char *argv[])
     log_set_lock(log_lock);
     log_set_udata(&log_mutex);
 #endif
+
+    input = malloc(sizeof(input_t));
+    output = malloc(sizeof(output_t));
 
     if (input_name == NULL)
     {
@@ -231,7 +234,7 @@ int main(int argc, char *argv[])
         else if (strcmp(format_name, "wav") == 0)
         {
 #ifdef USE_FAAD2
-            output_init_wav(&output, audio_name);
+            output_init_wav(output, audio_name);
 #else
             log_fatal("WAV output requires FAAD2.");
             return 1;
@@ -239,11 +242,11 @@ int main(int argc, char *argv[])
         }
         else if (strcmp(format_name, "adts") == 0)
         {
-            output_init_adts(&output, audio_name);
+            output_init_adts(output, audio_name);
         }
         else if (strcmp(format_name, "hdc") == 0)
         {
-            output_init_hdc(&output, audio_name);
+            output_init_hdc(output, audio_name);
         }
         else
         {
@@ -254,27 +257,30 @@ int main(int argc, char *argv[])
     else
     {
 #ifdef USE_FAAD2
-        output_init_live(&output);
+        output_init_live(output);
 #else
         log_fatal("Live output requires FAAD2.");
         return 1;
 #endif
     }
 
-    output_set_aas_files_path(&output, files_path);
+    output_set_aas_files_path(output, files_path);
 
-    input_init(&input, &output, frequency, program, outfp);
+    input_init(input, output, frequency, program, outfp);
 
     if (infp)
     {
+        uint8_t *buf = malloc(RADIO_BUFFER);
+
         while (!feof(infp))
         {
-            uint8_t tmp[RADIO_BUFFER];
             size_t cnt;
-            cnt = fread(tmp, 4, sizeof(tmp) / 4, infp);
+            cnt = fread(buf, 4, RADIO_BUFFER / 4, infp);
             if (cnt > 0)
-                input_cb(tmp, cnt * 4, &input);
+                input_cb(buf, cnt * 4, input);
         }
+
+        free(buf);
     }
     else
     {
@@ -297,7 +303,7 @@ int main(int argc, char *argv[])
             gain_count = rtlsdr_get_tuner_gains(dev, gain_list);
             if (gain_count > 0)
             {
-                input_set_snr_callback(&input, snr_callback, dev);
+                input_set_snr_callback(input, snr_callback, dev);
                 err = rtlsdr_set_tuner_gain(dev, gain_list[0]);
                 if (err) FATAL_EXIT("rtlsdr_set_tuner_gain error: %d", err);
             }
@@ -320,11 +326,11 @@ int main(int argc, char *argv[])
             err = rtlsdr_read_sync(dev, buf, len, &len);
             if (err) FATAL_EXIT("rtlsdr_read_sync error: %d", err);
 
-            input_cb(buf, len, &input);
+            input_cb(buf, len, input);
         }
         free(buf);
 
-        err = rtlsdr_read_async(dev, input_cb, &input, RADIO_BUFCNT, RADIO_BUFFER);
+        err = rtlsdr_read_async(dev, input_cb, input, RADIO_BUFCNT, RADIO_BUFFER);
         if (err) FATAL_EXIT("rtlsdr_read_async error: %d", err);
         err = rtlsdr_close(dev);
         if (err) FATAL_EXIT("rtlsdr error: %d", err);

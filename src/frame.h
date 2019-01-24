@@ -2,6 +2,7 @@
 
 #include <stdint.h>
 
+#define MAX_AAS_LEN 8212
 #define MAX_PROGRAMS 8
 
 typedef struct
@@ -9,9 +10,9 @@ typedef struct
     uint16_t mode;
     uint16_t length;
     unsigned int block_idx;
-    uint8_t *blocks;
+    uint8_t blocks[255 + 4];
     int idx;
-    uint8_t *data;
+    uint8_t data[MAX_AAS_LEN];
 } fixed_subchannel_t;
 
 typedef struct

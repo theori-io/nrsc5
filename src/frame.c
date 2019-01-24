@@ -25,7 +25,6 @@
 #define PCI_AUDIO_FIXED_OPP 0x8D8D33
 
 #define BBM 0x42E23A7D
-#define MAX_AAS_LEN 8212
 #define MAX_AUDIO_PACKETS 64
 
 typedef struct
@@ -377,9 +376,7 @@ static void process_fixed_ccc(frame_t *st, uint8_t *buf, int buflen)
                 subch->mode = mode;
                 subch->length = length;
                 subch->block_idx = 0;
-                subch->blocks = malloc(255 + 4);
                 subch->idx = -1;
-                subch->data = malloc(MAX_AAS_LEN);
             }
             else
             {

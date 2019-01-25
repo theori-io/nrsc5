@@ -260,8 +260,17 @@ void output_reset(output_t *st)
 #endif
 }
 
+void output_init(output_t *st)
+{
+    memset(st->ports, 0, sizeof(st->ports));
+    st->audio_packets = 0;
+    st->audio_bytes = 0;
+    st->aas_files_path = NULL;
+}
+
 void output_init_adts(output_t *st, const char *name)
 {
+    output_init(st);
     st->method = OUTPUT_ADTS;
 
     if (strcmp(name, "-") == 0)
@@ -274,6 +283,7 @@ void output_init_adts(output_t *st, const char *name)
 
 void output_init_hdc(output_t *st, const char *name)
 {
+    output_init(st);
     st->method = OUTPUT_HDC;
 
     if (strcmp(name, "-") == 0)
@@ -282,8 +292,6 @@ void output_init_hdc(output_t *st, const char *name)
         st->outfp = fopen(name, "wb");
     if (st->outfp == NULL)
         FATAL_EXIT("Unable to open output adts-hdc file.");
-
-    st->aas_files_path = NULL;
 }
 
 #ifdef USE_FAAD2
@@ -320,12 +328,11 @@ static void output_init_ao(output_t *st, int driver, const char *name)
 
     st->handle = NULL;
     output_reset(st);
-
-    st->aas_files_path = NULL;
 }
 
 void output_init_wav(output_t *st, const char *name)
 {
+    output_init(st);
     st->method = OUTPUT_WAV;
 
     ao_initialize();
@@ -334,6 +341,7 @@ void output_init_wav(output_t *st, const char *name)
 
 void output_init_live(output_t *st)
 {
+    output_init(st);
     st->method = OUTPUT_LIVE;
 
     ao_initialize();

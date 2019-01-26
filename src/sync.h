@@ -7,8 +7,8 @@
 typedef struct
 {
     struct input_t *input;
-    float complex (*buffer)[BLKSZ];
-    float (*phases)[BLKSZ];
+    float complex buffer[FFT][BLKSZ];
+    float phases[FFT][BLKSZ];
     unsigned int idx;
     int ready;
     int cfo_wait;

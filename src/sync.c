@@ -416,8 +416,6 @@ void sync_init(sync_t *st, input_t *input)
     }
 
     st->input = input;
-    st->buffer = malloc(sizeof(float complex) * BLKSZ * FFT);
-    st->phases = malloc(sizeof(float) * BLKSZ * FFT);
     st->ready = 0;
     st->idx = 0;
     st->cfo_wait = 0;

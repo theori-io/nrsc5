@@ -12,6 +12,8 @@
 #include "output.h"
 #include "sync.h"
 
+#define INPUT_BUF_LEN (2160 * 512)
+
 typedef int (*input_snr_cb_t) (void *, float);
 
 typedef struct input_t
@@ -20,7 +22,7 @@ typedef struct input_t
     FILE *outfp;
 
     firdecim_q15 decim;
-    cint16_t *buffer;
+    cint16_t buffer[INPUT_BUF_LEN];
     double center;
     unsigned int avail, used, skip;
 
@@ -39,6 +41,7 @@ typedef struct input_t
 } input_t;
 
 void input_init(input_t *st, output_t *output, double center, unsigned int program, FILE *outfp);
+void input_free(input_t *st);
 void input_cb(uint8_t *, uint32_t, void *);
 void input_set_snr_callback(input_t *st, input_snr_cb_t cb, void *);
 void input_set_skip(input_t *st, unsigned int skip);

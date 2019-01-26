@@ -22,8 +22,6 @@
 #include "defines.h"
 #include "input.h"
 
-#define INPUT_BUF_LEN (2160 * 512)
-
 static float decim_taps[] = {
     0.6062333583831787,
     -0.13481467962265015,
@@ -186,7 +184,6 @@ void input_reset(input_t *st)
 
 void input_init(input_t *st, output_t *output, double center, unsigned int program, FILE *outfp)
 {
-    st->buffer = malloc(sizeof(cint16_t) * INPUT_BUF_LEN);
     st->output = output;
     st->outfp = outfp;
     st->center = center;
@@ -203,6 +200,15 @@ void input_init(input_t *st, output_t *output, double center, unsigned int progr
     frame_init(&st->frame, st);
     output_set_program(st->output, program);
     sync_init(&st->sync, st);
+}
+
+void input_free(input_t *st)
+{
+    acquire_free(&st->acq);
+
+    firdecim_q15_free(st->decim);
+    fftwf_destroy_plan(st->snr_fft);
+    fftwf_cleanup();
 }
 
 void input_aas_push(input_t *st, uint8_t *psd, unsigned int len)

@@ -281,6 +281,7 @@ int main(int argc, char *argv[])
         }
 
         free(buf);
+        fclose(infp);
     }
     else
     {
@@ -335,6 +336,17 @@ int main(int argc, char *argv[])
         err = rtlsdr_close(dev);
         if (err) FATAL_EXIT("rtlsdr error: %d", err);
     }
+
+    if (output_name != NULL)
+    {
+        fclose(outfp);
+    }
+
+    output_free(output);
+    input_free(input);
+
+    free(output);
+    free(input);
 
     return 0;
 }

@@ -175,15 +175,5 @@ void decode_reset(decode_t *st)
 void decode_init(decode_t *st, struct input_t *input)
 {
     st->input = input;
-    st->buffer_pm = malloc(720 * BLKSZ * 16);
-    st->buffer_px1 = malloc(144 * BLKSZ * 2);
-    st->viterbi_p1 = malloc(P1_FRAME_LEN * 3);
-    st->scrambler_p1 = malloc(P1_FRAME_LEN);
-    st->viterbi_pids = malloc(PIDS_FRAME_LEN * 3);
-    st->scrambler_pids = malloc(PIDS_FRAME_LEN);
-    st->internal_p3 = malloc(P3_FRAME_LEN * 32);
-    st->viterbi_p3 = malloc(P3_FRAME_LEN * 3);
-    st->scrambler_p3 = malloc(P3_FRAME_LEN);
-
     decode_reset(st);
 }

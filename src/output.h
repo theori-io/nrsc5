@@ -63,6 +63,7 @@ typedef struct
 #endif
 #ifdef USE_THREADS
     output_buffer_t *head, *tail, *free;
+    unsigned int done;
     pthread_t worker_thread;
     pthread_mutex_t mutex;
     pthread_cond_t cond;
@@ -85,6 +86,7 @@ void output_init_hdc(output_t *st, const char *name);
 void output_init_wav(output_t *st, const char *name);
 void output_init_live(output_t *st);
 #endif
+void output_free(output_t *st);
 void output_aas_push(output_t *st, uint8_t *psd, unsigned int len);
 void output_set_program(output_t *st, unsigned int program);
 void output_set_aas_files_path(output_t *st, const char *path);

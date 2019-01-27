@@ -162,9 +162,8 @@ float phase_diff(float a, float b)
 
 void sync_process(sync_t *st)
 {
-    unsigned int i;
+    int i, partitions_per_band;
     static int psmi = 1;
-    unsigned int partitions_per_band;
 
     switch (psmi) {
         case 2:

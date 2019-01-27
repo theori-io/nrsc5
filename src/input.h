@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <complex.h>
 
+#include <nrsc5.h>
+
 #include "acquire.h"
 #include "decode.h"
 #include "defines.h"
@@ -18,12 +20,11 @@ typedef int (*input_snr_cb_t) (void *, float);
 
 typedef struct input_t
 {
+    nrsc5_t *radio;
     output_t *output;
-    FILE *outfp;
 
     firdecim_q15 decim;
     cint16_t buffer[INPUT_BUF_LEN];
-    double center;
     unsigned int avail, used, skip;
 
     fftwf_plan snr_fft;
@@ -40,9 +41,10 @@ typedef struct input_t
     sync_t sync;
 } input_t;
 
-void input_init(input_t *st, output_t *output, double center, unsigned int program, FILE *outfp);
+void input_init(input_t *st, nrsc5_t *radio, output_t *output);
+void input_reset(input_t *st);
 void input_free(input_t *st);
-void input_cb(uint8_t *, uint32_t, void *);
+void input_cb(uint8_t *buf, uint32_t len, void *arg);
 void input_set_snr_callback(input_t *st, input_snr_cb_t cb, void *);
 void input_set_skip(input_t *st, unsigned int skip);
 void input_pdu_push(input_t *st, uint8_t *pdu, unsigned int len, unsigned int program);

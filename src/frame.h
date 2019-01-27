@@ -1,9 +1,8 @@
 #pragma once
 
-#include <stdint.h>
+#include "defines.h"
 
 #define MAX_AAS_LEN 8212
-#define MAX_PROGRAMS 8
 
 typedef struct
 {

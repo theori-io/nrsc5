@@ -1,24 +1,21 @@
 add_compile_options (--std=gnu11 -O3 -Wall)
 
-if (USE_THREADS)
-    add_definitions (-D_GNU_SOURCE)
-    set (THREAD_LIBRARY pthread)
-    if (CMAKE_SYSTEM_NAME MATCHES Linux)
-        check_library_exists (${THREAD_LIBRARY} pthread_setname_np "" HAVE_PTHREAD_SETNAME_NP)
-    endif()
+add_definitions (-D_GNU_SOURCE)
+set (THREAD_LIBRARY pthread)
+if (CMAKE_SYSTEM_NAME MATCHES Linux)
+    check_library_exists (${THREAD_LIBRARY} pthread_setname_np "" HAVE_PTHREAD_SETNAME_NP)
 endif()
 
 configure_file (config.h.in config.h)
-include_directories ("${CMAKE_CURRENT_BINARY_DIR}")
+include_directories ("${CMAKE_CURRENT_BINARY_DIR}" "${CMAKE_SOURCE_DIR}/include")
 
-add_executable (
+add_library (
     nrsc5
     acquire.c
     decode.c
     frame.c
-    hdc_to_aac.c
     input.c
-    main.c
+    nrsc5.c
     output.c
     pids.c
     sync.c
@@ -38,12 +35,24 @@ target_link_libraries (
     nrsc5
     ${FAAD2_LIBRARY}
     ${THREAD_LIBRARY}
-    ${AO_LIBRARY}
     ${FFTW3F_LIBRARY}
     ${RTL_SDR_LIBRARY}
     m
 )
+
+add_executable (
+    app
+    main.c
+)
+set_property (TARGET app PROPERTY OUTPUT_NAME nrsc5)
+target_link_libraries (
+    app
+    nrsc5
+    ${AO_LIBRARY}
+    ${THREAD_LIBRARY}
+)
+
 install (
-    TARGETS nrsc5
+    TARGETS app
     RUNTIME DESTINATION bin
 )

@@ -35,7 +35,7 @@ static inline void bw_addbits(bitwriter_t *bw, unsigned int value, unsigned int 
         bw_add1bit(bw, value & (1 << (bits - i - 1)));
 }
 
-static unsigned int bw_flush(bitwriter_t *bw)
+static inline unsigned int bw_flush(bitwriter_t *bw)
 {
     if (bw->bits)
         bw_addbits(bw, 0, 8 - bw->bits);

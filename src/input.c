@@ -21,7 +21,16 @@
 
 #include "defines.h"
 #include "input.h"
+#include "private.h"
 
+/*
+ * GNU Radio Filter Design Tool
+ * FIR, Low Pass, Kaiser Window
+ * Sample rate: 1488375
+ * End of pass band: 372094
+ * Start of stop band: 530000
+ * Stop band attenuation: 40
+ */
 static float decim_taps[] = {
     0.6062333583831787,
     -0.13481467962265015,
@@ -120,8 +129,7 @@ void input_cb(uint8_t *buf, uint32_t len, void *arg)
         return;
     }
 
-    if (st->outfp)
-        fwrite(buf, 1, len, st->outfp);
+    nrsc5_report_iq(st->radio, buf, len);
 
     if (cnt + st->avail > INPUT_BUF_LEN)
     {
@@ -182,11 +190,10 @@ void input_reset(input_t *st)
     st->snr_cnt = 0;
 }
 
-void input_init(input_t *st, output_t *output, double center, unsigned int program, FILE *outfp)
+void input_init(input_t *st, nrsc5_t *radio, output_t *output)
 {
+    st->radio = radio;
     st->output = output;
-    st->outfp = outfp;
-    st->center = center;
     st->snr_cb = NULL;
     st->snr_cb_arg = NULL;
 
@@ -198,7 +205,6 @@ void input_init(input_t *st, output_t *output, double center, unsigned int progr
     acquire_init(&st->acq, st);
     decode_init(&st->decode, st);
     frame_init(&st->frame, st);
-    output_set_program(st->output, program);
     sync_init(&st->sync, st);
 }
 

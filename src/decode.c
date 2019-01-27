@@ -19,6 +19,7 @@
 #include "decode.h"
 #include "input.h"
 #include "pids.h"
+#include "private.h"
 
 // calculate channel bit error rate by re-encoding and comparing to the input
 static float calc_cber(int8_t *coded, uint8_t *decoded)
@@ -67,16 +68,6 @@ static void descramble(uint8_t *buf, unsigned int length)
     }
 }
 
-static void dump_ber(float cber)
-{
-    static float min = 1, max = 0, sum = 0, count = 0;
-    sum += cber;
-    count += 1;
-    if (cber < min) min = cber;
-    if (cber > max) max = cber;
-    log_info("BER: %f, avg: %f, min: %f, max: %f", cber, sum / count, min, max);
-}
-
 void decode_process_p1(decode_t *st)
 {
     const int J = 20, B = 16, C = 36;
@@ -98,7 +89,7 @@ void decode_process_p1(decode_t *st)
     }
 
     nrsc5_conv_decode_p1(st->viterbi_p1, st->scrambler_p1);
-    dump_ber(calc_cber(st->viterbi_p1, st->scrambler_p1));
+    nrsc5_report_ber(st->input->radio, calc_cber(st->viterbi_p1, st->scrambler_p1));
     descramble(st->scrambler_p1, P1_FRAME_LEN);
     frame_push(&st->input->frame, st->scrambler_p1, P1_FRAME_LEN);
 }
@@ -169,7 +160,6 @@ void decode_reset(decode_t *st)
     st->ready_p3 = 0;
     memset(st->pt_p3, 0, sizeof(unsigned int) * 4);
     pids_init(&st->pids);
-    output_begin(st->input->output);
 }
 
 void decode_init(decode_t *st, struct input_t *input)

@@ -74,7 +74,7 @@ static void decode_dbpsk(const float complex *buf, unsigned char *data, int size
     }
 }
 
-static int fuzzy_match(const signed char *needle, int needle_size, const unsigned char *data, int size)
+static int fuzzy_match(const signed char *needle, unsigned int needle_size, const unsigned char *data, int size)
 {
     for (int n = 0; n < size; n++)
     {
@@ -162,7 +162,7 @@ float phase_diff(float a, float b)
 
 void sync_process(sync_t *st)
 {
-    int i;
+    unsigned int i;
     static int psmi = 1;
     unsigned int partitions_per_band;
 

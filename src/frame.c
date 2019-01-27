@@ -293,7 +293,7 @@ static int unescape_hdlc(uint8_t *data, int length)
     return p - data;
 }
 
-static void aas_push(frame_t *st, uint8_t* psd, int length)
+static void aas_push(frame_t *st, uint8_t* psd, unsigned int length)
 {
     length = unescape_hdlc(psd, length);
 
@@ -316,7 +316,7 @@ static void aas_push(frame_t *st, uint8_t* psd, int length)
     }
 }
 
-static void parse_hdlc(frame_t *st, void (*process)(frame_t *, uint8_t *, int), uint8_t *buffer, int *bufidx, int bufsz, uint8_t *input, size_t inlen)
+static void parse_hdlc(frame_t *st, void (*process)(frame_t *, uint8_t *, unsigned int), uint8_t *buffer, int *bufidx, int bufsz, uint8_t *input, size_t inlen)
 {
     for (size_t i = 0; i < inlen; i++)
     {
@@ -340,7 +340,7 @@ static void parse_hdlc(frame_t *st, void (*process)(frame_t *, uint8_t *, int), 
     }
 }
 
-static void process_fixed_ccc(frame_t *st, uint8_t *buf, int buflen)
+static void process_fixed_ccc(frame_t *st, uint8_t *buf, unsigned int buflen)
 {
     buflen = unescape_hdlc(buf, buflen);
 
@@ -450,7 +450,7 @@ static void process_fixed_data(frame_t *st)
 
 void frame_process(frame_t *st, size_t length)
 {
-    int offset = 0;
+    unsigned int offset = 0;
 
     if (has_fixed(st))
         process_fixed_data(st);

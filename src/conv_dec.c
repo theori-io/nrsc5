@@ -166,7 +166,7 @@ static void gen_rec_state_info(const struct lte_conv_code *code,
 	/* Compute recursive input value (not the value shifted into register) */
 	rec = (reg >> (code->k - 2)) & 0x01;
 
-	if (PARITY(prev & code->rgen) == rec)
+	if ((unsigned int) PARITY(prev & code->rgen) == rec)
 		*val = 0;
 	else
 		*val = 1;
@@ -393,7 +393,7 @@ fail:
  * accumulated path metric sums and path selections are stored. Normalize on
  * the interval specified by the decoder.
  */
-static void _conv_decode(struct vdecoder *dec, const int8_t *seq, int len)
+static void _conv_decode(struct vdecoder *dec, const int8_t *seq)
 {
 	int i;
 	struct vtrellis *trellis = dec->trellis;
@@ -425,10 +425,10 @@ int nrsc5_conv_decode_p1(const int8_t *in, uint8_t *out)
 	reset_decoder(vdec, code.term);
 
 	/* Propagate through the trellis with interval normalization */
-	_conv_decode(vdec, in, code.len);
+	_conv_decode(vdec, in);
 
 	if (code.term == CONV_TERM_TAIL_BITING)
-		_conv_decode(vdec, in, code.len);
+		_conv_decode(vdec, in);
 
 	rc = traceback(vdec, out, code.term, code.len);
 
@@ -454,10 +454,10 @@ int nrsc5_conv_decode_pids(const int8_t *in, uint8_t *out)
 	reset_decoder(vdec, code.term);
 
 	/* Propagate through the trellis with interval normalization */
-	_conv_decode(vdec, in, code.len);
+	_conv_decode(vdec, in);
 
 	if (code.term == CONV_TERM_TAIL_BITING)
-		_conv_decode(vdec, in, code.len);
+		_conv_decode(vdec, in);
 
 	rc = traceback(vdec, out, code.term, code.len);
 
@@ -483,10 +483,10 @@ int nrsc5_conv_decode_p3(const int8_t *in, uint8_t *out)
 	reset_decoder(vdec, code.term);
 
 	/* Propagate through the trellis with interval normalization */
-	_conv_decode(vdec, in, code.len);
+	_conv_decode(vdec, in);
 
 	if (code.term == CONV_TERM_TAIL_BITING)
-		_conv_decode(vdec, in, code.len);
+		_conv_decode(vdec, in);
 
 	rc = traceback(vdec, out, code.term, code.len);
 

@@ -1,5 +1,5 @@
 /*
- * Viterbi decoder for convolutional codes 
+ * Viterbi decoder for convolutional codes
  *
  * Copyright (C) 2015 Ettus Research LLC
  *
@@ -61,18 +61,6 @@ static void acs_butterfly(int state, int num_states,
 	}
 }
 
-/* Branch metrics unit N=2 */
-static void _gen_branch_metrics_n2(int num_states, const int8_t *seq,
-			    const int16_t *out, int16_t *metrics)
-{
-	int i;
-
-	for (i = 0; i < num_states / 2; i++) {
-		metrics[i] = seq[0] * out[2 * i + 0] +
-			     seq[1] * out[2 * i + 1];
-	}
-}
-
 /* Branch metrics unit N=3 */
 static void _gen_branch_metrics_n3(int num_states, const int8_t *seq,
 			    const int16_t *out, int16_t *metrics)
@@ -83,19 +71,6 @@ static void _gen_branch_metrics_n3(int num_states, const int8_t *seq,
 		metrics[i] = seq[0] * out[4 * i + 0] +
 			     seq[1] * out[4 * i + 1] +
 			     seq[2] * out[4 * i + 2];
-}
-
-/* Branch metrics unit N=4 */
-static void _gen_branch_metrics_n4(int num_states, const int8_t *seq,
-			    const int16_t *out, int16_t *metrics)
-{
-	int i;
-
-	for (i = 0; i < num_states / 2; i++)
-		metrics[i] = seq[0] * out[4 * i + 0] +
-			     seq[1] * out[4 * i + 1] +
-			     seq[2] * out[4 * i + 2] +
-			     seq[3] * out[4 * i + 3];
 }
 
 /* Path metric unit */
@@ -125,47 +100,6 @@ static void _gen_path_metrics(int num_states, int16_t *sums,
 	memcpy(sums, new_sums, num_states * sizeof(int16_t));
 }
 
-/* 16-state branch-path metrics units (K=5) */
-static void gen_metrics_k5_n2(const int8_t *seq, const int16_t *out,
-		       int16_t *sums, int16_t *paths, int norm)
-{
-	int16_t metrics[8];
-
-	_gen_branch_metrics_n2(16, seq, out, metrics);
-	_gen_path_metrics(16, sums, metrics, paths, norm);
-}
-
-static void gen_metrics_k5_n3(const int8_t *seq, const int16_t *out,
-		       int16_t *sums, int16_t *paths, int norm)
-{
-	int16_t metrics[8];
-
-	_gen_branch_metrics_n3(16, seq, out, metrics);
-	_gen_path_metrics(16, sums, metrics, paths, norm);
-
-}
-
-static void gen_metrics_k5_n4(const int8_t *seq, const int16_t *out,
-		       int16_t *sums, int16_t *paths, int norm)
-{
-	int16_t metrics[8];
-
-	_gen_branch_metrics_n4(16, seq, out, metrics);
-	_gen_path_metrics(16, sums, metrics, paths, norm);
-
-}
-
-/* 64-state branch-path metrics units (K=7) */
-static void gen_metrics_k7_n2(const int8_t *seq, const int16_t *out,
-		       int16_t *sums, int16_t *paths, int norm)
-{
-	int16_t metrics[32];
-
-	_gen_branch_metrics_n2(64, seq, out, metrics);
-	_gen_path_metrics(64, sums, metrics, paths, norm);
-
-}
-
 static void gen_metrics_k7_n3(const int8_t *seq, const int16_t *out,
 		       int16_t *sums, int16_t *paths, int norm)
 {
@@ -174,13 +108,4 @@ static void gen_metrics_k7_n3(const int8_t *seq, const int16_t *out,
 	_gen_branch_metrics_n3(64, seq, out, metrics);
 	_gen_path_metrics(64, sums, metrics, paths, norm);
 
-}
-
-static void gen_metrics_k7_n4(const int8_t *seq, const int16_t *out,
-		       int16_t *sums, int16_t *paths, int norm)
-{
-	int16_t metrics[32];
-
-	_gen_branch_metrics_n4(64, seq, out, metrics);
-	_gen_path_metrics(64, sums, metrics, paths, norm);
 }

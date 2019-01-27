@@ -47,7 +47,7 @@
 #include "bitreader.h"
 #include "bitwriter.h"
 
-#define ERR(x,...) fprintf(stderr, x, ##__VA_ARGS__)
+#define ERR(...) fprintf(stderr, __VA_ARGS__)
 
 /* Bitstream */
 #define LEN_SE_ID 3
@@ -291,7 +291,7 @@ static void huffman_2step_pair_sign(bitreader_t *br, bitwriter_t *bw, uint8_t cb
     huffman_sign_bits(br, bw, cnt);
 }
 
-static uint8_t huffman_binary_quad(bitreader_t *br, bitwriter_t *bw, uint8_t cb)
+static uint8_t huffman_binary_quad(bitreader_t *br, bitwriter_t *bw)
 {
     uint16_t offset = 0;
 
@@ -310,9 +310,9 @@ static uint8_t huffman_binary_quad(bitreader_t *br, bitwriter_t *bw, uint8_t cb)
     return cnt;
 }
 
-static void huffman_binary_quad_sign(bitreader_t *br, bitwriter_t *bw, uint8_t cb)
+static void huffman_binary_quad_sign(bitreader_t *br, bitwriter_t *bw)
 {
-    uint8_t sp = huffman_binary_quad(br, bw, cb);
+    uint8_t sp = huffman_binary_quad(br, bw);
     huffman_sign_bits(br, bw, sp);
 }
 
@@ -348,7 +348,7 @@ static void huffman_spectral_data(bitreader_t *br, bitwriter_t *bw, uint8_t cb)
          huffman_2step_quad(br, bw, cb);
          break;
     case 3:
-         huffman_binary_quad_sign(br, bw, cb);
+         huffman_binary_quad_sign(br, bw);
          break;
     case 4:
          huffman_2step_quad_sign(br, bw, cb);
@@ -380,7 +380,7 @@ static void huffman_spectral_data(bitreader_t *br, bitwriter_t *bw, uint8_t cb)
     }
 }
 
-static void parse_sbr_header(bitreader_t *br, bitwriter_t *bw, bitwriter_t *sbrbw)
+static void parse_sbr_header(bitreader_t *br, bitwriter_t *sbrbw)
 {
     bw_addbits(sbrbw, br_readbits(br, 1), 1);
 
@@ -409,7 +409,7 @@ static void parse_sbr_header(bitreader_t *br, bitwriter_t *bw, bitwriter_t *sbrb
     }
 }
 
-static void parse_sbr_single_channel_element(bitreader_t *br, bitwriter_t *bw, bitwriter_t *sbrbw)
+static void parse_sbr_single_channel_element(bitreader_t *br, bitwriter_t *sbrbw)
 {
     uint8_t b = br_readbits(br, 1);
     bw_addbits(sbrbw, b, 1);
@@ -426,7 +426,7 @@ static void parse_sbr_single_channel_element(bitreader_t *br, bitwriter_t *bw, b
         bw_addbits(sbrbw, br_readbits(br, 1), 1);
 }
 
-static void parse_sbr_channel_pair_element(bitreader_t *br, bitwriter_t *bw, bitwriter_t *sbrbw)
+static void parse_sbr_channel_pair_element(bitreader_t *br, bitwriter_t *sbrbw)
 {
     uint8_t b = br_readbits(br, 1);
     bw_addbits(sbrbw, b, 1);
@@ -456,12 +456,12 @@ static void parse_sbr(bitreader_t *br, bitwriter_t *bw, ics_t *ics)
     uint8_t header_flag = br_readbits(br, 1);
     bw_addbits(&sbrbw, header_flag, 1);
     if (header_flag)
-        parse_sbr_header(br, bw, &sbrbw);
+        parse_sbr_header(br, &sbrbw);
 
     if (ics->id == ID_SCE)
-        parse_sbr_single_channel_element(br, bw, &sbrbw);
+        parse_sbr_single_channel_element(br, &sbrbw);
     else
-        parse_sbr_channel_pair_element(br, bw, &sbrbw);
+        parse_sbr_channel_pair_element(br, &sbrbw);
 
     int bytes = bw_flush(&sbrbw);
 
@@ -634,7 +634,7 @@ static void gen_ics_info(bitwriter_t *bw, ics_t *ics)
     }
 }
 
-static void parse_ics_info(bitreader_t *br, bitwriter_t *bw, ics_t *ics)
+static void parse_ics_info(bitreader_t *br, ics_t *ics)
 {
     uint8_t i, g;
     uint8_t sf_index = 7; // 22050
@@ -717,7 +717,7 @@ static void parse_ics_info(bitreader_t *br, bitwriter_t *bw, ics_t *ics)
     }
 }
 
-static void parse_tns_data(bitreader_t *br, bitwriter_t *bw, ics_t *ics)
+static void parse_tns_data(bitreader_t *br, ics_t *ics)
 {
     uint8_t w, i, start_coef_bits, coef_bits;
     uint8_t length_bits = 6;
@@ -963,11 +963,11 @@ static void parse_sce(bitreader_t *br, bitwriter_t *bw)
     bw_addbits(bw, ics.id, LEN_SE_ID);
     bw_addbits(bw, 0, LEN_TAG);
 
-    parse_ics_info(br, bw, &ics);
+    parse_ics_info(br, &ics);
 
     ics.tns.present = br_readbits(br, 1);
     if (ics.tns.present)
-        parse_tns_data(br, bw, &ics);
+        parse_tns_data(br, &ics);
 
     parse_individual_channel_stream(br, bw, &ics);
     parse_fil(br, bw, &ics);
@@ -985,7 +985,7 @@ static void parse_cpe(bitreader_t *br, bitwriter_t *bw)
     bw_addbits(bw, 0, LEN_TAG);
     bw_addbits(bw, ics1.common_window, 1); // common window
 
-    parse_ics_info(br, bw, &ics1);
+    parse_ics_info(br, &ics1);
     gen_ics_info(bw, &ics1);
 
     uint8_t ms_mask_present = br_readbits(br, 2);
@@ -1005,10 +1005,10 @@ static void parse_cpe(bitreader_t *br, bitwriter_t *bw)
 
     ics1.tns.present = br_readbits(br, 1);
     if (ics1.tns.present)
-        parse_tns_data(br, bw, &ics1);
+        parse_tns_data(br, &ics1);
     ics2.tns.present = br_readbits(br, 1);
     if (ics2.tns.present)
-        parse_tns_data(br, bw, &ics2);
+        parse_tns_data(br, &ics2);
 
     parse_individual_channel_stream(br, bw, &ics1);
     parse_individual_channel_stream(br, bw, &ics2);

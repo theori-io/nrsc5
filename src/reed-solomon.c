@@ -39,21 +39,7 @@
 #include "reed-solomon.h"
 #include "galois.h"
 
-#ifdef MIN
-#undef MIN
-#endif /* MIN */
-#define MIN(a,b) \
-    ({ __typeof__ (a) _a = (a); \
-       __typeof__ (b) _b = (b); \
-       _a < _b ? _a : _b; })
-
-#ifdef MAX
-#undef MAX
-#endif /* MAX */
-#define MAX(a,b) \
-    ({ __typeof__ (a) _a = (a); \
-       __typeof__ (b) _b = (b); \
-       _a > _b ? _a : _b; })
+#define MIN(a,b) ((a) < (b) ? (a) : (b))
 
 static gf_t field;
 static uint8_t gen[D+1];
@@ -62,7 +48,7 @@ static void rs_generate_generator_polynomial();
 static uint32_t rs_calculate_syndromes(const uint8_t msg[N], uint8_t syndromes[D]);
 static uint32_t rs_calculate_error_locator_polynomial(const uint8_t syndromes[D], uint8_t errpoly[D + 1]);
 static int32_t rs_calculate_error_values(uint32_t errdeg, const uint8_t errpoly[D + 1], uint8_t roots[D + 1], uint8_t locpoly[E]);
-static uint32_t rs_generate_error_evaluator_polynomial(const uint8_t syndromes[D], uint32_t errdeg, const uint8_t *errpoly, uint8_t evalpoly[D]);
+static uint32_t rs_generate_error_evaluator_polynomial(const uint8_t syndromes[D], const uint8_t *errpoly, uint8_t evalpoly[D]);
 
 /**
  * Main program function.
@@ -136,7 +122,7 @@ rs_encode(const uint8_t msg[], uint32_t len, uint8_t parity[D])
     /* Linear feedback shift register. */
     for(i = K - 1; i >= 0; i--)
     {
-        fb = field.log[((i >= len) ? 0 : msg[i]) ^ parity[D-1]];
+        fb = field.log[(((uint32_t) i >= len) ? 0 : msg[i]) ^ parity[D-1]];
         if(fb != A0)
         {
             for(j = D - 1; j > 0; j--)
@@ -192,7 +178,7 @@ rs_decode(uint8_t msg[N])
     {
         return -1;
     }
-    evaldeg = rs_generate_error_evaluator_polynomial(syndromes, errdeg, errpoly, evalpoly);
+    evaldeg = rs_generate_error_evaluator_polynomial(syndromes, errpoly, evalpoly);
 
     cnt = rootscnt;
     for(j = cnt - 1; j >= 0; j--)
@@ -401,14 +387,14 @@ rs_calculate_error_values(uint32_t errdeg, const uint8_t errpoly[D + 1], uint8_t
             locpoly[rootscnt] = k;
         }
 
-        if(++rootscnt == errdeg)
+        if((uint32_t) ++rootscnt == errdeg)
         {
             break;
         }
         k = (N + k - 1) % N;
     }
 
-    if(rootscnt != errdeg)
+    if((uint32_t) rootscnt != errdeg)
     {
         rootscnt = -1;
     }
@@ -420,10 +406,10 @@ rs_calculate_error_values(uint32_t errdeg, const uint8_t errpoly[D + 1], uint8_t
  * Returns the degree of the error evaluator polynomial.
  */
 static uint32_t
-rs_generate_error_evaluator_polynomial(const uint8_t syndromes[D], uint32_t errdeg, const uint8_t *errpoly, uint8_t evalpoly[D])
+rs_generate_error_evaluator_polynomial(const uint8_t syndromes[D], const uint8_t *errpoly, uint8_t evalpoly[D])
 {
     int32_t i, j;
-    uint32_t deg = 0;
+    int32_t deg = 0;
     uint8_t tmp;
 
     for(i = 0; i < D; i++)
@@ -443,5 +429,5 @@ rs_generate_error_evaluator_polynomial(const uint8_t syndromes[D], uint32_t errd
         evalpoly[i] = field.log[tmp];
     }
 
-    return deg;
+    return (uint32_t) deg;
 }

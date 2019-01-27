@@ -56,7 +56,7 @@ int check_crc12(uint8_t *bits)
     return expected_crc == crc12(bits);
 }
 
-unsigned int decode_int(uint8_t *bits, int *off, int length)
+unsigned int decode_int(uint8_t *bits, int *off, unsigned int length)
 {
     unsigned int i, result = 0;
     for (i = 0; i < length; i++)
@@ -67,7 +67,7 @@ unsigned int decode_int(uint8_t *bits, int *off, int length)
     return result;
 }
 
-int decode_signed_int(uint8_t *bits, int *off, int length)
+int decode_signed_int(uint8_t *bits, int *off, unsigned int length)
 {
     int result = (int) decode_int(bits, off, length);
     return (result & (1 << (length - 1))) ? result - (1 << length) : result;

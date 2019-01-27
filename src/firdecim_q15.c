@@ -34,7 +34,7 @@ firdecim_q15 firdecim_q15_create(const float * taps, unsigned int ntaps)
 
     // reverse order so we can push into the window
     // duplicate for neon
-    for (int i = 0; i < ntaps; ++i)
+    for (unsigned int i = 0; i < ntaps; ++i)
     {
         q->taps[i*2] = taps[ntaps - 1 - i] * 32767.0f;
         q->taps[i*2+1] = taps[ntaps - 1 - i] * 32767.0f;
@@ -54,7 +54,7 @@ static void push(firdecim_q15 q, cint16_t x)
 {
     if (q->idx == WINDOW_SIZE)
     {
-        for (int i = 0; i < q->ntaps - 1; i++)
+        for (unsigned int i = 0; i < q->ntaps - 1; i++)
             q->window[i] = q->window[q->idx - q->ntaps + 1 + i];
         q->idx = q->ntaps - 1;
     }

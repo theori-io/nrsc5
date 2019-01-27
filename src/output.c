@@ -212,8 +212,15 @@ static void *output_worker(void *arg)
         output_buffer_t *ob;
 
         pthread_mutex_lock(&st->mutex);
-        while (st->head == NULL)
+        while ((st->head == NULL) && !st->done)
             pthread_cond_wait(&st->cond, &st->mutex);
+
+        if (st->head == NULL)
+        {
+            pthread_mutex_unlock(&st->mutex);
+            break;
+        }
+
         // unlink from head list
         ob = st->head;
         st->head = ob->next;
@@ -265,7 +272,10 @@ void output_init(output_t *st)
     memset(st->ports, 0, sizeof(st->ports));
     st->audio_packets = 0;
     st->audio_bytes = 0;
+    st->outfp = NULL;
     st->aas_files_path = NULL;
+    st->dev = NULL;
+    st->handle = NULL;
 }
 
 void output_init_adts(output_t *st, const char *name)
@@ -318,6 +328,7 @@ static void output_init_ao(output_t *st, int driver, const char *name)
         st->free = ob;
     }
 
+    st->done = 0;
     pthread_cond_init(&st->cond, NULL);
     pthread_mutex_init(&st->mutex, NULL);
     pthread_create(&st->worker_thread, NULL, output_worker, st);
@@ -326,7 +337,6 @@ static void output_init_ao(output_t *st, int driver, const char *name)
 #endif
 #endif
 
-    st->handle = NULL;
     output_reset(st);
 }
 
@@ -348,6 +358,45 @@ void output_init_live(output_t *st)
     output_init_ao(st, ao_default_driver_id(), NULL);
 }
 #endif
+
+void output_free(output_t *st)
+{
+    unsigned int i;
+
+#ifdef USE_THREADS
+    if (st->dev)
+    {
+        st->done = 1;
+        pthread_cond_signal(&st->cond);
+        pthread_join(st->worker_thread, NULL);
+
+        while (st->free)
+        {
+            output_buffer_t *ob = st->free->next;
+            free(st->free);
+            st->free = ob;
+        }
+    }
+#endif
+
+    for (i = 0; i < MAX_PORTS; i++)
+    {
+        free(st->ports[i].u.file.data);
+        free(st->ports[i].u.file.name);
+    }
+
+    if (st->outfp)
+        fclose(st->outfp);
+
+    if (st->dev)
+    {
+        ao_close(st->dev);
+        ao_shutdown();
+    }
+
+    if (st->handle)
+        NeAACDecClose(st->handle);
+}
 
 static unsigned int id3_length(uint8_t *buf)
 {

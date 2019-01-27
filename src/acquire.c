@@ -188,15 +188,11 @@ void acquire_init(acquire_t *st, input_t *input)
 
     st->input = input;
     st->filter = firdecim_q15_create(filter_taps, sizeof(filter_taps) / sizeof(filter_taps[0]));
-    st->in_buffer = malloc(sizeof(cint16_t) * FFTCP * (ACQUIRE_SYMBOLS + 1));
-    st->buffer = malloc(sizeof(float complex) * FFTCP * (ACQUIRE_SYMBOLS + 1));
-    st->sums = malloc(sizeof(float complex) * (FFTCP + CP));
     st->idx = 0;
     st->prev_angle = 0;
     st->phase = 1;
     st->cfo = 0;
 
-    st->shape = malloc(sizeof(float) * FFTCP);
     for (i = 0; i < FFTCP; ++i)
     {
         // Pulse shaping window function
@@ -208,7 +204,11 @@ void acquire_init(acquire_t *st, input_t *input)
             st->shape[i] = cosf(M_PI / 2 * (i - FFT) / CP);
     }
 
-    st->fftin = malloc(sizeof(float complex) * FFT);
-    st->fftout = malloc(sizeof(float complex) * FFT);
     st->fft = fftwf_plan_dft_1d(FFT, st->fftin, st->fftout, FFTW_FORWARD, 0);
+}
+
+void acquire_free(acquire_t *st)
+{
+    firdecim_q15_free(st->filter);
+    fftwf_destroy_plan(st->fft);
 }

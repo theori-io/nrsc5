@@ -7,21 +7,21 @@
 typedef struct
 {
     struct input_t *input;
-    int8_t *buffer_pm;
+    int8_t buffer_pm[720 * BLKSZ * 16];
     unsigned int idx_pm;
-    int8_t *buffer_px1;
+    int8_t buffer_px1[144 * BLKSZ * 2];
     unsigned int idx_px1;
 
-    int8_t *viterbi_p1;
-    uint8_t *scrambler_p1;
-    int8_t *viterbi_pids;
-    uint8_t *scrambler_pids;
-    int8_t *internal_p3;
+    int8_t viterbi_p1[P1_FRAME_LEN * 3];
+    uint8_t scrambler_p1[P1_FRAME_LEN];
+    int8_t viterbi_pids[PIDS_FRAME_LEN * 3];
+    uint8_t scrambler_pids[PIDS_FRAME_LEN];
+    int8_t internal_p3[P3_FRAME_LEN * 32];
     unsigned int i_p3;
     int ready_p3;
     unsigned int pt_p3[4];
-    int8_t *viterbi_p3;
-    uint8_t *scrambler_p3;
+    int8_t viterbi_p3[P3_FRAME_LEN * 3];
+    uint8_t scrambler_p3[P3_FRAME_LEN];
 
     pids_t pids;
 } decode_t;

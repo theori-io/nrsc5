@@ -593,17 +593,7 @@ void frame_reset(frame_t *st)
 
 void frame_init(frame_t *st, input_t *input)
 {
-    unsigned int i;
-
     st->input = input;
-    st->buffer = malloc(PDU_LEN);
-    for (i = 0; i < MAX_PROGRAMS; i++)
-    {
-        st->pdu[i] = malloc(0x10000);
-        st->psd_buf[i] = malloc(MAX_AAS_LEN);
-    }
-
     rs_init();
-
     frame_reset(st);
 }

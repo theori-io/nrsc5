@@ -43,6 +43,13 @@ firdecim_q15 firdecim_q15_create(const float * taps, unsigned int ntaps)
     return q;
 }
 
+void firdecim_q15_free(firdecim_q15 q)
+{
+    free(q->taps);
+    free(q->window);
+    free(q);
+}
+
 static void push(firdecim_q15 q, cint16_t x)
 {
     if (q->idx == WINDOW_SIZE)

@@ -24,7 +24,6 @@
 #define PCI_AUDIO_FIXED 0xE3634C
 #define PCI_AUDIO_FIXED_OPP 0x8D8D33
 
-#define BBM 0x42E23A7D
 #define MAX_AUDIO_PACKETS 64
 
 typedef struct
@@ -397,6 +396,7 @@ static void process_fixed_block(frame_t *st, int i)
 
 static void process_fixed_data(frame_t *st)
 {
+    static const uint8_t bbm[] = { 0x7D, 0x3A, 0xE2, 0x42 };
     unsigned int sync = st->buffer[PDU_LEN - 1];
 
     if (st->sync_count < 2)
@@ -431,7 +431,7 @@ static void process_fixed_data(frame_t *st)
         for (int j = 0; j < length; j++)
         {
             subch->blocks[subch->block_idx++] = p[j];
-            if (subch->block_idx == 4 && *(uint32_t *)subch->blocks != BBM)
+            if (subch->block_idx == 4 && memcmp(subch->blocks, bbm, sizeof(bbm)) != 0)
             {
                 // mis-aligned, skip a byte
                 memmove(subch->blocks, subch->blocks + 1, 3);

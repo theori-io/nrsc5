@@ -30,7 +30,7 @@ static ao_sample_format sample_format = {
     16,
     44100,
     2,
-    AO_FMT_LITTLE,
+    AO_FMT_NATIVE,
     "L,R"
 };
 #endif
@@ -577,8 +577,8 @@ static void parse_port_info(output_t *st, uint8_t *buf, unsigned int len)
             else if (type == 0x67)
             {
                 aas_port_t *port = &st->ports[idx++];
-                port->port = *(uint16_t*)&p[1];
-                port->pkt_size = *(uint16_t*)&p[3];
+                port->port = p[1] | (p[2] << 8);
+                port->pkt_size = p[3] | (p[4] << 8);
                 port->type = p[5];
                 port->service_data_type = service_data_type;
                 port->program = program;
@@ -652,8 +652,7 @@ static void process_port(output_t *st, uint16_t port_id, uint8_t *buf, unsigned 
     {
     case 3: // file
     {
-        uint32_t *p32 = (uint32_t *)buf;
-        uint32_t seq = p32[1];
+        uint32_t seq = buf[4] | (buf[5] << 8) | (buf[6] << 16) | (buf[7] << 24);
         buf += 8;
         len -= 8;
         if (seq == 0)
@@ -661,14 +660,13 @@ static void process_port(output_t *st, uint16_t port_id, uint8_t *buf, unsigned 
             uint8_t *p;
             unsigned int namelen;
 
-            p32 = (uint32_t *)buf;
-            // unk (4 bytes)
-            // unk (4 bytes)
-            port->u.file.size = p32[2];
+            uint32_t unk1 = buf[0] | (buf[1] << 8) | (buf[2] << 16) | (buf[3] << 24);
+            uint32_t unk2 = buf[4] | (buf[5] << 8) | (buf[6] << 16) | (buf[7] << 24);
+            port->u.file.size = buf[8] | (buf[9] << 8) | (buf[10] << 16) | (buf[11] << 24);
             free(port->u.file.data);
             port->u.file.data = malloc(port->u.file.size);
-            port->u.file.type = p32[3];
-            log_debug("%08X %08X %08X", p32[0], p32[1], p32[3]);
+            port->u.file.type = buf[12] | (buf[13] << 8) | (buf[14] << 16) | (buf[15] << 24);
+            log_debug("%08X %08X %08X", unk1, unk2, port->u.file.type);
             buf += 16;
             len -= 16;
 
@@ -730,8 +728,8 @@ static void process_port(output_t *st, uint16_t port_id, uint8_t *buf, unsigned 
 
 void output_aas_push(output_t *st, uint8_t *buf, unsigned int len)
 {
-    uint16_t port = *(uint16_t *)buf;
-    uint16_t seq = *(uint16_t *)(buf + 2);
+    uint16_t port = buf[0] | (buf[1] << 8);
+    uint16_t seq = buf[2] | (buf[3] << 8);
     if (port == 0x5100 || (port >= 0x5201 && port <= 0x5207))
     {
         // PSD ports

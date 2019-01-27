@@ -366,8 +366,8 @@ static void process_fixed_ccc(frame_t *st, uint8_t *buf, int buflen)
 
         if (5 + i * 4 <= buflen)
         {
-            uint16_t mode = *(uint16_t *)&buf[1 + i * 4];
-            uint16_t length = *(uint16_t *)&buf[3 + i * 4];
+            uint16_t mode = buf[1 + i * 4] | (buf[2 + i * 4] << 8);
+            uint16_t length = buf[3 + i * 4] | (buf[4 + i * 4] << 8);
             log_info("Subchannel %d: mode=%d, length=%d", i, mode, length);
 
             if (mode == 0)

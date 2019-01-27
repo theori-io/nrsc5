@@ -512,12 +512,12 @@ static void output_id3(uint8_t *buf, unsigned int len)
         }
         else if (memcmp(buf + off, "XHDR", 4) == 0)
         {
-            int xhdr_length;
+            unsigned int xhdr_length;
             log_debug("XHDR MIME hash = %02X %02X %02X %02X", buf[off+10], buf[off+11], buf[off+12], buf[off+13]);
             log_debug("XHDR Parameter ID = %02X", buf[off+14]);
             xhdr_length = buf[off + 15];
             if (xhdr_length > 0 && xhdr_length <= frame_len - 6) {
-                int i;
+                unsigned int i;
                 char *hex = malloc(3 * xhdr_length + 1);
                 for (i = 0; i < xhdr_length; i++) {
                     sprintf(hex + (3 * i), "%02X ", buf[off + 16 + i]);
@@ -529,7 +529,7 @@ static void output_id3(uint8_t *buf, unsigned int len)
         }
         else
         {
-            int i;
+            unsigned int i;
             char *hex = malloc(3 * frame_len + 1);
             for (i = 0; i < frame_len; i++)
                 sprintf(hex + (3 * i), "%02X ", buf[off + 10 + i]);

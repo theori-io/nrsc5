@@ -130,9 +130,9 @@ void decode_process_pids(decode_t *st)
 
 void decode_process_p3(decode_t *st)
 {
-    const int J = 4, B = 32, C = 36, M = 2, N = 147456;
-    const int bk_bits = 32 * C;
-    const int bk_adj = 32 * C - 1;
+    const unsigned int J = 4, B = 32, C = 36, M = 2, N = 147456;
+    const unsigned int bk_bits = 32 * C;
+    const unsigned int bk_adj = 32 * C - 1;
     unsigned int i, out = 0;
     for (i = 0; i < 9216; i++)
     {

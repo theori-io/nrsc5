@@ -7,7 +7,6 @@ project (nrsc5 C)
 option (USE_COLOR "Colorize log output")
 option (USE_NEON "Use NEON instructions")
 option (USE_SSE "Use SSE3 instructions")
-option (USE_THREADS "Enable multithreading" ON)
 option (USE_FAAD2 "AAC decoding with FAAD2" ON)
 
 find_program (AUTOCONF autoconf)

@@ -19,6 +19,7 @@
 
 #include "defines.h"
 #include "input.h"
+#include "private.h"
 #include "sync.h"
 
 static void adjust_ref(sync_t *st, unsigned int ref, int cfo)
@@ -195,6 +196,7 @@ void sync_process(sync_t *st)
             if (find_first_block(st, UB_END, &psmi) != 0)
             {
                 log_debug("lost sync (%d, %d)!", find_first_block(st, LB_START, &psmi), find_first_block(st, UB_END, &psmi));
+                nrsc5_report_lost_sync(st->input->radio);
                 st->ready = 0;
             }
         }
@@ -215,6 +217,7 @@ void sync_process(sync_t *st)
         else if (offset == 0)
         {
             log_info("Synchronized!");
+            nrsc5_report_sync(st->input->radio);
             decode_reset(&st->input->decode);
             st->ready = 1;
         }
@@ -318,7 +321,9 @@ void sync_process(sync_t *st)
             float signal = 2 * BLKSZ * (partitions_per_band * 18) * st->mer_cnt;
             float mer_db_lb = 10 * log10f(signal / st->error_lb);
             float mer_db_ub = 10 * log10f(signal / st->error_ub);
-            log_info("MER: %.1f dB (lower), %.1f dB (upper)", mer_db_lb, mer_db_ub);
+
+            nrsc5_report_mer(st->input->radio, mer_db_lb, mer_db_ub);
+
             st->mer_cnt = 0;
             st->error_lb = 0;
             st->error_ub = 0;

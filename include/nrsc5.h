@@ -155,7 +155,8 @@ typedef struct nrsc5_t nrsc5_t;
  * Public functions. All functions return void or an error code (0 == success).
  */
 int nrsc5_open(nrsc5_t **, int device_index, int ppm_error);
-int nrsc5_open_iq(nrsc5_t **, const char *path);
+int nrsc5_open_fd(nrsc5_t **, int fd);
+int nrsc5_open_pipe(nrsc5_t **);
 void nrsc5_close(nrsc5_t *);
 void nrsc5_start(nrsc5_t *);
 void nrsc5_stop(nrsc5_t *);
@@ -165,5 +166,6 @@ void nrsc5_get_gain(nrsc5_t *, float *gain);
 int nrsc5_set_gain(nrsc5_t *, float gain);
 void nrsc5_set_auto_gain(nrsc5_t *, int enabled);
 void nrsc5_set_callback(nrsc5_t *, nrsc5_callback_t callback, void *opaque);
+int nrsc5_pipe_samples(nrsc5_t *, uint8_t *samples, unsigned int length);
 
 #endif /* NRSC5_H_ */

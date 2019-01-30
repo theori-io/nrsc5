@@ -1,7 +1,6 @@
 #pragma once
 
 #include <stdint.h>
-#include <stdio.h>
 #include <complex.h>
 
 #include <nrsc5.h>

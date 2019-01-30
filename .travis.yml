@@ -20,4 +20,4 @@ before_script:
   - cd build
   - cmake ..
 
-script: make && xz -d < ../support/sample.xz | src/nrsc5 -r - -o sample.wav -f wav 0 2> sample.log && cat sample.log && grep -q "You're Listening to Q" sample.log
+script: make && xz -d < ../support/sample.xz | src/nrsc5 -r - -o sample.wav 0 2> sample.log && cat sample.log && grep -q "You're Listening to Q" sample.log

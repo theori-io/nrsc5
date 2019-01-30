@@ -47,7 +47,7 @@ static int do_auto_gain(nrsc5_t *st)
             if (rtlsdr_read_sync(st->dev, st->samples_buf, len, &len) != 0)
                 goto error;
 
-            input_cb(st->samples_buf, len, &st->input);
+            input_push(&st->input, st->samples_buf, len);
         }
         log_debug("Gain: %.1f dB, CNR: %.1f dB", gain / 10.0f, 20 * log10f(st->auto_gain_snr));
         if (st->auto_gain_snr > best_snr)
@@ -67,6 +67,16 @@ error:
     free(gain_list);
     input_set_snr_callback(&st->input, NULL, NULL);
     return ret;
+}
+
+static void worker_cb(uint8_t *buf, uint32_t len, void *arg)
+{
+    nrsc5_t *st = arg;
+
+    if (st->stopped && st->dev)
+        rtlsdr_cancel_async(st->dev);
+    else
+        input_push(&st->input, buf, len);
 }
 
 static void *worker_thread(void *arg)
@@ -115,13 +125,13 @@ static void *worker_thread(void *arg)
 
             if (st->dev)
             {
-                err = rtlsdr_read_async(st->dev, input_cb, &st->input, 8, 512 * 1024);
+                err = rtlsdr_read_async(st->dev, worker_cb, st, 8, 512 * 1024);
             }
             else if (st->iq_file)
             {
                 unsigned int count = fread(st->samples_buf, 1, sizeof(st->samples_buf), st->iq_file);
                 if (count > 0)
-                    input_cb(st->samples_buf, count, &st->input);
+                    input_push(&st->input, st->samples_buf, count);
                 else
                     err = 1;
             }

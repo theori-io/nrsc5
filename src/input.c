@@ -118,10 +118,9 @@ static void measure_snr(input_t *st, uint8_t *buf, uint32_t len)
     }
 }
 
-void input_cb(uint8_t *buf, uint32_t len, void *arg)
+void input_push(input_t *st, uint8_t *buf, uint32_t len)
 {
     unsigned int i, new_avail, cnt = len / 4;
-    input_t *st = arg;
 
     if (st->snr_cb)
     {

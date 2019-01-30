@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <errno.h>
 #include <string.h>
 #include <unistd.h>
 
@@ -127,12 +128,12 @@ static void *worker_thread(void *arg)
             {
                 err = rtlsdr_read_async(st->dev, worker_cb, st, 8, 512 * 1024);
             }
-            else if (st->iq_file)
+            else if (st->iq_fd >= 0)
             {
-                unsigned int count = fread(st->samples_buf, 1, sizeof(st->samples_buf), st->iq_file);
+                int count = read(st->iq_fd, st->samples_buf, sizeof(st->samples_buf));
                 if (count > 0)
                     input_push(&st->input, st->samples_buf, count);
-                else
+                else if (errno != EINTR)
                     err = 1;
             }
 
@@ -174,6 +175,8 @@ int nrsc5_open(nrsc5_t **result, int device_index, int ppm_error)
 {
     int err;
     nrsc5_t *st = calloc(1, sizeof(*st));
+    st->iq_fd = -1;
+    st->pipe_fd = -1;
 
     if (rtlsdr_open(&st->dev, device_index) != 0)
         goto error_init;
@@ -201,23 +204,31 @@ error_init:
     return 1;
 }
 
-int nrsc5_open_iq(nrsc5_t **result, const char *path)
+int nrsc5_open_fd(nrsc5_t **result, int fd)
 {
-    FILE *fp;
     nrsc5_t *st;
 
-    if (strcmp(path, "-") == 0)
-        fp = stdin;
-    else
-        fp = fopen(path, "rb");
-    if (fp == NULL)
-        return 1;
-
     st = calloc(1, sizeof(*st));
-    st->iq_file = fp;
+    st->iq_fd = fd;
+    st->pipe_fd = -1;
+
     nrsc5_init(st);
 
     *result = st;
+    return 0;
+}
+
+int nrsc5_open_pipe(nrsc5_t **result)
+{
+    int fds[2];
+
+    if (pipe(fds) != 0)
+        return 1;
+
+    if (nrsc5_open_fd(result, fds[0]) != 0)
+        return 1;
+
+    (*result)->pipe_fd = fds[1];
     return 0;
 }
 
@@ -237,8 +248,10 @@ void nrsc5_close(nrsc5_t *st)
 
     if (st->dev)
         rtlsdr_close(st->dev);
-    if (st->iq_file)
-        fclose(st->iq_file);
+    if (st->iq_fd >= 0)
+        close(st->iq_fd);
+    if (st->pipe_fd >= 0)
+        close(st->pipe_fd);
 
     input_free(&st->input);
     output_free(&st->output);
@@ -331,6 +344,22 @@ void nrsc5_set_callback(nrsc5_t *st, nrsc5_callback_t callback, void *opaque)
     st->callback = callback;
     st->callback_opaque = opaque;
     pthread_mutex_unlock(&st->worker_mutex);
+}
+
+int nrsc5_pipe_samples(nrsc5_t *st, uint8_t *samples, unsigned int length)
+{
+    int ret;
+
+    while (length)
+    {
+        ret = write(st->pipe_fd, samples, length);
+        if (ret > 0)
+            length -= ret;
+        else if (errno != EINTR)
+            return 1;
+    }
+
+    return 0;
 }
 
 void nrsc5_report(nrsc5_t *st, const nrsc5_event_t *evt)

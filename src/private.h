@@ -2,7 +2,6 @@
 
 #include <pthread.h>
 #include <rtl-sdr.h>
-#include <stdio.h>
 
 #include <nrsc5.h>
 
@@ -14,7 +13,8 @@
 struct nrsc5_t
 {
     rtlsdr_dev_t *dev;
-    FILE *iq_file;
+    int iq_fd;
+    int pipe_fd;
     uint8_t samples_buf[128 * 256];
     float freq;
     int gain;

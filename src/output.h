@@ -134,6 +134,7 @@ typedef struct
 
 void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int program);
 void output_begin(output_t *st);
+void output_reset(output_t *st);
 void output_init(output_t *st, nrsc5_t *);
 void output_free(output_t *st);
 void output_aas_push(output_t *st, uint8_t *psd, unsigned int len);

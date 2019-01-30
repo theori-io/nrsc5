@@ -187,6 +187,12 @@ void input_reset(input_t *st)
     for (int i = 0; i < 64; ++i)
         st->snr_power[i] = 0;
     st->snr_cnt = 0;
+
+    firdecim_q15_reset(st->decim);
+    acquire_reset(&st->acq);
+    decode_reset(&st->decode);
+    frame_reset(&st->frame);
+    sync_reset(&st->sync);
 }
 
 void input_init(input_t *st, nrsc5_t *radio, output_t *output)
@@ -199,12 +205,12 @@ void input_init(input_t *st, nrsc5_t *radio, output_t *output)
     st->decim = firdecim_q15_create(decim_taps, sizeof(decim_taps) / sizeof(decim_taps[0]));
     st->snr_fft = fftwf_plan_dft_1d(64, st->snr_fft_in, st->snr_fft_out, FFTW_FORWARD, 0);
 
-    input_reset(st);
-
     acquire_init(&st->acq, st);
     decode_init(&st->decode, st);
     frame_init(&st->frame, st);
     sync_init(&st->sync, st);
+
+    input_reset(st);
 }
 
 void input_free(input_t *st)

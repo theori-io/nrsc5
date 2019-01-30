@@ -406,24 +406,29 @@ void sync_push(sync_t *st, float complex *fftout)
     }
 }
 
-void sync_init(sync_t *st, input_t *input)
+void sync_reset(sync_t *st)
 {
-    unsigned int i;
-    float loop_bw = 0.05, damping = 0.70710678;
-    float denom = 1 + (2 * damping * loop_bw) + (loop_bw * loop_bw);
-    st->alpha = (4 * damping * loop_bw) / denom;
-    st->beta = (4 * loop_bw * loop_bw) / denom;
-    for (i = 0; i < FFT; i++)
+    for (unsigned int i = 0; i < FFT; i++)
     {
         st->costas_freq[i] = 0;
         st->costas_phase[i] = 0;
     }
 
-    st->input = input;
     st->ready = 0;
     st->idx = 0;
     st->cfo_wait = 0;
     st->mer_cnt = 0;
     st->error_lb = 0;
     st->error_ub = 0;
+}
+
+void sync_init(sync_t *st, input_t *input)
+{
+    float loop_bw = 0.05, damping = 0.70710678;
+    float denom = 1 + (2 * damping * loop_bw) + (loop_bw * loop_bw);
+    st->alpha = (4 * damping * loop_bw) / denom;
+    st->beta = (4 * loop_bw * loop_bw) / denom;
+
+    st->input = input;
+    sync_reset(st);
 }

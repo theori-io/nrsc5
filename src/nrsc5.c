@@ -301,6 +301,11 @@ int nrsc5_set_frequency(nrsc5_t *st, float freq)
     {
         if (rtlsdr_set_center_freq(st->dev, freq) != 0)
             return 1;
+
+        if (st->auto_gain)
+            st->gain = -1;
+        input_reset(&st->input);
+        output_reset(&st->output);
     }
 
     st->freq = freq;

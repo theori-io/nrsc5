@@ -30,7 +30,7 @@ firdecim_q15 firdecim_q15_create(const float * taps, unsigned int ntaps)
     q->ntaps = (ntaps == 32) ? 32 : 15;
     q->taps = malloc(sizeof(int16_t) * ntaps * 2);
     q->window = calloc(sizeof(cint16_t), WINDOW_SIZE);
-    q->idx = q->ntaps - 1;
+    firdecim_q15_reset(q);
 
     // reverse order so we can push into the window
     // duplicate for neon
@@ -48,6 +48,11 @@ void firdecim_q15_free(firdecim_q15 q)
     free(q->taps);
     free(q->window);
     free(q);
+}
+
+void firdecim_q15_reset(firdecim_q15 q)
+{
+    q->idx = q->ntaps - 1;
 }
 
 static void push(firdecim_q15 q, cint16_t x)

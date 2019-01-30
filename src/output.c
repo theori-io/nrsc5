@@ -88,7 +88,7 @@ static void aas_reset(output_t *st)
     memset(st->services, 0, sizeof(st->services));
 }
 
-static void output_reset(output_t *st)
+void output_reset(output_t *st)
 {
     aas_reset(st);
 

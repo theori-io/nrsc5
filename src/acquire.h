@@ -25,5 +25,6 @@ typedef struct
 void acquire_process(acquire_t *st);
 void acquire_cfo_adjust(acquire_t *st, int cfo);
 unsigned int acquire_push(acquire_t *st, cint16_t *buf, unsigned int length);
+void acquire_reset(acquire_t *st);
 void acquire_init(acquire_t *st, struct input_t *input);
 void acquire_free(acquire_t *st);

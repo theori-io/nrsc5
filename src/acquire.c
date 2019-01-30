@@ -179,16 +179,22 @@ unsigned int acquire_push(acquire_t *st, cint16_t *buf, unsigned int length)
     return needed;
 }
 
+void acquire_reset(acquire_t *st)
+{
+    firdecim_q15_reset(st->filter);
+    st->idx = 0;
+    st->prev_angle = 0;
+    st->phase = 1;
+    st->cfo = 0;
+}
+
 void acquire_init(acquire_t *st, input_t *input)
 {
     int i;
 
     st->input = input;
     st->filter = firdecim_q15_create(filter_taps, sizeof(filter_taps) / sizeof(filter_taps[0]));
-    st->idx = 0;
-    st->prev_angle = 0;
-    st->phase = 1;
-    st->cfo = 0;
+    st->fft = fftwf_plan_dft_1d(FFT, st->fftin, st->fftout, FFTW_FORWARD, 0);
 
     for (i = 0; i < FFTCP; ++i)
     {
@@ -201,7 +207,7 @@ void acquire_init(acquire_t *st, input_t *input)
             st->shape[i] = cosf(M_PI / 2 * (i - FFT) / CP);
     }
 
-    st->fft = fftwf_plan_dft_1d(FFT, st->fftin, st->fftout, FFTW_FORWARD, 0);
+    acquire_reset(st);
 }
 
 void acquire_free(acquire_t *st)

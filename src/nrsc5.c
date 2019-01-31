@@ -488,8 +488,10 @@ static uint8_t convert_sig_service_type(uint8_t type)
 
 void nrsc5_report_sig(nrsc5_t *st, sig_service_t *services, unsigned int count)
 {
-    nrsc5_event_t evt = { NRSC5_EVENT_SIG };
     nrsc5_sig_service_t *service = NULL;
+    nrsc5_event_t evt;
+
+    evt.event = NRSC5_EVENT_SIG;
 
     // convert internal structures to public structures
     for (unsigned int i = 0; i < count; i++)

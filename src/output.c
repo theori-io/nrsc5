@@ -149,7 +149,9 @@ static void output_id3(output_t *st, unsigned int program, uint8_t *buf, unsigne
 {
     char *title = NULL, *artist = NULL, *album = NULL, *genre = NULL, *ufid_owner = NULL, *ufid_id = NULL;
     unsigned int off = 0, id3_len;
-    nrsc5_event_t evt = { NRSC5_EVENT_ID3 };
+    nrsc5_event_t evt;
+
+    evt.event = NRSC5_EVENT_ID3;
 
     if (len < 10 || memcmp(buf, "ID3\x03\x00", 5) || buf[5]) return;
     id3_len = id3_length(buf + 6) + 10;
@@ -249,7 +251,7 @@ static void output_id3(output_t *st, unsigned int program, uint8_t *buf, unsigne
                 mime = data[0] | (data[1] << 8) | (data[2] << 16) | (data[3] << 24);
                 param = data[4];
                 extlen = data[5];
-                if (6 + extlen != frame_len)
+                if (6u + extlen != frame_len)
                     log_warn("bad XHDR tag (frame_len %d, extlen %d)", frame_len, extlen);
                 else if (param == 0 && extlen == 2)
                     lot = data[6] | (data[7] << 8);

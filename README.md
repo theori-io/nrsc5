@@ -17,6 +17,7 @@ The following packages are required:
      $ cmake [options] ..
      $ make
      $ sudo make install
+     $ sudo ldconfig
 
 Available build options:
 
@@ -149,6 +150,7 @@ Once everything is built, you can run nrsc5 independently of MSYS2. Copy the fol
 
  * libao-4.dll
  * libgcc\_s\_dw2-1.dll
+ * libnrsc5.dll
  * librtlsdr.dll
  * libusb-1.0.dll
  * libwinpthread-1.dll

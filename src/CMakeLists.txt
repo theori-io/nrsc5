@@ -5,6 +5,7 @@ set (THREAD_LIBRARY pthread)
 if (CMAKE_SYSTEM_NAME MATCHES Linux)
     check_library_exists (${THREAD_LIBRARY} pthread_setname_np "" HAVE_PTHREAD_SETNAME_NP)
 endif()
+set (CMAKE_MACOSX_RPATH ON)
 
 configure_file (config.h.in config.h)
 include_directories ("${CMAKE_CURRENT_BINARY_DIR}" "${CMAKE_SOURCE_DIR}/include")

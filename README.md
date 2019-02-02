@@ -88,53 +88,16 @@ The only build environment that has been tested on Windows is MSYS2 with MinGW. 
 
 ### Building with [MSYS2](http://www.msys2.org)
 
-Install MSYS2. Open a terminal using the "MSYS2 MinGW 32-bit" shortcut.
+Install MSYS2. Open a terminal using the "MSYS2 MinGW 32-bit" shortcut. (Or use the 64-bit shortcut if you prefer a 64-bit build.)
 
      $ pacman -Syu
 
 If this is the first time running pacman, you will be told to close the terminal window. After doing so, reopen using the same shortcut as before.
 
      $ pacman -Su
-     $ pacman -S autoconf automake git gzip make mingw-w64-i686-gcc mingw-w64-i686-cmake mingw-w64-i686-libtool patch tar xz
-
-Download and install fftw:
-
-     $ cd ~
-     $ curl -L http://www.fftw.org/fftw-3.3.7.tar.gz | tar xvz
-     $ cd fftw-3.3.7
-     $ ./configure --enable-float --enable-sse2 --with-our-malloc && make && make install
-
-Download and install libao:
-
-     $ cd ~
-     $ git clone https://git.xiph.org/libao.git
-     $ cd libao
-     $ ./autogen.sh
-     $ LDFLAGS=-lksuser ./configure && make && make install
-
-Download and install libusb:
-
-     $ cd ~
-     $ git clone https://github.com/libusb/libusb.git
-     $ cd libusb
-     $ ./autogen.sh
-     $ make && make install
-
-Download and install rtl-sdr:
-
-     $ cd ~
-     $ git clone git://git.osmocom.org/rtl-sdr.git
-     $ mkdir rtl-sdr/build && cd rtl-sdr/build
-     $ cmake -G "MSYS Makefiles" -D LIBUSB_FOUND=1 -D LIBUSB_INCLUDE_DIR=/mingw32/include/libusb-1.0 -D "LIBUSB_LIBRARIES=-L/mingw32/lib -lusb-1.0" -D THREADS_PTHREADS_WIN32_LIBRARY=/mingw32/i686-w64-mingw32/lib/libpthread.a -D THREADS_PTHREADS_INCLUDE_DIR=/mingw32/i686-w64-mingw32/include -D CMAKE_INSTALL_PREFIX=/mingw32 ..
-     $ make && make install
-
-Download and install nrsc5:
-
-     $ cd ~
-     $ git clone https://github.com/theori-io/nrsc5
-     $ mkdir nrsc5/build && cd nrsc5/build
-     $ cmake -G "MSYS Makefiles" -DUSE_COLOR=OFF -DUSE_SSE=ON -DCMAKE_INSTALL_PREFIX=/mingw32 ..
-     $ make && make install
+     $ pacman -S git
+     $ git clone https://github.com/theori-io/nrsc5.git
+     $ nrsc5/support/msys2-build
 
 You can test your installation using the included sample file:
 
@@ -146,7 +109,7 @@ If the sample file does not work, make sure you followed all of the instructions
 
 ### Packaging
 
-Once everything is built, you can run nrsc5 independently of MSYS2. Copy the following files from your MSYS2/mingw32 directory (e.g. C:\msys64\mingw32\bin):
+Once everything is built, you can run nrsc5 independently of MSYS2. Copy the following files from your MSYS2/mingw32 directory (e.g. C:\\msys64\\mingw32\\bin):
 
  * libao-4.dll
  * libgcc\_s\_dw2-1.dll

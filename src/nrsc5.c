@@ -5,6 +5,11 @@
 
 #include "private.h"
 
+#ifdef __MINGW32__
+#include <fcntl.h>
+#define pipe(fds) _pipe(fds, 65536, _O_BINARY)
+#endif
+
 static int snr_callback(void *arg, float snr)
 {
     nrsc5_t *st = arg;

@@ -15,8 +15,9 @@ before_install:
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update; fi
 
 install:
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install -y libao-dev libfftw3-dev librtlsdr-dev mingw-w64; fi
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install libao fftw librtlsdr xz; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install -y libao-dev libfftw3-dev librtlsdr-dev mingw-w64 python3-pyaudio; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install libao fftw librtlsdr xz portaudio; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then pip3 install pyaudio; fi
 
 before_script:
   - mkdir build
@@ -32,3 +33,4 @@ script:
   - xz -d < ../support/sample.xz | nrsc5 -r - -o sample.wav 0 2> sample.log
   - cat sample.log
   - grep -q "You're Listening to Q" sample.log
+  - xz -d < ../support/sample.xz | ../support/nrsc5.py -r - 0 0

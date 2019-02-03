@@ -16,7 +16,7 @@ before_install:
 
 install:
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install -y libao-dev libfftw3-dev librtlsdr-dev mingw-w64 python3-pyaudio; fi
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install libao fftw librtlsdr xz portaudio; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install libao fftw librtlsdr xz mingw-w64 portaudio; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then pip3 install pyaudio; fi
 
 before_script:
@@ -26,8 +26,8 @@ before_script:
   - make
   - sudo make install
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo ldconfig; fi
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]] && [[ "$TRAVIS_COMPILER" == "gcc" ]]; then CC= ../support/win-cross-compile 32; fi
-  - if [[ "$TRAVIS_OS_NAME" == "linux" ]] && [[ "$TRAVIS_COMPILER" == "gcc" ]]; then CC= ../support/win-cross-compile 64; fi
+  - if [[ "$TRAVIS_COMPILER" == "gcc" ]]; then CC= ../support/win-cross-compile 32; fi
+  - if [[ "$TRAVIS_COMPILER" == "gcc" ]]; then CC= ../support/win-cross-compile 64; fi
 
 script:
   - xz -d < ../support/sample.xz | nrsc5 -r - -o sample.wav 0 2> sample.log

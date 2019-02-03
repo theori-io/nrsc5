@@ -75,7 +75,13 @@ cmake -D CMAKE_SYSTEM_NAME=Windows -D CMAKE_C_COMPILER=${host}-gcc -D CMAKE_LIBR
 C_INCLUDE_PATH=${prefix}/include make
 make install
 
-cp /usr/${host}/lib/libwinpthread-1.dll ${prefix}/bin
+# On MacOS, libwinpthread-1.dll is in /bin so we need to use -print-prog-name.
+# On Linux, libwinpthread-1.dll is in /lib so we need to use -print-file-name.
+LIBWINPTHREAD_PATH="$(${host}-gcc -print-prog-name=libwinpthread-1.dll)"
+if [ ! -e "${LIBWINPTHREAD_PATH}" ]; then
+    LIBWINPTHREAD_PATH="$(${host}-gcc -print-file-name=libwinpthread-1.dll)"
+fi
+cp "${LIBWINPTHREAD_PATH}" "${prefix}/bin"
 
 if [ "$1" == 32 ]; then
     cp "$(${host}-gcc -print-file-name=libgcc_s_sjlj-1.dll)" "${prefix}/bin"

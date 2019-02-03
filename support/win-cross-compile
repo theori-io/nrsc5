@@ -76,4 +76,9 @@ C_INCLUDE_PATH=${prefix}/include make
 make install
 
 cp /usr/${host}/lib/libwinpthread-1.dll ${prefix}/bin
-cp /usr/lib/gcc/${host}/*-win32/libgcc_s_*-1.dll ${prefix}/bin
+
+if [ "$1" == 32 ]; then
+    cp "$(${host}-gcc -print-file-name=libgcc_s_sjlj-1.dll)" "${prefix}/bin"
+elif [ "$1" == 64 ]; then
+    cp "$(${host}-gcc -print-file-name=libgcc_s_seh-1.dll)" "${prefix}/bin"
+fi

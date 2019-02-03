@@ -33,6 +33,9 @@ add_library (
     strndup.c
 )
 set_property(TARGET nrsc5_object PROPERTY POSITION_INDEPENDENT_CODE ON)
+if (USE_FAAD2)
+    add_dependencies(nrsc5_object faad2_external)
+endif ()
 
 set (
     LibraryDependencies

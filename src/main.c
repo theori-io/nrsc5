@@ -14,12 +14,10 @@
  */
 
 #include <ao/ao.h>
-#include <fcntl.h>
 #include <getopt.h>
 #include <nrsc5.h>
 #include <pthread.h>
 #include <sys/time.h>
-#include <unistd.h>
 
 #include <assert.h>
 #include <stdio.h>
@@ -474,13 +472,13 @@ int main(int argc, char *argv[])
 
     if (st->input_name)
     {
-        int fd = strcmp(st->input_name, "-") == 0 ? dup(STDIN_FILENO) : open(st->input_name, O_RDONLY);
-        if (fd < 0)
+        FILE *fp = strcmp(st->input_name, "-") == 0 ? stdin : fopen(st->input_name, "rb");
+        if (fp == NULL)
         {
             log_fatal("Open IQ file failed.");
             return 1;
         }
-        if (nrsc5_open_fd(&radio, fd) != 0)
+        if (nrsc5_open_file(&radio, fp) != 0)
         {
             log_fatal("Open IQ failed.");
             return 1;

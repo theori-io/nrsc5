@@ -6,6 +6,7 @@
  */
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 /*
  * Definitions.
@@ -155,7 +156,7 @@ typedef struct nrsc5_t nrsc5_t;
  * Public functions. All functions return void or an error code (0 == success).
  */
 int nrsc5_open(nrsc5_t **, int device_index, int ppm_error);
-int nrsc5_open_fd(nrsc5_t **, int fd);
+int nrsc5_open_file(nrsc5_t **, FILE *fp);
 int nrsc5_open_pipe(nrsc5_t **);
 void nrsc5_close(nrsc5_t *);
 void nrsc5_start(nrsc5_t *);

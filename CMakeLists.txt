@@ -8,6 +8,7 @@ option (USE_COLOR "Colorize log output")
 option (USE_NEON "Use NEON instructions")
 option (USE_SSE "Use SSE3 instructions")
 option (USE_FAAD2 "AAC decoding with FAAD2" ON)
+set (FAAD2_CONFIGURE_ARGS "" CACHE STRING "Extra arguments for FAAD2 configure command")
 
 find_program (AUTOCONF autoconf)
 if (NOT AUTOCONF)
@@ -67,7 +68,7 @@ if (USE_FAAD2)
         PATCH_COMMAND patch -p1 -Ni "${CMAKE_SOURCE_DIR}/support/faad2-hdc-support.patch" || exit 0
         COMMAND sh ./bootstrap
 
-        CONFIGURE_COMMAND ${FAAD2_PREFIX}/src/faad2_external/configure --prefix=${FAAD2_PREFIX} --with-hdc "CFLAGS=-O3 -fPIC ${CMAKE_C_FLAGS}"
+        CONFIGURE_COMMAND ${FAAD2_PREFIX}/src/faad2_external/configure ${FAAD2_CONFIGURE_ARGS} --prefix=${FAAD2_PREFIX} --with-hdc "CFLAGS=-O3 -fPIC ${CMAKE_C_FLAGS}"
 
         BUILD_COMMAND make
     )

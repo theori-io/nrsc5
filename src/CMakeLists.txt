@@ -29,6 +29,7 @@ add_library (
     galois.c
 
     log.c
+    unicode.c
 
     strndup.c
 )

@@ -17,6 +17,7 @@
 
 #include "defines.h"
 #include "pids.h"
+#include "unicode.h"
 
 static char *chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ ?-*$ ";
 
@@ -81,6 +82,18 @@ char decode_char5(uint8_t *bits, int *off)
 char decode_char7(uint8_t *bits, int *off)
 {
     return (char) decode_int(bits, off, 7);
+}
+
+char *utf8_encode(int encoding, char *buf, int len)
+{
+    if (encoding == 0)
+        return iso_8859_1_to_utf_8((uint8_t *) buf, len);
+    else if (encoding == 4)
+        return ucs_2_to_utf_8((uint8_t *) buf, len);
+    else
+        log_warn("Invalid encoding: %d", encoding);
+
+    return NULL;
 }
 
 void decode_sis(pids_t *st, uint8_t *bits)
@@ -238,10 +251,12 @@ void decode_sis(pids_t *st, uint8_t *bits)
 
                 if (complete)
                 {
-                    if (st->message_encoding == 0)
-                        log_debug("Message (priority %d): %s", st->message_priority, st->message);
-                    else
-                        log_debug("Unsupported encoding: %d", st->message_encoding);
+                    char *utf8 = utf8_encode(st->message_encoding, st->message, st->message_len);
+                    if (utf8)
+                    {
+                        log_debug("Message (priority %d): %s", st->message_priority, utf8);
+                        free(utf8);
+                    }
                     st->message_displayed = 1;
                 }
             }
@@ -398,10 +413,12 @@ void decode_sis(pids_t *st, uint8_t *bits)
 
                     if (complete)
                     {
-                        if (st->slogan_encoding == 0)
-                            log_debug("Slogan: %s", st->slogan);
-                        else
-                            log_warn("Unsupported encoding: %d", st->slogan_encoding);
+                        char *utf8 = utf8_encode(st->slogan_encoding, st->slogan, st->slogan_len);
+                        if (utf8)
+                        {
+                            log_debug("Slogan: %s", utf8);
+                            free(utf8);
+                        }
                         st->slogan_displayed = 1;
                     }
                 }
@@ -444,10 +461,13 @@ void decode_sis(pids_t *st, uint8_t *bits)
 
                 if (complete)
                 {
-                    if (st->alert_encoding == 0)
-                        log_debug("Alert: %s", st->alert + 1 + (2 * st->alert_cnt_len));
-                    else
-                        log_warn("Unsupported encoding: %d", st->alert_encoding);
+                    int cnt_bytes = 1 + (2 * st->alert_cnt_len);
+                    char *utf8 = utf8_encode(st->alert_encoding, st->alert + cnt_bytes, st->alert_len - cnt_bytes);
+                    if (utf8)
+                    {
+                        log_debug("Alert: %s", utf8);
+                        free(utf8);
+                    }
                     st->alert_displayed = 1;
                 }
             }

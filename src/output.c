@@ -24,6 +24,7 @@
 #include "defines.h"
 #include "output.h"
 #include "private.h"
+#include "unicode.h"
 
 void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int program)
 {
@@ -130,19 +131,19 @@ static char *id3_text(uint8_t *buf, unsigned int frame_len)
 {
     char *text;
 
-    if (frame_len == 0)
+    if (frame_len > 0)
     {
-        text = (char *) malloc(1);
-        text[0] = 0;
-        return text;
+        if (buf[0] == 0)
+            return iso_8859_1_to_utf_8(buf + 1, frame_len - 1);
+        else if (buf[0] == 1)
+            return ucs_2_to_utf_8(buf + 1, frame_len - 1);
+        else
+            log_warn("Invalid encoding: %d", buf[0]);
     }
-    else
-    {
-        text = (char *) malloc(frame_len);
-        memcpy(text, buf + 1, frame_len - 1);
-        text[frame_len - 1] = 0;
-        return text;
-    }
+
+    text = malloc(1);
+    text[0] = 0;
+    return text;
 }
 
 static void output_id3(output_t *st, unsigned int program, uint8_t *buf, unsigned int len)

@@ -23,6 +23,10 @@
 #include <stdio.h>
 #include <string.h>
 
+#ifdef __MINGW32__
+#include <windows.h>
+#endif
+
 #include "bitwriter.h"
 #include "log.h"
 
@@ -460,6 +464,10 @@ int main(int argc, char *argv[])
     pthread_mutex_t log_mutex;
     nrsc5_t *radio = NULL;
     state_t *st = calloc(1, sizeof(state_t));
+
+#ifdef __MINGW32__
+    SetConsoleOutputCP(CP_UTF8);
+#endif
 
     pthread_mutex_init(&log_mutex, NULL);
     log_set_lock(log_lock);

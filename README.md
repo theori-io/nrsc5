@@ -1,23 +1,16 @@
-### Dependencies
+# nrsc5
 
-The following packages are required:
+This program receives NRSC-5 digital radio stations using an RTL-SDR dongle. It offers a command-line interface as well as an API upon which other applications can be built. Before using it, you'll first need to compile the program using the build instructions below.
 
- * git
- * build-essential
- * cmake
- * autoconf
- * libtool
- * libao-dev
- * libfftw3-dev
- * librtlsdr-dev
+## Building on Ubuntu, Debian or Raspbian
 
-### Build Instructions
-
-     $ mkdir build && cd build
-     $ cmake [options] ..
-     $ make
-     $ sudo make install
-     $ sudo ldconfig
+    $ sudo apt install git build-essential cmake autoconf libtool libao-dev libfftw3-dev librtlsdr-dev
+    $ mkdir build
+    $ cd build
+    $ cmake [options] ..
+    $ make
+    $ sudo make install
+    $ sudo ldconfig
 
 Available build options:
 
@@ -30,19 +23,62 @@ You can test the program using the included sample capture:
 
      $ xz -d < ../support/sample.xz | src/nrsc5 -r - 0
 
-### Building on Debian / Ubuntu
-
-     $ sudo apt install git build-essential cmake autoconf libtool libao-dev libfftw3-dev librtlsdr-dev
-
-### Building with [Homebrew](https://brew.sh)
+## Building on macOS using [Homebrew](https://brew.sh)
 
      $ brew install --HEAD https://raw.githubusercontent.com/theori-io/nrsc5/master/nrsc5.rb
 
+## Building for Windows
+
+To build the program for Windows, you can either use [MSYS2](http://www.msys2.org) on Windows, or else use a cross-compiler on an Ubuntu, Debian or macOS machine. Scripts are provided to help with both cases.
+
+### Building on Windows with MSYS2
+
+Install [MSYS2](http://www.msys2.org). Open a terminal using the "MSYS2 MinGW 32-bit" shortcut. (Or use the 64-bit shortcut if you prefer a 64-bit build.)
+
+    $ pacman -Syu
+
+If this is the first time running pacman, you will be told to close the terminal window. After doing so, reopen using the same shortcut as before.
+
+    $ pacman -Su
+    $ pacman -S git
+    $ git clone https://github.com/theori-io/nrsc5.git
+    $ nrsc5/support/msys2-build
+
+You can test your installation using the included sample file:
+
+    $ cd ~/nrsc5/support
+    $ xz -d sample.xz
+    $ nrsc5.exe -r sample 0
+
+If the sample file does not work, make sure you followed all of the instructions. If it still doesn't work, file an issue with the error message. Please put "[Windows]" in the title of the issue.
+
+Once everything is built, you can run nrsc5 independently of MSYS2. Copy the following files from your MSYS2/mingw32 directory (e.g. C:\\msys64\\mingw32\\bin):
+
+* libao-4.dll
+* libgcc\_s\_dw2-1.dll
+* libnrsc5.dll
+* librtlsdr.dll
+* libusb-1.0.dll
+* libwinpthread-1.dll
+* nrsc5.exe
+
+### Cross-compiling for Windows from Ubuntu / Debian
+
+    $ sudo apt install mingw-w64
+    $ support/win-cross-compile 32
+
+Replace `32` with `64` if you want a 64-bit build. Once the build is complete, copy `*.dll` and `nrsc5.exe` from the `build-win32/bin` (or `build-win64/bin`) folder to your Windows machine.
+
+### Cross-compiling for Windows from macOS
+
+    $ brew install mingw-w64
+    $ support/win-cross-compile 32
+
+Replace `32` with `64` if you want a 64-bit build. Once the build is complete, copy `*.dll` and `nrsc5.exe` from the `build-win32/bin` (or `build-win64/bin`) folder to your Windows machine.
+
 ## Usage
 
-This was designed for use with an RTL-SDR dongle since that was our testing platform.
-
-### Options:
+### Command-line options:
 
        frequency                       center frequency in MHz or Hz
                                          (do not provide frequency when reading from file)
@@ -82,45 +118,6 @@ Tune to 90.5 MHz and convert audio program 0 to WAV format for playback in an ex
 
      $ nrsc5 -o - 90.5 0 | mplayer -
 
-## Windows
+### RTL-SDR drivers on Windows
 
-The only build environment that has been tested on Windows is MSYS2 with MinGW. Unfortunately, some of the dependencies need to be compiled manually. The instructions below build and install fftw, libao, libusb, and rtl-sdr, as well as nrsc5.
-
-### Building with [MSYS2](http://www.msys2.org)
-
-Install MSYS2. Open a terminal using the "MSYS2 MinGW 32-bit" shortcut. (Or use the 64-bit shortcut if you prefer a 64-bit build.)
-
-     $ pacman -Syu
-
-If this is the first time running pacman, you will be told to close the terminal window. After doing so, reopen using the same shortcut as before.
-
-     $ pacman -Su
-     $ pacman -S git
-     $ git clone https://github.com/theori-io/nrsc5.git
-     $ nrsc5/support/msys2-build
-
-You can test your installation using the included sample file:
-
-     $ cd ~/nrsc5/support
-     $ xz -d sample.xz
-     $ nrsc5.exe -r sample 0
-
-If the sample file does not work, make sure you followed all of the instructions. If it still doesn't work, file an issue with the error message. Please put "[Windows]" in the title of the issue.
-
-### Packaging
-
-Once everything is built, you can run nrsc5 independently of MSYS2. Copy the following files from your MSYS2/mingw32 directory (e.g. C:\\msys64\\mingw32\\bin):
-
- * libao-4.dll
- * libgcc\_s\_dw2-1.dll
- * libnrsc5.dll
- * librtlsdr.dll
- * libusb-1.0.dll
- * libwinpthread-1.dll
- * nrsc5.exe
-
-### Running
-
-See **Usage** section above.
-
-If you get errors trying to access your RTL-SDR device, then you may need to use [Zadig](http://zadig.akeo.ie/) to change the USB driver. Once you download and run Zadig, select your RTL-SDR device and then click "Replace Driver". If your device is not listed, enable "Options" -> "List All Devices".
+If you get errors trying to access your RTL-SDR device, then you may need to use [Zadig](http://zadig.akeo.ie/) to change the USB driver. Once you download and run Zadig, select your RTL-SDR device, ensure the driver is set to WinUSB, and then click "Replace Driver". If your device is not listed, enable "Options" -> "List All Devices".

@@ -16,7 +16,7 @@ if [ ! -d fftw-${fftw_version} ]; then
 fi
 if [ ! -e ${MINGW_PREFIX}/lib/libfftw3f.a ]; then
     cd fftw-${fftw_version}
-    ./configure --enable-float --enable-sse2 --with-our-malloc
+    ./configure --enable-float --enable-sse2 --enable-avx --with-our-malloc
     make
     make install
 fi

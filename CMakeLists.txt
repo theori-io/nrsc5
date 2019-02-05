@@ -69,8 +69,6 @@ if (USE_FAAD2)
         COMMAND sh ./bootstrap
 
         CONFIGURE_COMMAND ${FAAD2_PREFIX}/src/faad2_external/configure ${FAAD2_CONFIGURE_ARGS} --prefix=${FAAD2_PREFIX} --with-hdc "CFLAGS=-O3 -fPIC ${CMAKE_C_FLAGS}"
-
-        BUILD_COMMAND make
     )
 
     add_library (faad2 STATIC IMPORTED)

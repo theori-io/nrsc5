@@ -394,14 +394,14 @@ static void process_fixed_block(frame_t *st, int i)
     parse_hdlc(st, aas_push, subch->data, &subch->idx, MAX_AAS_LEN, &subch->blocks[4], 255);
 }
 
-static void process_fixed_data(frame_t *st)
+static size_t process_fixed_data(frame_t *st, size_t length)
 {
     static const uint8_t bbm[] = { 0x7D, 0x3A, 0xE2, 0x42 };
-    unsigned int sync = st->buffer[PDU_LEN - 1];
+    uint8_t *p = &st->buffer[length - 1];
 
     if (st->sync_count < 2)
     {
-        unsigned int width = (sync & 0xF) * 2;
+        unsigned int width = (*p & 0xF) * 2;
         if (st->sync_width == width)
             st->sync_count++;
         else
@@ -409,16 +409,16 @@ static void process_fixed_data(frame_t *st)
         st->sync_width = width;
 
         if (st->sync_count < 2)
-            return;
+            return p - st->buffer;
     }
 
-    parse_hdlc(st, process_fixed_ccc, st->ccc_buf, &st->ccc_idx, sizeof(st->ccc_buf), &st->buffer[PDU_LEN - st->sync_width - 1], st->sync_width);
+    p -= st->sync_width;
+    parse_hdlc(st, process_fixed_ccc, st->ccc_buf, &st->ccc_idx, sizeof(st->ccc_buf), p, st->sync_width);
 
     // wait until we have subchannel information
     if (!st->fixed_ready)
-        return;
+        return p - st->buffer;
 
-    uint8_t *p = &st->buffer[PDU_LEN - st->sync_width - 1];
     for (int i = 3; i >= 0; i--)
     {
         fixed_subchannel_t *subch = &st->subchannel[i];
@@ -446,6 +446,8 @@ static void process_fixed_data(frame_t *st)
             }
         }
     }
+
+    return p - st->buffer;
 }
 
 void frame_process(frame_t *st, size_t length)
@@ -453,7 +455,7 @@ void frame_process(frame_t *st, size_t length)
     unsigned int offset = 0;
 
     if (has_fixed(st))
-        process_fixed_data(st);
+        length = process_fixed_data(st, length);
 
     while (offset < length - 96)
     {

@@ -38,7 +38,7 @@
 // bits per L2 PCI
 #define PCI_LEN 24
 // bytes per L2 PDU (max)
-#define PDU_LEN ((P1_FRAME_LEN - PCI_LEN) / 8)
+#define MAX_PDU_LEN ((P1_FRAME_LEN - PCI_LEN) / 8)
 // number of programs (max)
 #define MAX_PROGRAMS 8
 

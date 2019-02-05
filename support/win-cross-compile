@@ -2,11 +2,6 @@
 
 set -e
 
-fftw_version=3.3.8
-libao_version=1.2.2
-libusb_version=v1.0.22
-rtlsdr_version=0.6.0
-
 root=`git rev-parse --show-toplevel`
 if [ "$1" == 32 ]; then
     prefix=${root}/build-win32
@@ -15,76 +10,24 @@ elif [ "$1" == 64 ]; then
     prefix=${root}/build-win64
     host=x86_64-w64-mingw32
 else
-    echo "Usage: $0 (32|64)"
+    echo "Usage: $0 (32|64) [make flags]"
     exit 1
 fi
+shift
 
 mkdir -p ${prefix}
 
 cd ${prefix}
-if [ ! -d fftw-${fftw_version} ]; then
-    curl -L http://www.fftw.org/fftw-${fftw_version}.tar.gz | tar xz
-fi
-if [ ! -e ${prefix}/lib/libfftw3f.a ]; then
-    cd fftw-${fftw_version}
-    ./configure --host=${host} --prefix=${prefix} --enable-float --enable-sse2 --enable-avx --with-our-malloc
-    make
-    make install
-fi
-
-cd ${prefix}
-if [ ! -d libao ]; then
-    git clone https://git.xiph.org/libao.git
-fi
-if [ ! -e ${prefix}/bin/libao-4.dll ]; then
-    cd libao
-    git checkout ${libao_version}
-    ./autogen.sh
-    LDFLAGS=-lksuser ./configure --host=${host} --prefix=${prefix} --enable-wmm --disable-pulse
-    make
-    make install
-fi
-
-cd ${prefix}
-if [ ! -d libusb ]; then
-    git clone https://github.com/libusb/libusb.git
-fi
-if [ ! -e ${prefix}/bin/libusb-1.0.dll ]; then
-    cd libusb
-    git checkout ${libusb_version}
-    ./autogen.sh --host=${host} --prefix=${prefix}
-    make
-    make install
-fi
-
-cd ${prefix}
-if [ ! -d rtl-sdr ]; then
-    git clone git://git.osmocom.org/rtl-sdr.git
-fi
-if [ ! -e ${prefix}/bin/librtlsdr.dll ]; then
-    mkdir -p rtl-sdr/build
-    cd rtl-sdr/build
-    git checkout ${rtlsdr_version}
-    cmake -D CMAKE_SYSTEM_NAME=Windows -D CMAKE_C_COMPILER=${host}-gcc -D LIBUSB_FOUND=1 -D LIBUSB_INCLUDE_DIR=${prefix}/include/libusb-1.0 -D "LIBUSB_LIBRARIES=-L${prefix}/lib -lusb-1.0" -D THREADS_PTHREADS_WIN32_LIBRARY=/usr/${host}/lib/libpthread.a -D THREADS_PTHREADS_INCLUDE_DIR=/usr/${host}/include -D CMAKE_INSTALL_PREFIX=${prefix} ..
-    make
-    make install
-fi
-
-cd ${prefix}
-cmake -D CMAKE_SYSTEM_NAME=Windows -D CMAKE_C_COMPILER=${host}-gcc -D CMAKE_LIBRARY_PATH=${prefix}/lib -D FAAD2_CONFIGURE_ARGS="--host=${host}" -D USE_COLOR=OFF -D USE_SSE=ON -D CMAKE_INSTALL_PREFIX=${prefix} ..
-C_INCLUDE_PATH=${prefix}/include make
+cmake \
+    -D CMAKE_SYSTEM_NAME=Windows \
+    -D CMAKE_C_COMPILER=${host}-gcc \
+    -D CMAKE_INSTALL_PREFIX=${prefix} \
+    -D USE_SSE=ON \
+    -D USE_STATIC=ON \
+    -D USE_SYSTEM_LIBUSB=OFF \
+    -D USE_SYSTEM_RTLSDR=OFF \
+    -D USE_SYSTEM_LIBAO=OFF \
+    -D USE_SYSTEM_FFTW=OFF \
+    ..
+make $*
 make install
-
-# On MacOS, libwinpthread-1.dll is in /bin so we need to use -print-prog-name.
-# On Linux, libwinpthread-1.dll is in /lib so we need to use -print-file-name.
-LIBWINPTHREAD_PATH="$(${host}-gcc -print-prog-name=libwinpthread-1.dll)"
-if [ ! -e "${LIBWINPTHREAD_PATH}" ]; then
-    LIBWINPTHREAD_PATH="$(${host}-gcc -print-file-name=libwinpthread-1.dll)"
-fi
-cp "${LIBWINPTHREAD_PATH}" "${prefix}/bin"
-
-if [ "$1" == 32 ]; then
-    cp "$(${host}-gcc -print-file-name=libgcc_s_sjlj-1.dll)" "${prefix}/bin"
-elif [ "$1" == 64 ]; then
-    cp "$(${host}-gcc -print-file-name=libgcc_s_seh-1.dll)" "${prefix}/bin"
-fi

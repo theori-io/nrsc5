@@ -11,6 +11,9 @@ elseif (CMAKE_SYSTEM_NAME MATCHES Darwin)
 elseif (CMAKE_SYSTEM_NAME MATCHES Windows)
     set (EXPORTS_LINKER_FLAGS "-Wl,--exclude-all-symbols")
 endif()
+if (USE_STATIC)
+    set (STATIC_LINKER_FLAGS -static)
+endif()
 
 configure_file (config.h.in config.h)
 include_directories ("${CMAKE_CURRENT_BINARY_DIR}" "${CMAKE_SOURCE_DIR}/include")
@@ -39,8 +42,8 @@ add_library (
     strndup.c
 )
 set_property(TARGET nrsc5_object PROPERTY POSITION_INDEPENDENT_CODE ON)
-if (USE_FAAD2)
-    add_dependencies(nrsc5_object faad2_external)
+if (BUILTIN_LIBRARIES)
+    add_dependencies(nrsc5_object ${BUILTIN_LIBRARIES})
 endif ()
 
 set (
@@ -61,7 +64,7 @@ target_link_libraries (
     ${LibraryDependencies}
 )
 set_target_properties(nrsc5 PROPERTIES PUBLIC_HEADER "../include/nrsc5.h")
-set_target_properties(nrsc5 PROPERTIES LINK_FLAGS "${EXPORTS_LINKER_FLAGS}")
+set_target_properties(nrsc5 PROPERTIES LINK_FLAGS "${STATIC_LINKER_FLAGS} ${EXPORTS_LINKER_FLAGS}")
 
 add_library (
     nrsc5_static
@@ -77,6 +80,7 @@ add_executable (
     main.c
 )
 set_property (TARGET app PROPERTY OUTPUT_NAME nrsc5)
+set_target_properties(app PROPERTIES LINK_FLAGS "${STATIC_LINKER_FLAGS}")
 target_link_libraries (
     app
     nrsc5_static

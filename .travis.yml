@@ -10,13 +10,17 @@ compiler:
   - gcc
   - clang
 
+cache: ccache
+
 before_install:
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get -qq update; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew update; fi
 
 install:
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install -y libao-dev libfftw3-dev librtlsdr-dev mingw-w64 python3-pyaudio; fi
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install libao fftw librtlsdr xz mingw-w64 portaudio wine; fi
+  - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo ln -s /usr/bin/ccache /usr/lib/ccache/i686-w64-mingw32-gcc; sudo ln -s /usr/bin/ccache /usr/lib/ccache/x86_64-w64-mingw32-gcc; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install libao fftw librtlsdr xz mingw-w64 portaudio wine ccache; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then export PATH="/usr/local/opt/ccache/libexec:$PATH"; ln -s /usr/local/bin/ccache /usr/local/opt/ccache/libexec/i686-w64-mingw32-gcc; ln -s /usr/local/bin/ccache /usr/local/opt/ccache/libexec/x86_64-w64-mingw32-gcc; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then pip3 install pyaudio; fi
 
 before_script:

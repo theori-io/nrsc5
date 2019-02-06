@@ -27,11 +27,11 @@ before_script:
   - mkdir build
   - cd build
   - cmake ..
-  - make
+  - make -j3
   - sudo make install
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo ldconfig; fi
-  - if [[ "$TRAVIS_COMPILER" == "gcc" ]]; then CC= ../support/win-cross-compile 32; fi
-  - if [[ "$TRAVIS_COMPILER" == "gcc" ]]; then CC= ../support/win-cross-compile 64; fi
+  - if [[ "$TRAVIS_COMPILER" == "gcc" ]]; then CC= ../support/win-cross-compile 32 -j3; fi
+  - if [[ "$TRAVIS_COMPILER" == "gcc" ]]; then CC= ../support/win-cross-compile 64 -j3; fi
 
 script:
   - xz -d < ../support/sample.xz > sample

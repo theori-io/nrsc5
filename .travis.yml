@@ -16,7 +16,7 @@ before_install:
 
 install:
   - if [[ "$TRAVIS_OS_NAME" == "linux" ]]; then sudo apt-get install -y libao-dev libfftw3-dev librtlsdr-dev mingw-w64 python3-pyaudio; fi
-  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install libao fftw librtlsdr xz mingw-w64 portaudio; fi
+  - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then brew install libao fftw librtlsdr xz mingw-w64 portaudio wine; fi
   - if [[ "$TRAVIS_OS_NAME" == "osx" ]]; then pip3 install pyaudio; fi
 
 before_script:
@@ -30,7 +30,13 @@ before_script:
   - if [[ "$TRAVIS_COMPILER" == "gcc" ]]; then CC= ../support/win-cross-compile 64; fi
 
 script:
-  - xz -d < ../support/sample.xz | nrsc5 -r - -o sample.wav 0 2> sample.log
+  - xz -d < ../support/sample.xz > sample
+  - nrsc5 -r sample -o sample.wav 0 2> sample.log
   - cat sample.log
   - grep -q "You're Listening to Q" sample.log
-  - xz -d < ../support/sample.xz | ../support/nrsc5.py -r - 0 0
+  - cat sample | nrsc5 -r - -o sample.wav 0 2> sample.log
+  - grep -q "You're Listening to Q" sample.log
+  - ../support/nrsc5.py -r sample 0 0
+  - cat sample | ../support/nrsc5.py -r - 0 0
+  - if [[ "TRAVIS_OS_NAME" == "osx" && "$TRAVIS_COMPILER" == "gcc" ]]; then wine ../build-win32/bin/nrsc5.exe -r sample -o sample.wav 0 2> sample.log && grep -q "You're Listening to Q" sample.log; fi
+  - if [[ "TRAVIS_OS_NAME" == "osx" && "$TRAVIS_COMPILER" == "gcc" ]]; then wine ../build-win64/bin/nrsc5.exe -r sample -o sample.wav 0 2> sample.log && grep -q "You're Listening to Q" sample.log; fi

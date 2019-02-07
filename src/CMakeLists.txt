@@ -25,8 +25,8 @@ add_library (
 
     conv_dec.c
 
-    reed-solomon.c
-    galois.c
+    rs_init.c
+    rs_decode.c
 
     log.c
     unicode.c

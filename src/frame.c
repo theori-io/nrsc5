@@ -18,7 +18,7 @@
 #include "defines.h"
 #include "frame.h"
 #include "input.h"
-#include "reed-solomon.h"
+#include "rs_char.h"
 
 #define PCI_AUDIO 0x38D8D3
 #define PCI_AUDIO_FIXED 0xE3634C
@@ -141,24 +141,30 @@ static int has_fixed(frame_t *st)
     return st->pci == PCI_AUDIO_FIXED || st->pci == PCI_AUDIO_FIXED_OPP;
 }
 
-static int fix_header(uint8_t *buf)
+static int fix_header(frame_t *st, uint8_t *buf)
 {
-    uint8_t hdr[255];
-    int corrections;
-    memset(hdr, 0, sizeof(hdr));
-    memcpy(hdr, buf, 96);
-    corrections = (int)rs_decode(hdr);
-    if (corrections >= 0)
-    {
-        if (corrections)
-            log_debug("RS corrected %d symbols", corrections);
-        memcpy(buf, hdr, 96);
-        return 1;
-    }
-    else
-    {
+    uint8_t hdr[RS_BLOCK_LEN];
+    int i, corrections;
+
+    memset(hdr, 0, RS_BLOCK_LEN-RS_CODEWORD_LEN);
+    for (i = 0; i < RS_CODEWORD_LEN; i++)
+        hdr[RS_BLOCK_LEN-i-1] = buf[i];
+
+    corrections = decode_rs_char(st->rs_dec, hdr, NULL, 0);
+
+    if (corrections == -1)
         return 0;
-    }
+
+    for (i = 0; i < RS_BLOCK_LEN-RS_CODEWORD_LEN; i++)
+        if (hdr[i] != 0)
+            return 0;
+
+    if (corrections > 0)
+        log_debug("RS corrected %d symbols", corrections);
+
+    for (i = 0; i < RS_CODEWORD_LEN; i++)
+        buf[i] = hdr[RS_BLOCK_LEN-i-1];
+    return 1;
 }
 
 static void parse_header(uint8_t *buf, frame_header_t *hdr)
@@ -457,7 +463,7 @@ void frame_process(frame_t *st, size_t length)
     if (has_fixed(st))
         length = process_fixed_data(st, length);
 
-    while (offset < length - 96)
+    while (offset < length - RS_CODEWORD_LEN)
     {
         unsigned int start = offset;
         unsigned int j, lc_bits, loc_bytes, prog;
@@ -465,7 +471,7 @@ void frame_process(frame_t *st, size_t length)
         frame_header_t hdr = {0};
         hef_t hef = {0};
 
-        if (!fix_header(st->buffer + offset))
+        if (!fix_header(st, st->buffer + offset))
             return;
 
         parse_header(st->buffer + offset, &hdr);
@@ -596,6 +602,11 @@ void frame_reset(frame_t *st)
 void frame_init(frame_t *st, input_t *input)
 {
     st->input = input;
-    rs_init();
+    st->rs_dec = init_rs_char(8, 0x11d, 1, 1, 8);
     frame_reset(st);
+}
+
+void frame_free(frame_t *st)
+{
+    free_rs_char(st->rs_dec);
 }

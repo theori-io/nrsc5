@@ -216,6 +216,7 @@ void input_init(input_t *st, nrsc5_t *radio, output_t *output)
 void input_free(input_t *st)
 {
     acquire_free(&st->acq);
+    frame_free(&st->frame);
 
     firdecim_q15_free(st->decim);
     fftwf_destroy_plan(st->snr_fft);

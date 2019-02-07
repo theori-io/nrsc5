@@ -3,6 +3,8 @@
 #include "defines.h"
 
 #define MAX_AAS_LEN 8212
+#define RS_BLOCK_LEN 255
+#define RS_CODEWORD_LEN 96
 
 typedef struct
 {
@@ -31,9 +33,11 @@ typedef struct
     int ccc_idx;
     fixed_subchannel_t subchannel[4];
     int fixed_ready;
+    void *rs_dec;
 } frame_t;
 
 void frame_push(frame_t *st, uint8_t *bits, size_t length);
 void frame_reset(frame_t *st);
 void frame_set_program(frame_t *st, unsigned int program);
 void frame_init(frame_t *st, struct input_t *input);
+void frame_free(frame_t *st);

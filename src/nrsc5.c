@@ -3,6 +3,12 @@
 
 #include "private.h"
 
+#ifdef __MINGW32__
+#define NRSC5_API __declspec(dllexport)
+#else
+#define NRSC5_API
+#endif
+
 static int snr_callback(void *arg, float snr)
 {
     nrsc5_t *st = arg;
@@ -169,7 +175,7 @@ static void nrsc5_init(nrsc5_t *st)
     pthread_create(&st->worker, NULL, worker_thread, st);
 }
 
-int nrsc5_open(nrsc5_t **result, int device_index, int ppm_error)
+NRSC5_API int nrsc5_open(nrsc5_t **result, int device_index, int ppm_error)
 {
     int err;
     nrsc5_t *st = calloc(1, sizeof(*st));
@@ -200,7 +206,7 @@ error_init:
     return 1;
 }
 
-int nrsc5_open_file(nrsc5_t **result, FILE *fp)
+NRSC5_API int nrsc5_open_file(nrsc5_t **result, FILE *fp)
 {
     nrsc5_t *st;
 
@@ -213,7 +219,7 @@ int nrsc5_open_file(nrsc5_t **result, FILE *fp)
     return 0;
 }
 
-int nrsc5_open_pipe(nrsc5_t **result)
+NRSC5_API int nrsc5_open_pipe(nrsc5_t **result)
 {
     nrsc5_t *st;
 
@@ -225,7 +231,7 @@ int nrsc5_open_pipe(nrsc5_t **result)
     return 0;
 }
 
-void nrsc5_close(nrsc5_t *st)
+NRSC5_API void nrsc5_close(nrsc5_t *st)
 {
     if (!st)
         return;
@@ -249,7 +255,7 @@ void nrsc5_close(nrsc5_t *st)
     free(st);
 }
 
-void nrsc5_start(nrsc5_t *st)
+NRSC5_API void nrsc5_start(nrsc5_t *st)
 {
     // signal the worker to start
     pthread_mutex_lock(&st->worker_mutex);
@@ -258,7 +264,7 @@ void nrsc5_start(nrsc5_t *st)
     pthread_mutex_unlock(&st->worker_mutex);
 }
 
-void nrsc5_stop(nrsc5_t *st)
+NRSC5_API void nrsc5_stop(nrsc5_t *st)
 {
     // signal the worker to stop
     pthread_mutex_lock(&st->worker_mutex);
@@ -273,7 +279,7 @@ void nrsc5_stop(nrsc5_t *st)
     pthread_mutex_unlock(&st->worker_mutex);
 }
 
-void nrsc5_get_frequency(nrsc5_t *st, float *freq)
+NRSC5_API void nrsc5_get_frequency(nrsc5_t *st, float *freq)
 {
     if (st->dev)
         *freq = rtlsdr_get_center_freq(st->dev);
@@ -281,7 +287,7 @@ void nrsc5_get_frequency(nrsc5_t *st, float *freq)
         *freq = st->freq;
 }
 
-int nrsc5_set_frequency(nrsc5_t *st, float freq)
+NRSC5_API int nrsc5_set_frequency(nrsc5_t *st, float freq)
 {
     if (st->freq == freq)
         return 0;
@@ -303,7 +309,7 @@ int nrsc5_set_frequency(nrsc5_t *st, float freq)
     return 0;
 }
 
-void nrsc5_get_gain(nrsc5_t *st, float *gain)
+NRSC5_API void nrsc5_get_gain(nrsc5_t *st, float *gain)
 {
     if (st->dev)
         *gain = rtlsdr_get_tuner_gain(st->dev) / 10.0f;
@@ -311,7 +317,7 @@ void nrsc5_get_gain(nrsc5_t *st, float *gain)
         *gain = st->gain;
 }
 
-int nrsc5_set_gain(nrsc5_t *st, float gain)
+NRSC5_API int nrsc5_set_gain(nrsc5_t *st, float gain)
 {
     if (st->gain == gain)
         return 0;
@@ -328,13 +334,13 @@ int nrsc5_set_gain(nrsc5_t *st, float gain)
     return 0;
 }
 
-void nrsc5_set_auto_gain(nrsc5_t *st, int enabled)
+NRSC5_API void nrsc5_set_auto_gain(nrsc5_t *st, int enabled)
 {
     st->auto_gain = enabled;
     st->gain = -1;
 }
 
-void nrsc5_set_callback(nrsc5_t *st, nrsc5_callback_t callback, void *opaque)
+NRSC5_API void nrsc5_set_callback(nrsc5_t *st, nrsc5_callback_t callback, void *opaque)
 {
     pthread_mutex_lock(&st->worker_mutex);
     st->callback = callback;
@@ -342,7 +348,7 @@ void nrsc5_set_callback(nrsc5_t *st, nrsc5_callback_t callback, void *opaque)
     pthread_mutex_unlock(&st->worker_mutex);
 }
 
-int nrsc5_pipe_samples(nrsc5_t *st, uint8_t *samples, unsigned int length)
+NRSC5_API int nrsc5_pipe_samples(nrsc5_t *st, uint8_t *samples, unsigned int length)
 {
     input_push(&st->input, samples, length);
 

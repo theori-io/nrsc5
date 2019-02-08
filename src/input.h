@@ -17,6 +17,8 @@
 
 typedef int (*input_snr_cb_t) (void *, float);
 
+enum { SYNC_STATE_NONE, SYNC_STATE_COARSE, SYNC_STATE_FINE };
+
 typedef struct input_t
 {
     nrsc5_t *radio;
@@ -25,6 +27,7 @@ typedef struct input_t
     firdecim_q15 decim;
     cint16_t buffer[INPUT_BUF_LEN];
     unsigned int avail, used, skip;
+    unsigned int sync_state;
 
     fftwf_plan snr_fft;
     float complex snr_fft_in[64];

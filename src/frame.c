@@ -472,7 +472,11 @@ void frame_process(frame_t *st, size_t length)
         hef_t hef = {0};
 
         if (!fix_header(st, st->buffer + offset))
+        {
+            if (offset == 0)
+                st->input->sync_state = SYNC_STATE_NONE;
             return;
+        }
 
         parse_header(st->buffer + offset, &hdr);
         offset += 14;

@@ -184,6 +184,7 @@ void input_reset(input_t *st)
     st->avail = 0;
     st->used = 0;
     st->skip = 0;
+    st->sync_state = SYNC_STATE_NONE;
     for (int i = 0; i < 64; ++i)
         st->snr_power[i] = 0;
     st->snr_cnt = 0;

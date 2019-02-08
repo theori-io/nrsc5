@@ -1,0 +1,13 @@
+_nrsc5_open
+_nrsc5_open_file
+_nrsc5_open_pipe
+_nrsc5_close
+_nrsc5_start
+_nrsc5_stop
+_nrsc5_get_frequency
+_nrsc5_set_frequency
+_nrsc5_get_gain
+_nrsc5_set_gain
+_nrsc5_set_auto_gain
+_nrsc5_set_callback
+_nrsc5_pipe_samples

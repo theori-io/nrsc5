@@ -4,8 +4,16 @@ add_definitions (-D_GNU_SOURCE)
 set (THREAD_LIBRARY pthread)
 if (CMAKE_SYSTEM_NAME MATCHES Linux)
     check_library_exists (${THREAD_LIBRARY} pthread_setname_np "" HAVE_PTHREAD_SETNAME_NP)
+    set (EXPORTS_LINKER_FLAGS "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/libnrsc5.map")
+elseif (CMAKE_SYSTEM_NAME MATCHES Darwin)
+    set (CMAKE_MACOSX_RPATH ON)
+    set (EXPORTS_LINKER_FLAGS "-exported_symbols_list ${CMAKE_CURRENT_SOURCE_DIR}/libnrsc5.sym")
+elseif (CMAKE_SYSTEM_NAME MATCHES Windows)
+    set (EXPORTS_LINKER_FLAGS "-Wl,--exclude-all-symbols")
 endif()
-set (CMAKE_MACOSX_RPATH ON)
+if (USE_STATIC)
+    set (STATIC_LINKER_FLAGS -static)
+endif()
 
 configure_file (config.h.in config.h)
 include_directories ("${CMAKE_CURRENT_BINARY_DIR}" "${CMAKE_SOURCE_DIR}/include")
@@ -34,8 +42,8 @@ add_library (
     strndup.c
 )
 set_property(TARGET nrsc5_object PROPERTY POSITION_INDEPENDENT_CODE ON)
-if (USE_FAAD2)
-    add_dependencies(nrsc5_object faad2_external)
+if (BUILTIN_LIBRARIES)
+    add_dependencies(nrsc5_object ${BUILTIN_LIBRARIES})
 endif ()
 
 set (
@@ -56,6 +64,7 @@ target_link_libraries (
     ${LibraryDependencies}
 )
 set_target_properties(nrsc5 PROPERTIES PUBLIC_HEADER "../include/nrsc5.h")
+set_target_properties(nrsc5 PROPERTIES LINK_FLAGS "${STATIC_LINKER_FLAGS} ${EXPORTS_LINKER_FLAGS}")
 
 add_library (
     nrsc5_static
@@ -71,6 +80,7 @@ add_executable (
     main.c
 )
 set_property (TARGET app PROPERTY OUTPUT_NAME nrsc5)
+set_target_properties(app PROPERTIES LINK_FLAGS "${STATIC_LINKER_FLAGS}")
 target_link_libraries (
     app
     nrsc5_static

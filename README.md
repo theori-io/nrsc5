@@ -54,12 +54,7 @@ If the sample file does not work, make sure you followed all of the instructions
 
 Once everything is built, you can run nrsc5 independently of MSYS2. Copy the following files from your MSYS2/mingw32 directory (e.g. C:\\msys64\\mingw32\\bin):
 
-* libao-4.dll
-* libgcc\_s\_dw2-1.dll
 * libnrsc5.dll
-* librtlsdr.dll
-* libusb-1.0.dll
-* libwinpthread-1.dll
 * nrsc5.exe
 
 ### Cross-compiling for Windows from Ubuntu / Debian

@@ -1,6 +1,7 @@
 /build/
 /build-win32/
 /build-win64/
+__pycache__
 
 # Swap
 [._]*.s[a-v][a-z]

@@ -1,61 +1,88 @@
-#!/usr/bin/env python3
-
 from ctypes import *
-import argparse
+import collections
 import enum
 import platform
-import pyaudio
-import queue
-import sys
-import threading
-import time
-
-audio_queue = queue.Queue(maxsize=32)
-hd_program = 0
-
-
-def audio_worker():
-    p = pyaudio.PyAudio()
-    try:
-        index = p.get_default_output_device_info()["index"]
-        stream = p.open(format=pyaudio.paInt16,
-                        channels=2,
-                        rate=44100,
-                        output_device_index=index,
-                        output=True)
-    except OSError:
-        print("No audio output device available.")
-        stream = None
-
-    while True:
-        samples = audio_queue.get()
-        if samples is None:
-            break
-        if stream:
-            stream.write(samples)
-        audio_queue.task_done()
-
-    if stream:
-        stream.stop_stream()
-        stream.close()
-    p.terminate()
 
 
 class EventType(enum.Enum):
-    NRSC5_EVENT_LOST_DEVICE = 0
-    NRSC5_EVENT_IQ = 1
-    NRSC5_EVENT_SYNC = 2
-    NRSC5_EVENT_LOST_SYNC = 3
-    NRSC5_EVENT_MER = 4
-    NRSC5_EVENT_BER = 5
-    NRSC5_EVENT_HDC = 6
-    NRSC5_EVENT_AUDIO = 7
-    NRSC5_EVENT_ID3 = 8
-    NRSC5_EVENT_SIG = 9
-    NRSC5_EVENT_LOT = 10
+    LOST_DEVICE = 0
+    IQ = 1
+    SYNC = 2
+    LOST_SYNC = 3
+    MER = 4
+    BER = 5
+    HDC = 6
+    AUDIO = 7
+    ID3 = 8
+    SIG = 9
+    LOT = 10
 
 
-class Audio(Structure):
+class ServiceType(enum.Enum):
+    AUDIO = 0
+    DATA = 1
+
+
+class ComponentType(enum.Enum):
+    AUDIO = 0
+    DATA = 1
+
+
+class MIMEType(enum.Enum):
+    PRIMARY_IMAGE = 0xBE4B7536
+    STATION_LOGO = 0xD9C72536
+    NAVTEQ = 0x2D42AC3E
+    HERE_TPEG = 0x82F03DFC
+    HERE_IMAGE = 0xB7F03DFC
+    HD_TMC = 0xEECB55B6
+    HDC = 0x4DC66C5A
+    TEXT = 0xBB492AAC
+    JPEG = 0x1E653E9C
+    PNG = 0x4F328CA0
+    TTN_TPEG_1 = 0xB39EBEB2
+    TTN_TPEG_2 = 0x4EB03469
+    TTN_TPEG_3 = 0x52103469
+    TTN_STM_TRAFFIC = 0xFF8422D7
+    TTN_STM_WEATHER = 0xEF042E96
+
+
+IQ = collections.namedtuple("IQ", ["data"])
+MER = collections.namedtuple("MER", ["lower", "upper"])
+BER = collections.namedtuple("BER", ["cber"])
+HDC = collections.namedtuple("HDC", ["program", "data"])
+Audio = collections.namedtuple("Audio", ["program", "data"])
+UFID = collections.namedtuple("UFID", ["owner", "id"])
+XHDR = collections.namedtuple("XHDR", ["mime", "param", "lot"])
+ID3 = collections.namedtuple("ID3", ["program", "title", "artist", "album", "genre", "ufid", "xhdr"])
+SIGAudioComponent = collections.namedtuple("SIGAudioComponent", ["port", "type", "mime"])
+SIGDataComponent = collections.namedtuple("SIGDataComponent", ["port", "service_data_type", "type", "mime"])
+SIGComponent = collections.namedtuple("SIGComponent", ["type", "id", "audio", "data"])
+SIGService = collections.namedtuple("SIGService", ["type", "number", "name", "components"])
+SIG = collections.namedtuple("SIG", ["services"])
+LOT = collections.namedtuple("LOT", ["port", "lot", "mime", "name", "data"])
+
+
+class _IQ(Structure):
+    _fields_ = [
+        ("data", POINTER(c_char)),
+        ("count", c_size_t),
+    ]
+
+
+class _MER(Structure):
+    _fields_ = [
+        ("lower", c_float),
+        ("upper", c_float),
+    ]
+
+
+class _BER(Structure):
+    _fields_ = [
+        ("cber", c_float),
+    ]
+
+
+class _HDC(Structure):
     _fields_ = [
         ("program", c_uint),
         ("data", POINTER(c_char)),
@@ -63,91 +90,264 @@ class Audio(Structure):
     ]
 
 
-class EventUnion(Union):
+class _Audio(Structure):
     _fields_ = [
-        ("audio", Audio),
+        ("program", c_uint),
+        ("data", POINTER(c_char)),
+        ("count", c_size_t),
     ]
 
 
-class Event(Structure):
+class _UFID(Structure):
+    _fields_ = [
+        ("owner", c_char_p),
+        ("id", c_char_p),
+    ]
+
+
+class _XHDR(Structure):
+    _fields_ = [
+        ("mime", c_uint32),
+        ("param", c_int),
+        ("lot", c_int),
+    ]
+
+
+class _ID3(Structure):
+    _fields_ = [
+        ("program", c_uint),
+        ("title", c_char_p),
+        ("artist", c_char_p),
+        ("album", c_char_p),
+        ("genre", c_char_p),
+        ("ufid", _UFID),
+        ("xhdr", _XHDR),
+    ]
+
+
+class _SIGData(Structure):
+    _fields_ = [
+        ("port", c_uint16),
+        ("service_data_type", c_uint16),
+        ("type", c_uint8),
+        ("mime", c_uint32),
+    ]
+
+
+class _SIGAudio(Structure):
+    _fields_ = [
+        ("port", c_uint8),
+        ("type", c_uint8),
+        ("mime", c_uint32),
+    ]
+
+
+class _SIGUnion(Union):
+    _fields_ = [
+        ("audio", _SIGAudio),
+        ("data", _SIGData),
+    ]
+
+
+class _SIGComponent(Structure):
+    pass
+
+
+_SIGComponent._fields_ = [
+    ("next", POINTER(_SIGComponent)),
+    ("type", c_uint8),
+    ("id", c_uint8),
+    ("u", _SIGUnion),
+]
+
+
+class _SIGService(Structure):
+    pass
+
+
+_SIGService._fields_ = [
+    ("next", POINTER(_SIGService)),
+    ("type", c_uint8),
+    ("number", c_uint16),
+    ("name", c_char_p),
+    ("components", POINTER(_SIGComponent)),
+]
+
+
+class _SIG(Structure):
+    _fields_ = [
+        ("services", POINTER(_SIGService)),
+    ]
+
+
+class _LOT(Structure):
+    _fields_ = [
+        ("port", c_uint16),
+        ("lot", c_uint),
+        ("size", c_uint),
+        ("mime", c_uint32),
+        ("name", c_char_p),
+        ("data", POINTER(c_char)),
+    ]
+
+
+class _EventUnion(Union):
+    _fields_ = [
+        ("iq", _IQ),
+        ("mer", _MER),
+        ("ber", _BER),
+        ("hdc", _HDC),
+        ("audio", _Audio),
+        ("id3", _ID3),
+        ("sig", _SIG),
+        ("lot", _LOT),
+    ]
+
+
+class _Event(Structure):
     _fields_ = [
         ("event", c_uint),
-        ("u", EventUnion),
+        ("u", _EventUnion),
     ]
 
 
-def callback(evt, opaque):
-    evt = evt.contents
-    type = EventType(evt.event)
-    if type == EventType.NRSC5_EVENT_AUDIO:
-        audio = evt.u.audio
-        audio_event(audio.program, audio.data[:audio.count * 2])
+class NRSC5Error(Exception):
+    pass
 
 
-def audio_event(program, samples):
-    if program == hd_program:
-        audio_queue.put(samples)
+class NRSC5:
+    libnrsc5 = None
 
+    def _load_library(self):
+        if NRSC5.libnrsc5 is None:
+            if platform.system() == "Windows":
+                lib_name = "libnrsc5.dll"
+            elif platform.system() == "Linux":
+                lib_name = "libnrsc5.so"
+            elif platform.system() == "Darwin":
+                lib_name = "libnrsc5.dylib"
+            else:
+                raise NRSC5Error("Unsupported platform: " + platform.system())
+            NRSC5.libnrsc5 = cdll.LoadLibrary(lib_name)
+            self.radio = c_void_p()
 
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Receive NRSC-5 signals.')
-    parser.add_argument("-r")
-    parser.add_argument("freq", type=float)
-    parser.add_argument("program", type=int)
-    args = parser.parse_args()
-
-    if args.freq < 10000:
-        args.freq *= 1e6
-    hd_program = args.program
-
-    if platform.system() == "Windows":
-        lib_name = "libnrsc5.dll"
-    elif platform.system() == "Linux":
-        lib_name = "libnrsc5.so"
-    elif platform.system() == "Darwin":
-        lib_name = "libnrsc5.dylib"
-    else:
-        print("Unsupported platform: " + platform.system())
-        exit(1)
-    libnrsc5 = cdll.LoadLibrary(lib_name)
-    radio = c_void_p()
-
-    if args.r == "-":
-        f = sys.stdin.buffer
-        libnrsc5.nrsc5_open_pipe(byref(radio))
-    elif args.r:
-        f = open(args.r, "rb")
-        libnrsc5.nrsc5_open_pipe(byref(radio))
-    else:
-        if libnrsc5.nrsc5_open(byref(radio), 0, 0):
-            print("Open device failed.")
-            exit(1)
-        libnrsc5.nrsc5_set_frequency(radio, c_float(args.freq))
-
-    callback_func = CFUNCTYPE(None, POINTER(Event), c_void_p)(callback)
-    libnrsc5.nrsc5_set_callback(radio, callback_func, None)
-
-    libnrsc5.nrsc5_start(radio)
-
-    audio_thread = threading.Thread(target=audio_worker)
-    audio_thread.start()
-
-    try:
-        if args.r:
-            while True:
-                data = f.read(32768)
-                if len(data) == 0:
-                    break
-                libnrsc5.nrsc5_pipe_samples(radio, data, (len(data) // 4) * 4)
+    def _decode(self, str):
+        if str is None:
+            return str
         else:
-            while True:
-                input()
-    except KeyboardInterrupt:
-        print("Stopping...")
-        pass
+            return str.decode()
 
-    libnrsc5.nrsc5_stop(radio)
-    libnrsc5.nrsc5_close(radio)
+    def _callback_wrapper(self, c_evt):
+        c_evt = c_evt.contents
+        evt = None
+        type = EventType(c_evt.event)
+        if type == EventType.IQ:
+            iq = c_evt.u.iq
+            evt = IQ(iq.data[:iq.count])
+        elif type == EventType.MER:
+            mer = c_evt.u.mer
+            evt = MER(mer.lower, mer.upper)
+        elif type == EventType.BER:
+            ber = c_evt.u.ber
+            evt = BER(ber.cber)
+        elif type == EventType.HDC:
+            hdc = c_evt.u.hdc
+            evt = HDC(hdc.program, hdc.data[:hdc.count])
+        elif type == EventType.AUDIO:
+            audio = c_evt.u.audio
+            evt = Audio(audio.program, audio.data[:audio.count * 2])
+        elif type == EventType.ID3:
+            id3 = c_evt.u.id3
+            ufid = UFID(self._decode(id3.ufid.owner), self._decode(id3.ufid.id))
+            xhdr = XHDR(None if id3.xhdr.mime == 0 else MIMEType(id3.xhdr.mime),
+                        None if id3.xhdr.param == -1 else id3.xhdr.param,
+                        None if id3.xhdr.lot == -1 else id3.xhdr.lot)
+            evt = ID3(id3.program, self._decode(id3.title), self._decode(id3.artist),
+                      self._decode(id3.album), self._decode(id3.genre), ufid, xhdr)
+        elif type == EventType.SIG:
+            evt = []
+            service_ptr = c_evt.u.sig.services
+            while service_ptr:
+                service = service_ptr.contents
+                components = []
+                component_ptr = service.components
+                while component_ptr:
+                    component = component_ptr.contents
+                    component_type = ComponentType(component.type)
+                    if component_type == ComponentType.AUDIO:
+                        audio = SIGAudioComponent(component.u.audio.port, component.u.audio.type,
+                                                  MIMEType(component.u.audio.mime))
+                        components.append(SIGComponent(component_type, component.id, audio, None))
+                    if component_type == ComponentType.DATA:
+                        data = SIGDataComponent(component.u.data.port, component.u.data.service_data_type,
+                                                component.u.data.type, MIMEType(component.u.data.mime))
+                        components.append(SIGComponent(component_type, component.id, None, data))
+                    component_ptr = component.next
+                evt.append(SIGService(ServiceType(service.type), service.number,
+                                      self._decode(service.name), components))
+                service_ptr = service.next
+        elif type == EventType.LOT:
+            lot = c_evt.u.lot
+            evt = LOT(lot.port, lot.lot, MIMEType(lot.mime), self._decode(lot.name), lot.data[:lot.size])
+        self.callback(type, evt)
 
-    audio_queue.put(None)
-    audio_thread.join()
+    def __init__(self, callback):
+        self._load_library()
+        self.radio = c_void_p()
+        self.callback = callback
+
+    def open(self, device_index, ppm_error):
+        result = NRSC5.libnrsc5.nrsc5_open(byref(self.radio), device_index, ppm_error)
+        if result != 0:
+            raise NRSC5Error("Failed to open RTL-SDR.")
+        self._set_callback()
+
+    def open_pipe(self):
+        result = NRSC5.libnrsc5.nrsc5_open_pipe(byref(self.radio))
+        if result != 0:
+            raise NRSC5Error("Failed to open pipe.")
+        self._set_callback()
+
+    def close(self):
+        NRSC5.libnrsc5.nrsc5_close(self.radio)
+
+    def start(self):
+        NRSC5.libnrsc5.nrsc5_start(self.radio)
+
+    def stop(self):
+        NRSC5.libnrsc5.nrsc5_stop(self.radio)
+
+    def get_frequency(self):
+        frequency = c_float()
+        NRSC5.libnrsc5.nrsc5_get_frequency(self.radio, byref(frequency))
+        return frequency.value
+
+    def set_frequency(self, freq):
+        result = NRSC5.libnrsc5.nrsc5_set_frequency(self.radio, c_float(freq))
+        if result != 0:
+            raise NRSC5Error("Failed to set frequency.")
+
+    def get_gain(self):
+        gain = c_float()
+        NRSC5.libnrsc5.nrsc5_get_gain(self.radio, byref(gain))
+        return gain.value
+
+    def set_gain(self, gain):
+        result = NRSC5.libnrsc5.nrsc5_set_gain(self.radio, c_float(gain))
+        if result != 0:
+            raise NRSC5Error("Failed to set gain.")
+
+    def set_auto_gain(self, enabled):
+        NRSC5.libnrsc5.nrsc5_set_auto_gain(self.radio, int(enabled))
+
+    def _set_callback(self):
+        def callback_closure(evt, opaque):
+            self._callback_wrapper(evt)
+
+        self.callback_func = CFUNCTYPE(None, POINTER(_Event), c_void_p)(callback_closure)
+        NRSC5.libnrsc5.nrsc5_set_callback(self.radio, self.callback_func, None)
+
+    def pipe_samples(self, samples):
+        result = NRSC5.libnrsc5.nrsc5_pipe_samples(self.radio, samples, (len(samples) // 4) * 4)
+        if result != 0:
+            raise NRSC5Error("Failed to pipe samples.")

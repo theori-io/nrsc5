@@ -149,6 +149,9 @@ static char *id3_text(uint8_t *buf, unsigned int frame_len)
 static void output_id3(output_t *st, unsigned int program, uint8_t *buf, unsigned int len)
 {
     char *title = NULL, *artist = NULL, *album = NULL, *genre = NULL, *ufid_owner = NULL, *ufid_id = NULL;
+    uint32_t xhdr_mime = 0;
+    int xhdr_param = -1, xhdr_lot = -1;
+
     unsigned int off = 0, id3_len;
     nrsc5_event_t evt;
 
@@ -239,9 +242,7 @@ static void output_id3(output_t *st, unsigned int program, uint8_t *buf, unsigne
         }
         else if (memcmp(tag, "XHDR", 4) == 0)
         {
-            uint8_t param, extlen;
-            uint32_t mime;
-            int lot = -1;
+            uint8_t extlen;
 
             if (frame_len < 6)
             {
@@ -249,21 +250,17 @@ static void output_id3(output_t *st, unsigned int program, uint8_t *buf, unsigne
             }
             else
             {
-                mime = data[0] | (data[1] << 8) | (data[2] << 16) | (data[3] << 24);
-                param = data[4];
+                xhdr_mime = data[0] | (data[1] << 8) | (data[2] << 16) | (data[3] << 24);
+                xhdr_param = data[4];
                 extlen = data[5];
                 if (6u + extlen != frame_len)
                     log_warn("bad XHDR tag (frame_len %d, extlen %d)", frame_len, extlen);
-                else if (param == 0 && extlen == 2)
-                    lot = data[6] | (data[7] << 8);
-                else if (param == 1 && extlen == 0)
-                    lot = -1;
+                else if (xhdr_param == 0 && extlen == 2)
+                    xhdr_lot = data[6] | (data[7] << 8);
+                else if (xhdr_param == 1 && extlen == 0)
+                    xhdr_lot = -1;
                 else
-                    log_warn("unhandled XHDR param (frame_len %d, param %d, extlen %d)", frame_len, param, extlen);
-
-                evt.id3.xhdr.mime = mime;
-                evt.id3.xhdr.param = param;
-                evt.id3.xhdr.lot = lot;
+                    log_warn("unhandled XHDR param (frame_len %d, param %d, extlen %d)", frame_len, xhdr_param, extlen);
             }
         }
         else
@@ -287,6 +284,9 @@ static void output_id3(output_t *st, unsigned int program, uint8_t *buf, unsigne
     evt.id3.genre = genre;
     evt.id3.ufid.owner = ufid_owner;
     evt.id3.ufid.id = ufid_id;
+    evt.id3.xhdr.mime = xhdr_mime;
+    evt.id3.xhdr.param = xhdr_param;
+    evt.id3.xhdr.lot = xhdr_lot;
 
     nrsc5_report(st->radio, &evt);
 

@@ -307,6 +307,7 @@ static int parse_args(state_t *st, int argc, char *argv[])
         { "dump-hdc", required_argument, NULL, 2 },
         { 0 }
     };
+    const char *version = NULL;
     char *output_name = NULL, *audio_name = NULL, *hdc_name = NULL;
     char *endptr;
     int opt;
@@ -353,7 +354,8 @@ static int parse_args(state_t *st, int argc, char *argv[])
             log_set_level(atoi(optarg));
             break;
         case 'v':
-            printf("nrsc5 revision %s\n", GIT_COMMIT_HASH);
+            nrsc5_get_version(&version);
+            printf("nrsc5 revision %s\n", version);
             return 1;
         default:
             help(argv[0]);

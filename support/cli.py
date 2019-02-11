@@ -13,6 +13,8 @@ import wave
 
 class NRSC5CLI:
     def __init__(self):
+        self.radio = nrsc5.NRSC5(lambda type, evt: self.callback(type, evt))
+        self.nrsc5_version = self.radio.get_version()
         self.parse_args()
         self.audio_queue = queue.Queue(maxsize=64)
         self.device_condition = threading.Condition()
@@ -20,6 +22,7 @@ class NRSC5CLI:
     def parse_args(self):
         parser = argparse.ArgumentParser(description="Receive NRSC-5 signals.")
         input_group = parser.add_mutually_exclusive_group()
+        parser.add_argument("-v", action="version", version="nrsc5 revision " + self.nrsc5_version)
         parser.add_argument("-q", action="store_true")
         parser.add_argument("-l", metavar="log-level", type=int, default=1)
         parser.add_argument("-d", metavar="device-index", type=int, default=0)
@@ -44,16 +47,14 @@ class NRSC5CLI:
         if self.args.q:
             logging.disable(logging.CRITICAL)
 
-        radio = nrsc5.NRSC5(lambda type, evt: self.callback(type, evt))
-
         if self.args.r:
             iq_input = sys.stdin.buffer if self.args.r == "-" else open(self.args.r, "rb")
-            radio.open_pipe()
+            self.radio.open_pipe()
         else:
-            radio.open(self.args.d, self.args.p)
-            radio.set_frequency(self.args.frequency)
+            self.radio.open(self.args.d, self.args.p)
+            self.radio.set_frequency(self.args.frequency)
             if self.args.g:
-                radio.set_gain(self.args.g)
+                self.radio.set_gain(self.args.g)
 
         if self.args.w:
             self.iq_output = sys.stdout.buffer if self.args.w == "-" else open(self.args.w, "wb")
@@ -70,7 +71,7 @@ class NRSC5CLI:
         if self.args.dump_hdc:
             self.hdc_output = sys.stdout.buffer if self.args.dump_hdc == "-" else open(self.args.dump_hdc, "wb")
 
-        radio.start()
+        self.radio.start()
 
         try:
             if self.args.r:
@@ -78,7 +79,7 @@ class NRSC5CLI:
                     data = iq_input.read(32768)
                     if len(data) == 0:
                         break
-                    radio.pipe_samples(data[:(len(data) // 4) * 4])
+                    self.radio.pipe_samples(data[:(len(data) // 4) * 4])
             else:
                 with self.device_condition:
                     self.device_condition.wait()
@@ -87,8 +88,8 @@ class NRSC5CLI:
         except nrsc5.NRSC5Error as e:
             logging.error(e)
 
-        radio.stop()
-        radio.close()
+        self.radio.stop()
+        self.radio.close()
 
         if self.args.r:
             iq_input.close()

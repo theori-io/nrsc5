@@ -78,12 +78,14 @@ class NRSC5CLI:
                     data = iq_input.read(32768)
                     if len(data) == 0:
                         break
-                    radio.pipe_samples(data)
+                    radio.pipe_samples(data[:(len(data) // 4) * 4])
             else:
                 with self.device_condition:
                     self.device_condition.wait()
         except KeyboardInterrupt:
             logging.info("Stopping...")
+        except nrsc5.NRSC5Error as e:
+            logging.error(e)
 
         radio.stop()
         radio.close()

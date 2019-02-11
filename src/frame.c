@@ -459,11 +459,12 @@ static size_t process_fixed_data(frame_t *st, size_t length)
 void frame_process(frame_t *st, size_t length)
 {
     unsigned int offset = 0;
+    unsigned int audio_end = length;
 
     if (has_fixed(st))
-        length = process_fixed_data(st, length);
+        audio_end = process_fixed_data(st, length);
 
-    while (offset < length - RS_CODEWORD_LEN)
+    while (offset < audio_end - RS_CODEWORD_LEN)
     {
         unsigned int start = offset;
         unsigned int j, lc_bits, loc_bytes, prog;
@@ -473,7 +474,8 @@ void frame_process(frame_t *st, size_t length)
 
         if (!fix_header(st, st->buffer + offset))
         {
-            if (offset == 0)
+            // go back to coarse sync if we fail to decode any audio packets in a P1 frame
+            if (length == MAX_PDU_LEN && offset == 0)
                 st->input->sync_state = SYNC_STATE_NONE;
             return;
         }
@@ -482,7 +484,7 @@ void frame_process(frame_t *st, size_t length)
         offset += 14;
         lc_bits = calc_lc_bits(&hdr);
         loc_bytes = ((lc_bits * hdr.nop) + 4) / 8;
-        if (start + hdr.la_location < offset + loc_bytes || start + hdr.la_location >= length)
+        if (start + hdr.la_location < offset + loc_bytes || start + hdr.la_location >= audio_end)
             return;
 
         for (j = 0; j < hdr.nop; j++)
@@ -490,12 +492,12 @@ void frame_process(frame_t *st, size_t length)
             locations[j] = parse_location(st->buffer + offset, lc_bits, j);
             if (j == 0 && locations[j] <= hdr.la_location) return;
             if (j > 0 && locations[j] <= locations[j-1]) return;
-            if (start + locations[j] >= length) return;
+            if (start + locations[j] >= audio_end) return;
         }
         offset += loc_bytes;
 
         if (hdr.hef)
-            offset += parse_hef(st->buffer + offset, length - offset, &hef);
+            offset += parse_hef(st->buffer + offset, audio_end - offset, &hef);
         prog = hef.prog_num;
 
         parse_hdlc(st, aas_push, st->psd_buf[prog], &st->psd_idx[prog], MAX_AAS_LEN, st->buffer + offset, start + hdr.la_location + 1 - offset);

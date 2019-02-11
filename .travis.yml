@@ -40,7 +40,7 @@ script:
   - grep -q "You're Listening to Q" sample.log
   - cat sample | nrsc5 -r - -o sample.wav 0 2> sample.log
   - grep -q "You're Listening to Q" sample.log
-  - ../support/nrsc5.py -r sample 0 0
-  - cat sample | ../support/nrsc5.py -r - 0 0
+  - ../support/cli.py -r sample 0
+  - cat sample | ../support/cli.py -r - 0
   - if [[ "TRAVIS_OS_NAME" == "osx" && "$TRAVIS_COMPILER" == "gcc" ]]; then wine ../build-win32/bin/nrsc5.exe -r sample -o sample.wav 0 2> sample.log && grep -q "You're Listening to Q" sample.log; fi
   - if [[ "TRAVIS_OS_NAME" == "osx" && "$TRAVIS_COMPILER" == "gcc" ]]; then wine ../build-win64/bin/nrsc5.exe -r sample -o sample.wav 0 2> sample.log && grep -q "You're Listening to Q" sample.log; fi

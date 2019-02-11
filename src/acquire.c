@@ -68,7 +68,7 @@ void acquire_process(acquire_t *st)
     if (st->idx != FFTCP * (ACQUIRE_SYMBOLS + 1))
         return;
 
-    if (st->input->sync.ready)
+    if (st->input->sync_state == SYNC_STATE_FINE)
     {
         samperr = FFTCP / 2 + st->input->sync.samperr;
         st->input->sync.samperr = 0;
@@ -115,6 +115,7 @@ void acquire_process(acquire_t *st)
         angle_factor = (st->prev_angle) ? 0.25 : 1.0;
         angle = st->prev_angle + (angle_diff * angle_factor);
         st->prev_angle = angle;
+        st->input->sync_state = SYNC_STATE_COARSE;
     }
 
     for (i = 0; i < FFTCP * (ACQUIRE_SYMBOLS + 1); i++)

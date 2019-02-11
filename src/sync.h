@@ -10,7 +10,6 @@ typedef struct
     float complex buffer[FFT][BLKSZ];
     float phases[FFT][BLKSZ];
     unsigned int idx;
-    int ready;
     int cfo_wait;
     int samperr;
     float angle;

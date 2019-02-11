@@ -189,7 +189,7 @@ void sync_process(sync_t *st)
     }
 
     // check if we lost synchronization or now have it
-    if (st->ready)
+    if (st->input->sync_state == SYNC_STATE_FINE)
     {
         if (decode_get_block(&st->input->decode) == 0 && find_first_block(st, LB_START, &psmi) != 0)
         {
@@ -197,11 +197,11 @@ void sync_process(sync_t *st)
             {
                 log_debug("lost sync (%d, %d)!", find_first_block(st, LB_START, &psmi), find_first_block(st, UB_END, &psmi));
                 nrsc5_report_lost_sync(st->input->radio);
-                st->ready = 0;
+                st->input->sync_state = SYNC_STATE_NONE;
             }
         }
     }
-    else
+    else if (st->input->sync_state == SYNC_STATE_COARSE)
     {
         // First and last reference subcarriers have the same data. Try both
         // in case one of the sidebands is too corrupted.
@@ -219,7 +219,7 @@ void sync_process(sync_t *st)
             log_info("Synchronized!");
             nrsc5_report_sync(st->input->radio);
             decode_reset(&st->input->decode);
-            st->ready = 1;
+            st->input->sync_state = SYNC_STATE_FINE;
         }
         else if (st->cfo_wait == 0)
         {
@@ -255,7 +255,7 @@ void sync_process(sync_t *st)
     }
 
     // if we are still synchronized
-    if (st->ready)
+    if (st->input->sync_state == SYNC_STATE_FINE)
     {
         float samperr = 0, angle = 0;
         float sum_xy = 0, sum_x2 = 0;
@@ -414,7 +414,6 @@ void sync_reset(sync_t *st)
         st->costas_phase[i] = 0;
     }
 
-    st->ready = 0;
     st->idx = 0;
     st->cfo_wait = 0;
     st->mer_cnt = 0;

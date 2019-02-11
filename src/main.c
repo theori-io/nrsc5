@@ -307,7 +307,8 @@ static int parse_args(state_t *st, int argc, char *argv[])
         { "dump-hdc", required_argument, NULL, 2 },
         { 0 }
     };
-    char *version = NULL, *output_name = NULL, *audio_name = NULL, *hdc_name = NULL;
+    const char *version = NULL;
+    char *output_name = NULL, *audio_name = NULL, *hdc_name = NULL;
     char *endptr;
     int opt;
 

@@ -175,7 +175,7 @@ static void nrsc5_init(nrsc5_t *st)
     pthread_create(&st->worker, NULL, worker_thread, st);
 }
 
-NRSC5_API void nrsc5_get_version(char **version)
+NRSC5_API void nrsc5_get_version(const char **version)
 {
     *version = GIT_COMMIT_HASH;
 }

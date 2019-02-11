@@ -296,6 +296,11 @@ class NRSC5:
         self.radio = c_void_p()
         self.callback = callback
 
+    def get_version(self):
+        version = c_char_p()
+        NRSC5.libnrsc5.nrsc5_get_version(byref(version))
+        return version.value.decode()
+
     def open(self, device_index, ppm_error):
         result = NRSC5.libnrsc5.nrsc5_open(byref(self.radio), device_index, ppm_error)
         if result != 0:

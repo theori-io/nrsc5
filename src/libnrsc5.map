@@ -1,5 +1,6 @@
 LIBNRSC5_1.0 {
     global:
+        nrsc5_get_version;
         nrsc5_open;
         nrsc5_open_file;
         nrsc5_open_pipe;

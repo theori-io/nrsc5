@@ -31,12 +31,16 @@ typedef struct
     unsigned int codec;
     unsigned int stream_id;
     unsigned int pdu_seq;
+    unsigned int blend_control;
+    unsigned int per_stream_delay;
+    unsigned int common_delay;
+    unsigned int latency;
     unsigned int pfirst;
     unsigned int plast;
     unsigned int seq;
     unsigned int nop;
-    unsigned int la_location;
     unsigned int hef;
+    unsigned int la_location;
 } frame_header_t;
 
 typedef struct
@@ -172,12 +176,16 @@ static void parse_header(uint8_t *buf, frame_header_t *hdr)
     hdr->codec = buf[8] & 0xf;
     hdr->stream_id = (buf[8] >> 4) & 0x3;
     hdr->pdu_seq = (buf[8] >> 6) | ((buf[9] & 1) << 2);
+    hdr->blend_control = (buf[9] >> 1) & 0x3;
+    hdr->per_stream_delay = buf[9] >> 3;
+    hdr->common_delay = buf[10] & 0x3f;
+    hdr->latency = (buf[10] >> 6) | ((buf[11] & 1) << 2);
     hdr->pfirst = (buf[11] >> 1) & 1;
     hdr->plast = (buf[11] >> 2) & 1;
     hdr->seq = (buf[11] >> 3) | ((buf[12] & 1) << 5);
     hdr->nop = (buf[12] >> 1) & 0x3f;
+    hdr->hef = buf[12] >> 7;
     hdr->la_location = buf[13];
-    hdr->hef = buf[12] & 0x80;
 }
 
 static unsigned int parse_hef(uint8_t *buf, unsigned int length, hef_t *hef)

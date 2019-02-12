@@ -16,7 +16,20 @@ if (USE_STATIC)
 endif()
 
 configure_file (config.h.in config.h)
-include_directories ("${CMAKE_CURRENT_BINARY_DIR}" "${CMAKE_SOURCE_DIR}/include")
+include_directories (
+    ${FAAD2_INCLUDE_DIRS}
+    ${AO_INCLUDE_DIRS}
+    ${RTL_SDR_INCLUDE_DIRS}
+    ${FFTW3F_INCLUDE_DIRS}
+    "${CMAKE_CURRENT_BINARY_DIR}"
+    "${CMAKE_SOURCE_DIR}/include"
+)
+link_directories (
+    ${FAAD2_LIBRARY_DIRS}
+    ${AO_LIBRARY_DIRS}
+    ${RTL_SDR_LIBRARY_DIRS}
+    ${FFTW3F_LIBRARY_DIRS}
+)
 
 add_library (
     nrsc5_object OBJECT
@@ -48,10 +61,10 @@ endif ()
 
 set (
     LibraryDependencies
-    ${FAAD2_LIBRARY}
+    ${FAAD2_LIBRARIES}
+    ${FFTW3F_LIBRARIES}
+    ${RTL_SDR_LIBRARIES}
     ${THREAD_LIBRARY}
-    ${FFTW3F_LIBRARY}
-    ${RTL_SDR_LIBRARY}
     m
 )
 
@@ -84,7 +97,7 @@ set_target_properties(app PROPERTIES LINK_FLAGS "${STATIC_LINKER_FLAGS}")
 target_link_libraries (
     app
     nrsc5_static
-    ${AO_LIBRARY}
+    ${AO_LIBRARIES}
     ${THREAD_LIBRARY}
 )
 

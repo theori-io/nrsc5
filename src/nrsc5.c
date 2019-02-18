@@ -54,7 +54,7 @@ static int do_auto_gain(nrsc5_t *st)
 
             input_push(&st->input, st->samples_buf, len);
         }
-        log_debug("Gain: %.1f dB, CNR: %.1f dB", gain / 10.0f, 20 * log10f(st->auto_gain_snr));
+        log_debug("Gain: %.1f dB, CNR: %.1f dB", gain / 10.0f, 10 * log10f(st->auto_gain_snr));
         if (st->auto_gain_snr > best_snr)
         {
             best_snr = st->auto_gain_snr;
@@ -63,7 +63,7 @@ static int do_auto_gain(nrsc5_t *st)
         input_reset(&st->input);
     }
 
-    log_debug("Best gain: %.1f dB, CNR: %.1f dB", best_gain / 10.0f, 20 * log10f(best_snr));
+    log_debug("Best gain: %.1f dB, CNR: %.1f dB", best_gain / 10.0f, 10 * log10f(best_snr));
     st->gain = best_gain;
     rtlsdr_set_tuner_gain(st->dev, best_gain);
     ret = 0;

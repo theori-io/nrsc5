@@ -13,7 +13,14 @@
 #include "output.h"
 #include "sync.h"
 
-#define INPUT_BUF_LEN (2160 * 512)
+#define INPUT_BUF_LEN (FFTCP * 512)
+
+#define SNR_FFT_COUNT 256
+#define SNR_FFT_LEN 64
+#define SNR_NOISE_START 19
+#define SNR_NOISE_LEN 4
+#define SNR_SIGNAL_START 24
+#define SNR_SIGNAL_LEN 2
 
 typedef int (*input_snr_cb_t) (void *, float);
 
@@ -30,9 +37,9 @@ typedef struct input_t
     unsigned int sync_state;
 
     fftwf_plan snr_fft;
-    float complex snr_fft_in[64];
-    float complex snr_fft_out[64];
-    float snr_power[64];
+    float complex snr_fft_in[SNR_FFT_LEN];
+    float complex snr_fft_out[SNR_FFT_LEN];
+    float snr_power[SNR_FFT_LEN];
     int snr_cnt;
     input_snr_cb_t snr_cb;
     void *snr_cb_arg;

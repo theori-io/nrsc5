@@ -72,14 +72,14 @@ static void measure_snr(input_t *st, uint8_t *buf, uint32_t len)
     unsigned int i, j;
 
     // use a small FFT to calculate magnitude of frequency ranges
-    for (j = 64; j <= len / 2; j += 64)
+    for (j = 0; j + SNR_FFT_LEN <= len / 2; j += SNR_FFT_LEN)
     {
-        for (i = 0; i < 64; i++)
-            st->snr_fft_in[i] = CMPLXF(U8_F(buf[(i+j-64) * 2 + 0]), U8_F(buf[(i+j-64) * 2 + 1])) * pow(sinf(M_PI*i/63),2);
+        for (i = 0; i < SNR_FFT_LEN; i++)
+            st->snr_fft_in[i] = CMPLXF(U8_F(buf[(i+j) * 2]), U8_F(buf[(i+j) * 2 + 1])) * pow(sinf(M_PI*i/(SNR_FFT_LEN-1)), 2);
         fftwf_execute(st->snr_fft);
-        fftshift(st->snr_fft_out, 64);
+        fftshift(st->snr_fft_out, SNR_FFT_LEN);
 
-        for (i = 0; i < 64; i++)
+        for (i = 0; i < SNR_FFT_LEN; i++)
             st->snr_power[i] += normf(st->snr_fft_out[i]);
         st->snr_cnt++;
     }
@@ -87,33 +87,28 @@ static void measure_snr(input_t *st, uint8_t *buf, uint32_t len)
     if (st->snr_cnt >= SNR_FFT_COUNT)
     {
         // noise bands are the frequncies near our signal
-        float noise_lo = 0;
-        for (i = 19; i < 23; i++)
-            noise_lo += st->snr_power[i];
-        noise_lo /= 4;
-        float noise_hi = 0;
-        for (i = 41; i < 45; i++)
-            noise_hi += st->snr_power[i];
-        noise_hi /= 4;
+        float noise = 0;
+        for (i = SNR_NOISE_START; i < SNR_NOISE_START + SNR_NOISE_LEN; i++)
+        {
+            noise += st->snr_power[i];
+            noise += st->snr_power[SNR_FFT_LEN - i];
+        }
+        noise /= SNR_NOISE_LEN * 2;
+
         // signal bands are the frequencies in our signal
-        float signal_lo = (st->snr_power[24] + st->snr_power[25]) / 2;
-        float signal_hi = (st->snr_power[39] + st->snr_power[40]) / 2;
+        float signal = 0;
+        for (i = SNR_SIGNAL_START; i < SNR_SIGNAL_START + SNR_SIGNAL_LEN; i++)
+        {
+            signal += st->snr_power[i];
+            signal += st->snr_power[SNR_FFT_LEN - i];
+        }
+        signal /= SNR_SIGNAL_LEN * 2;
 
-        #if 0
-        float snr_lo = noise_lo == 0 ? 0 : signal_lo / noise_lo;
-        float snr_hi = noise_hi == 0 ? 0 : signal_hi / noise_hi;
-        log_debug("%f %f (SNR: %f) %f %f (SNR: %f)", signal_lo, noise_lo, snr_lo, signal_hi, noise_hi, snr_hi);
-        #endif
-
-        float signal = (signal_lo + signal_hi) / 2 / st->snr_cnt;
-        float noise = (noise_lo + noise_hi) / 2 / st->snr_cnt;
-        float snr = signal / noise;
-
-        if (st->snr_cb(st->snr_cb_arg, snr) == 0)
+        if (st->snr_cb(st->snr_cb_arg, signal / noise) == 0)
             st->snr_cb = NULL;
 
         st->snr_cnt = 0;
-        for (i = 0; i < 64; ++i)
+        for (i = 0; i < SNR_FFT_LEN; ++i)
             st->snr_power[i] = 0;
     }
 }
@@ -185,7 +180,7 @@ void input_reset(input_t *st)
     st->used = 0;
     st->skip = 0;
     st->sync_state = SYNC_STATE_NONE;
-    for (int i = 0; i < 64; ++i)
+    for (int i = 0; i < SNR_FFT_LEN; ++i)
         st->snr_power[i] = 0;
     st->snr_cnt = 0;
 
@@ -204,7 +199,7 @@ void input_init(input_t *st, nrsc5_t *radio, output_t *output)
     st->snr_cb_arg = NULL;
 
     st->decim = firdecim_q15_create(decim_taps, sizeof(decim_taps) / sizeof(decim_taps[0]));
-    st->snr_fft = fftwf_plan_dft_1d(64, st->snr_fft_in, st->snr_fft_out, FFTW_FORWARD, 0);
+    st->snr_fft = fftwf_plan_dft_1d(SNR_FFT_LEN, st->snr_fft_in, st->snr_fft_out, FFTW_FORWARD, 0);
 
     acquire_init(&st->acq, st);
     decode_init(&st->decode, st);

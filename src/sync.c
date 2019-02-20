@@ -209,12 +209,7 @@ void sync_process(sync_t *st)
         if (offset < 0)
             offset = find_first_block(st, UB_END, &psmi);
 
-        if (offset > 0)
-        {
-            log_debug("First block @ %d", offset);
-            input_set_skip(st->input, offset * FFTCP);
-        }
-        else if (offset == 0)
+        if (offset == 0)
         {
             log_info("Synchronized!");
             nrsc5_report_sync(st->input->radio);

@@ -10,8 +10,6 @@
 
 #define FATAL_EXIT(...) do { log_fatal(__VA_ARGS__); exit(1); } while (0)
 
-#define SNR_FFT_COUNT 256
-
 // Sample rate before decimation
 #define SAMPLE_RATE 1488375
 // FFT length in samples
@@ -31,10 +29,16 @@
 #define UB_END (1024 + 546)
 // bits per P1 frame
 #define P1_FRAME_LEN 146176
+// bits per encoded P1 frame
+#define P1_FRAME_LEN_ENCODED (P1_FRAME_LEN * 5 / 2)
 // bits per PIDS frame
 #define PIDS_FRAME_LEN 80
-// bits per P1 frame
+// bits per encoded PIDS frame
+#define PIDS_FRAME_LEN_ENCODED (PIDS_FRAME_LEN * 5 / 2)
+// bits per P3 frame
 #define P3_FRAME_LEN 4608
+// bits per encoded P3 frame
+#define P3_FRAME_LEN_ENCODED (P3_FRAME_LEN * 2)
 // bits per L2 PCI
 #define PCI_LEN 24
 // bytes per L2 PDU (max)

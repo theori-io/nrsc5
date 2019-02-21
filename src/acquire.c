@@ -162,7 +162,7 @@ void acquire_cfo_adjust(acquire_t *st, int cfo)
         return;
 
     st->cfo += cfo;
-    hz = st->cfo * 744187.5 / FFT;
+    hz = (float) st->cfo * SAMPLE_RATE / 2 / FFT;
 
     log_info("CFO: %f Hz", hz);
 }

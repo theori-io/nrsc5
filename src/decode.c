@@ -48,7 +48,7 @@ static float calc_cber(int8_t *coded, uint8_t *decoded)
             errors++;
     }
 
-    return errors / (5.0 / 2.0 * P1_FRAME_LEN);;
+    return (float) errors / P1_FRAME_LEN_ENCODED;
 }
 
 static void descramble(uint8_t *buf, unsigned int length)
@@ -76,7 +76,7 @@ void decode_process_p1(decode_t *st)
         11, 3, 19, 7, 15, 9, 17, 1, 13, 5
     };
     unsigned int i, out = 0;
-    for (i = 0; i < 365440; i++)
+    for (i = 0; i < P1_FRAME_LEN_ENCODED; i++)
     {
         int partition = v[i % J];
         int block = ((i / J) + (partition * 7)) % B;
@@ -102,11 +102,11 @@ void decode_process_pids(decode_t *st)
         11, 3, 19, 7, 15, 9, 17, 1, 13, 5
     };
     unsigned int i, out = 0;
-    for (i = 0; i < 200; i++)
+    for (i = 0; i < PIDS_FRAME_LEN_ENCODED; i++)
     {
         int partition = v[i % J];
         int block = decode_get_block(st) - 1;
-        int k = ((i / J) % (200 / J)) + (365440 / (J * B));
+        int k = ((i / J) % (PIDS_FRAME_LEN_ENCODED / J)) + (P1_FRAME_LEN_ENCODED / (J * B));
         int row = (k * 11) % 32;
         int column = (k * 11 + k / (32*9)) % C;
         st->viterbi_pids[out++] = st->buffer_pm[(block * 32 + row) * 720 + partition * C + column];
@@ -125,7 +125,7 @@ void decode_process_p3(decode_t *st)
     const unsigned int bk_bits = 32 * C;
     const unsigned int bk_adj = 32 * C - 1;
     unsigned int i, out = 0;
-    for (i = 0; i < 9216; i++)
+    for (i = 0; i < P3_FRAME_LEN_ENCODED; i++)
     {
         int partition = ((st->i_p3 + 2 * (M / 4)) / M) % J;
         unsigned int pti = (st->pt_p3[partition])++;

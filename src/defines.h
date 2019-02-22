@@ -21,12 +21,10 @@
 #define BLKSZ 32
 // symbols processed by each invocation of acquire_process
 #define ACQUIRE_SYMBOLS (BLKSZ * 2)
-// number of primary main partitions
-#define PM_PARTITIONS 10
 // index of first lower sideband subcarrier
-#define LB_START (1024 - 546)
+#define LB_START ((FFT / 2) - 546)
 // index of last upper sideband subcarrier
-#define UB_END (1024 + 546)
+#define UB_END ((FFT / 2) + 546)
 // bits per P1 frame
 #define P1_FRAME_LEN 146176
 // bits per encoded P1 frame

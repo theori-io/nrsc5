@@ -22,6 +22,10 @@
 #include "private.h"
 #include "sync.h"
 
+#define PM_PARTITIONS 10
+#define PARTITION_DATA_CARRIERS 18
+#define PARTITION_WIDTH 19
+
 static void adjust_ref(sync_t *st, unsigned int ref, int cfo)
 {
     unsigned int n;
@@ -143,10 +147,10 @@ static void adjust_data(sync_t *st, unsigned int lower, unsigned int upper)
         float complex upper_phase = cexpf(st->phases[upper][n] * I);
         float complex lower_phase = cexpf(st->phases[lower][n] * I);
 
-        for (int k = 1; k < 19; k++)
+        for (int k = 1; k < PARTITION_WIDTH; k++)
         {
             // average phase difference
-            float complex C = CMPLXF(19,19) / (k * smag19 * upper_phase + (19 - k) * smag0 * lower_phase);
+            float complex C = CMPLXF(PARTITION_WIDTH, PARTITION_WIDTH) / (k * smag19 * upper_phase + (PARTITION_WIDTH - k) * smag0 * lower_phase);
             // adjust sample
             st->buffer[lower + k][n] *= C;
         }
@@ -182,7 +186,7 @@ void sync_process(sync_t *st)
             partitions_per_band = 10;
     }
 
-    for (i = 0; i < partitions_per_band * 19 + 1; i += 19)
+    for (i = 0; i < partitions_per_band * PARTITION_WIDTH + 1; i += PARTITION_WIDTH)
     {
         adjust_ref(st, LB_START + i, 0);
         adjust_ref(st, UB_END - i, 0);
@@ -218,16 +222,16 @@ void sync_process(sync_t *st)
         }
         else if (st->cfo_wait == 0)
         {
-            for (i = -38; i < 38; ++i)
+            for (i = -2 * PARTITION_WIDTH; i < 2 * PARTITION_WIDTH; ++i)
             {
                 int offset2;
-                adjust_ref(st, LB_START + (PM_PARTITIONS * 19) + i, i);
-                offset = find_ref(st, LB_START + (PM_PARTITIONS * 19) + i, 0);
+                adjust_ref(st, LB_START + (PM_PARTITIONS * PARTITION_WIDTH) + i, i);
+                offset = find_ref(st, LB_START + (PM_PARTITIONS * PARTITION_WIDTH) + i, 0);
                 if (offset < 0)
                     continue;
                 // We think we found the start. Check upperband to confirm.
-                adjust_ref(st, UB_END - (PM_PARTITIONS * 19) + i, i);
-                offset2 = find_ref(st, UB_END - (PM_PARTITIONS * 19) + i, 0);
+                adjust_ref(st, UB_END - (PM_PARTITIONS * PARTITION_WIDTH) + i, i);
+                offset2 = find_ref(st, UB_END - (PM_PARTITIONS * PARTITION_WIDTH) + i, 0);
                 if (offset2 == offset)
                 {
                     // The offsets matched, so 'i' is likely the CFO.
@@ -254,33 +258,33 @@ void sync_process(sync_t *st)
     {
         float samperr = 0, angle = 0;
         float sum_xy = 0, sum_x2 = 0;
-        for (i = 0; i < partitions_per_band * 19; i += 19)
+        for (i = 0; i < partitions_per_band * PARTITION_WIDTH; i += PARTITION_WIDTH)
         {
-            adjust_data(st, LB_START + i, LB_START + i + 19);
-            adjust_data(st, UB_END - i - 19, UB_END - i);
+            adjust_data(st, LB_START + i, LB_START + i + PARTITION_WIDTH);
+            adjust_data(st, UB_END - i - PARTITION_WIDTH, UB_END - i);
 
-            samperr += phase_diff(st->phases[LB_START + i][0], st->phases[LB_START + i + 19][0]);
-            samperr += phase_diff(st->phases[UB_END - i - 19][0], st->phases[UB_END - i][0]);
+            samperr += phase_diff(st->phases[LB_START + i][0], st->phases[LB_START + i + PARTITION_WIDTH][0]);
+            samperr += phase_diff(st->phases[UB_END - i - PARTITION_WIDTH][0], st->phases[UB_END - i][0]);
         }
-        samperr = samperr / (partitions_per_band * 2) * 2048 / 19 / (2 * M_PI);
+        samperr = samperr / (partitions_per_band * 2) * FFT / PARTITION_WIDTH / (2 * M_PI);
 
-        for (i = 0; i < partitions_per_band * 19 + 1; i += 19)
+        for (i = 0; i < partitions_per_band * PARTITION_WIDTH + 1; i += PARTITION_WIDTH)
         {
             float x, y;
 
-            x = LB_START + i - 1024;
+            x = LB_START + i - (FFT / 2);
             y = st->costas_freq[LB_START + i];
             angle += y;
             sum_xy += x * y;
             sum_x2 += x * x;
 
-            x = UB_END - i - 1024;
+            x = UB_END - i - (FFT / 2);
             y = st->costas_freq[UB_END - i];
             angle += y;
             sum_xy += x * y;
             sum_x2 += x * x;
         }
-        samperr -= (sum_xy / sum_x2) * 2048 / (2 * M_PI) * ACQUIRE_SYMBOLS;
+        samperr -= (sum_xy / sum_x2) * FFT / (2 * M_PI) * ACQUIRE_SYMBOLS;
         st->samperr = roundf(samperr);
 
         angle /= (partitions_per_band + 1) * 2;
@@ -291,16 +295,16 @@ void sync_process(sync_t *st)
         for (int n = 0; n < BLKSZ; n++)
         {
             float complex c, ideal;
-            for (i = 0; i < partitions_per_band * 19; i += 19)
+            for (i = 0; i < partitions_per_band * PARTITION_WIDTH; i += PARTITION_WIDTH)
             {
                 unsigned int j;
-                for (j = 1; j < 19; j++)
+                for (j = 1; j < PARTITION_WIDTH; j++)
                 {
                     c = st->buffer[LB_START + i + j][n];
                     ideal = CMPLXF(crealf(c) >= 0 ? 1 : -1, cimagf(c) >= 0 ? 1 : -1);
                     error_lb += normf(ideal - c);
 
-                    c = st->buffer[UB_END - i - 19 + j][n];
+                    c = st->buffer[UB_END - i - PARTITION_WIDTH + j][n];
                     ideal = CMPLXF(crealf(c) >= 0 ? 1 : -1, cimagf(c) >= 0 ? 1 : -1);
                     error_ub += normf(ideal - c);
                 }
@@ -313,7 +317,7 @@ void sync_process(sync_t *st)
         // Display average MER for each sideband
         if (++st->mer_cnt == 16)
         {
-            float signal = 2 * BLKSZ * (partitions_per_band * 18) * st->mer_cnt;
+            float signal = 2 * BLKSZ * (partitions_per_band * PARTITION_DATA_CARRIERS) * st->mer_cnt;
             float mer_db_lb = 10 * log10f(signal / st->error_lb);
             float mer_db_ub = 10 * log10f(signal / st->error_ub);
 
@@ -325,8 +329,8 @@ void sync_process(sync_t *st)
         }
 
         // Soft demod based on MER for each sideband
-        float mer_lb = 2 * BLKSZ * (partitions_per_band * 18) / error_lb;
-        float mer_ub = 2 * BLKSZ * (partitions_per_band * 18) / error_ub;
+        float mer_lb = 2 * BLKSZ * (partitions_per_band * PARTITION_DATA_CARRIERS) / error_lb;
+        float mer_ub = 2 * BLKSZ * (partitions_per_band * PARTITION_DATA_CARRIERS) / error_ub;
         float mult_lb = fmaxf(fminf(mer_lb * 10, 127), 1);
         float mult_ub = fmaxf(fminf(mer_ub * 10, 127), 1);
 
@@ -334,20 +338,20 @@ void sync_process(sync_t *st)
         for (int n = 0; n < BLKSZ; n++)
         {
             float complex c;
-            for (i = LB_START; i < LB_START + (PM_PARTITIONS * 19); i += 19)
+            for (i = LB_START; i < LB_START + (PM_PARTITIONS * PARTITION_WIDTH); i += PARTITION_WIDTH)
             {
                 unsigned int j;
-                for (j = 1; j < 19; j++)
+                for (j = 1; j < PARTITION_WIDTH; j++)
                 {
                     c = st->buffer[i + j][n];
                     decode_push_pm(&st->input->decode, DEMOD(crealf(c)) * mult_lb);
                     decode_push_pm(&st->input->decode, DEMOD(cimagf(c)) * mult_lb);
                 }
             }
-            for (i = UB_END - (PM_PARTITIONS * 19); i < UB_END; i += 19)
+            for (i = UB_END - (PM_PARTITIONS * PARTITION_WIDTH); i < UB_END; i += PARTITION_WIDTH)
             {
                 unsigned int j;
-                for (j = 1; j < 19; j++)
+                for (j = 1; j < PARTITION_WIDTH; j++)
                 {
                     c = st->buffer[i + j][n];
                     decode_push_pm(&st->input->decode, DEMOD(crealf(c)) * mult_ub);
@@ -355,20 +359,20 @@ void sync_process(sync_t *st)
                 }
             }
             if (psmi == 3) {
-                for (i = LB_START + (PM_PARTITIONS * 19); i < LB_START + (PM_PARTITIONS * 19) + 38; i += 19)
+                for (i = LB_START + (PM_PARTITIONS * PARTITION_WIDTH); i < LB_START + (PM_PARTITIONS + 2) * PARTITION_WIDTH; i += PARTITION_WIDTH)
                 {
                     unsigned int j;
-                    for (j = 1; j < 19; j++)
+                    for (j = 1; j < PARTITION_WIDTH; j++)
                     {
                         c = st->buffer[i + j][n];
                         decode_push_px1(&st->input->decode, DEMOD(crealf(c)) * mult_lb);
                         decode_push_px1(&st->input->decode, DEMOD(cimagf(c)) * mult_lb);
                     }
                 }
-                for (i = UB_END - (PM_PARTITIONS * 19) - 38; i < UB_END - (PM_PARTITIONS * 19); i += 19)
+                for (i = UB_END - (PM_PARTITIONS + 2) * PARTITION_WIDTH; i < UB_END - (PM_PARTITIONS * PARTITION_WIDTH); i += PARTITION_WIDTH)
                 {
                     unsigned int j;
-                    for (j = 1; j < 19; j++)
+                    for (j = 1; j < PARTITION_WIDTH; j++)
                     {
                         c = st->buffer[i + j][n];
                         decode_push_px1(&st->input->decode, DEMOD(crealf(c)) * mult_ub);
@@ -384,7 +388,7 @@ void sync_adjust(sync_t *st, int sample_adj)
 {
     int i;
     for (i = 0; i < FFT; i++)
-        st->costas_phase[i] -= sample_adj * (i - 1024) * 2 * M_PI / FFT;
+        st->costas_phase[i] -= sample_adj * (i - (FFT / 2)) * 2 * M_PI / FFT;
 }
 
 void sync_push(sync_t *st, float complex *fftout)

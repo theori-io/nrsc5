@@ -685,13 +685,11 @@ void output_aas_push(output_t *st, uint8_t *buf, unsigned int len)
     else if (port == 0x20)
     {
         // Station Information Guide
-        // FIXME: what is the last byte for?
-        parse_sig(st, buf + 4, len - 5);
+        parse_sig(st, buf + 4, len - 4);
     }
     else if (port >= 0x401 && port <= 0x50FF)
     {
-        // FIXME: what is the last byte for?
-        process_port(st, port, buf + 4, len - 5);
+        process_port(st, port, buf + 4, len - 4);
     }
     else
     {

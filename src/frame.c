@@ -326,7 +326,7 @@ static void aas_push(frame_t *st, uint8_t* psd, unsigned int length)
     else
     {
         // remove protocol and fcs fields
-        input_aas_push(st->input, psd + 1, length - 2);
+        input_aas_push(st->input, psd + 1, length - 3);
     }
 }
 

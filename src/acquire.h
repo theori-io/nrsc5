@@ -10,7 +10,7 @@ typedef struct
     firdecim_q15 filter;
     cint16_t in_buffer[FFTCP * (ACQUIRE_SYMBOLS + 1)];
     float complex buffer[FFTCP * (ACQUIRE_SYMBOLS + 1)];
-    float complex sums[FFTCP + CP];
+    float complex sums[FFTCP];
     float complex fftin[FFT];
     float complex fftout[FFT];
     float shape[FFTCP];

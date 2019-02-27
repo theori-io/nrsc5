@@ -25,6 +25,11 @@
 #define NRSC5_MIME_TEXT             0xBB492AAC
 #define NRSC5_MIME_JPEG             0x1E653E9C
 #define NRSC5_MIME_PNG              0x4F328CA0
+#define TTN_TPEG_1                  0xB39EBEB2
+#define TTN_TPEG_2                  0x4EB03469
+#define TTN_TPEG_3                  0x52103469
+#define TTN_STM_TRAFFIC             0xFF8422D7
+#define TTN_STM_WEATHER             0xEF042E96
 
 /*
  * Data types.

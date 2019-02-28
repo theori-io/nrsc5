@@ -63,7 +63,6 @@ void acquire_process(acquire_t *st)
     float angle, angle_diff, angle_factor, max_mag = -1.0f;
     int samperr = 0;
     unsigned int i, j, keep;
-    unsigned int mink = 0, maxk = FFTCP;
 
     if (st->idx != FFTCP * (ACQUIRE_SYMBOLS + 1))
         return;
@@ -88,19 +87,19 @@ void acquire_process(acquire_t *st)
         }
 
         memset(st->sums, 0, sizeof(float complex) * FFTCP);
-        for (i = mink; i < maxk + CP; ++i)
+        for (i = 0; i < FFTCP; ++i)
         {
             for (j = 0; j < ACQUIRE_SYMBOLS; ++j)
                 st->sums[i] += st->buffer[i + j * FFTCP] * conjf(st->buffer[i + j * FFTCP + FFT]);
         }
 
-        for (i = mink; i < maxk - 1; ++i)
+        for (i = 0; i < FFTCP; ++i)
         {
             float mag;
             float complex v = 0;
 
             for (j = 0; j < CP; ++j)
-                v += st->sums[(i + j) % FFTCP];
+                v += st->sums[(i + j) % FFTCP] * st->shape[j] * st->shape[j + FFT];
 
             mag = normf(v);
             if (mag > max_mag)

@@ -83,7 +83,7 @@ void acquire_process(acquire_t *st)
         for (i = 0; i < FFTCP * (ACQUIRE_SYMBOLS + 1); i++)
         {
             fir_q15_execute(st->filter, &st->in_buffer[i], &y);
-            st->buffer[i] = cq15_to_cf(y);
+            st->buffer[i] = cq15_to_cf_conj(y);
         }
 
         memset(st->sums, 0, sizeof(float complex) * FFTCP);
@@ -118,7 +118,7 @@ void acquire_process(acquire_t *st)
     }
 
     for (i = 0; i < FFTCP * (ACQUIRE_SYMBOLS + 1); i++)
-        st->buffer[i] = cq15_to_cf(st->in_buffer[i]);
+        st->buffer[i] = cq15_to_cf_conj(st->in_buffer[i]);
 
     sync_adjust(&st->input->sync, FFTCP / 2 - samperr);
     angle -= 2 * M_PI * st->cfo;

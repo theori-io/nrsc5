@@ -168,6 +168,7 @@ void nrsc5_get_gain(nrsc5_t *, float *gain);
 int nrsc5_set_gain(nrsc5_t *, float gain);
 void nrsc5_set_auto_gain(nrsc5_t *, int enabled);
 void nrsc5_set_callback(nrsc5_t *, nrsc5_callback_t callback, void *opaque);
-int nrsc5_pipe_samples(nrsc5_t *, uint8_t *samples, unsigned int length);
+int nrsc5_pipe_samples_cu8(nrsc5_t *, uint8_t *samples, unsigned int length);
+int nrsc5_pipe_samples_cs16(nrsc5_t *, int16_t *samples, unsigned int length);
 
 #endif /* NRSC5_H_ */

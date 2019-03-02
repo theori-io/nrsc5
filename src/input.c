@@ -113,18 +113,8 @@ static void measure_snr(input_t *st, uint8_t *buf, uint32_t len)
     }
 }
 
-void input_push(input_t *st, uint8_t *buf, uint32_t len)
+int input_shift(input_t *st, unsigned int cnt)
 {
-    unsigned int i, new_avail, cnt = len / 4;
-
-    if (st->snr_cb)
-    {
-        measure_snr(st, buf, len);
-        return;
-    }
-
-    nrsc5_report_iq(st->radio, buf, len);
-
     if (cnt + st->avail > INPUT_BUF_LEN)
     {
         if (st->avail > st->used)
@@ -139,33 +129,67 @@ void input_push(input_t *st, uint8_t *buf, uint32_t len)
             st->used = 0;
         }
     }
-    new_avail = st->avail;
 
-    if (cnt + new_avail > INPUT_BUF_LEN)
+    if (cnt + st->avail > INPUT_BUF_LEN)
     {
         log_error("input buffer overflow!");
-        return;
-    }
-    assert(len % 4 == 0);
-
-    for (i = 0; i < cnt; i++)
-    {
-        cint16_t x[2];
-
-        x[0].r = U8_Q15(buf[i * 4 + 0]);
-        x[0].i = -U8_Q15(buf[i * 4 + 1]);
-        x[1].r = U8_Q15(buf[i * 4 + 2]);
-        x[1].i = -U8_Q15(buf[i * 4 + 3]);
-
-        halfband_q15_execute(st->decim, x, &st->buffer[new_avail++]);
+        return -1;
     }
 
-    st->avail = new_avail;
+    return 0;
+}
+
+void input_push(input_t *st)
+{
     while (st->avail - st->used >= FFTCP)
     {
         input_push_to_acquire(st);
         acquire_process(&st->acq);
     }
+}
+
+void input_push_cu8(input_t *st, uint8_t *buf, uint32_t len)
+{
+    unsigned int i;
+    assert(len % 4 == 0);
+
+    if (st->snr_cb)
+    {
+        measure_snr(st, buf, len);
+        return;
+    }
+
+    nrsc5_report_iq(st->radio, buf, len);
+
+    if (input_shift(st, len / 4) != 0)
+        return;
+
+    for (i = 0; i < len / 4; i++)
+    {
+        cint16_t x[2];
+
+        x[0].r = U8_Q15(buf[i * 4 + 0]);
+        x[0].i = U8_Q15(buf[i * 4 + 1]);
+        x[1].r = U8_Q15(buf[i * 4 + 2]);
+        x[1].i = U8_Q15(buf[i * 4 + 3]);
+
+        halfband_q15_execute(st->decim, x, &st->buffer[st->avail++]);
+    }
+
+    input_push(st);
+}
+
+void input_push_cs16(input_t *st, int16_t *buf, uint32_t len)
+{
+    assert(len % 2 == 0);
+
+    if (input_shift(st, len / 2) != 0)
+        return;
+
+    memcpy(&st->buffer[st->avail], buf, len * sizeof(int16_t));
+    st->avail += len / 2;
+
+    input_push(st);
 }
 
 void input_set_snr_callback(input_t *st, input_snr_cb_t cb, void *arg)

@@ -13,7 +13,8 @@ LIBNRSC5_1.0 {
         nrsc5_set_gain;
         nrsc5_set_auto_gain;
         nrsc5_set_callback;
-        nrsc5_pipe_samples;
+        nrsc5_pipe_samples_cu8;
+        nrsc5_pipe_samples_cs16;
 
     local:
         *;

@@ -17,6 +17,7 @@
 
 #include "defines.h"
 #include "pids.h"
+#include "private.h"
 #include "unicode.h"
 
 static char *chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ ?-*$ ";
@@ -96,6 +97,99 @@ char *utf8_encode(int encoding, char *buf, int len)
     return NULL;
 }
 
+void report(pids_t *st)
+{
+    int i;
+    char *country_code = NULL;
+    char *name = NULL;
+    char *slogan = NULL;
+    char *message = NULL;
+    char *alert = NULL;
+    float latitude = NAN;
+    float longitude = NAN;
+    int altitude = 0;
+    nrsc5_sis_asd_t *audio_services = NULL;
+    nrsc5_sis_dsd_t *data_services = NULL;
+
+    if (st->country_code[0] != 0)
+        country_code = st->country_code;
+
+    if (st->short_name[0] != 0)
+        name = st->short_name;
+
+    if (st->slogan_displayed)
+        slogan = utf8_encode(st->slogan_encoding, st->slogan, st->slogan_len);
+    else if (st->long_name_displayed)
+        slogan = st->long_name;
+
+    if (st->message_displayed)
+        message = utf8_encode(st->message_encoding, st->message, st->message_len);
+
+    if (st->alert_displayed)
+    {
+        int cnt_bytes = 1 + (2 * st->alert_cnt_len);
+        alert = utf8_encode(st->alert_encoding, st->alert + cnt_bytes, st->alert_len - cnt_bytes);
+    }
+
+    if (!isnan(st->latitude) && !isnan(st->longitude))
+    {
+        latitude = st->latitude;
+        longitude = st->longitude;
+        altitude = st->altitude;
+    }
+
+    for (i = MAX_AUDIO_SERVICES - 1; i >= 0; i--)
+    {
+        if (st->audio_services[i].type != -1)
+        {
+            nrsc5_sis_asd_t *asd = malloc(sizeof(nrsc5_sis_asd_t));
+            asd->next = audio_services;
+            asd->program = i;
+            asd->access = st->audio_services[i].access;
+            asd->type = st->audio_services[i].type;
+            asd->sound_exp = st->audio_services[i].sound_exp;
+            audio_services = asd;
+        }
+    }
+
+    for (i = MAX_DATA_SERVICES - 1; i >= 0; i--)
+    {
+        if (st->data_services[i].type != -1)
+        {
+            nrsc5_sis_dsd_t *dsd = malloc(sizeof(nrsc5_sis_dsd_t));
+            dsd->next = data_services;
+            dsd->access = st->data_services[i].access;
+            dsd->type = st->data_services[i].type;
+            dsd->mime_type = st->data_services[i].mime_type;
+            data_services = dsd;
+        }
+    }
+
+    nrsc5_report_sis(st->input->radio, country_code, st->fcc_facility_id, name, slogan, message, alert,
+                     latitude, longitude, altitude, audio_services, data_services);
+
+    if (st->slogan_displayed)
+        free(slogan);
+    if (st->message_displayed)
+        free(message);
+    if (st->alert_displayed)
+        free(alert);
+
+    while (audio_services)
+    {
+        nrsc5_sis_asd_t *asd = audio_services;
+        audio_services = asd->next;
+        free(asd);
+    }
+
+    while (data_services)
+    {
+        nrsc5_sis_dsd_t *dsd = data_services;
+        data_services = dsd->next;
+        free(dsd);
+    }
+}
+
 void decode_sis(pids_t *st, uint8_t *bits)
 {
     int payloads, off, i;
@@ -135,9 +229,9 @@ void decode_sis(pids_t *st, uint8_t *bits)
 
             if ((strcmp(country_code, st->country_code) != 0) || (fcc_facility_id != st->fcc_facility_id))
             {
-                log_debug("Country: %s, FCC facility ID: %d", country_code, fcc_facility_id);
                 strcpy(st->country_code, country_code);
                 st->fcc_facility_id = fcc_facility_id;
+                report(st);
             }
             break;
         case 1:
@@ -152,8 +246,8 @@ void decode_sis(pids_t *st, uint8_t *bits)
 
             if (strcmp(short_name, st->short_name) != 0)
             {
-                log_debug("Station Name: %s", short_name);
                 strcpy(st->short_name, short_name);
+                report(st);
             }
             break;
         case 2:
@@ -185,8 +279,8 @@ void decode_sis(pids_t *st, uint8_t *bits)
 
                 if (complete)
                 {
-                    log_debug("Long station name: %s", st->long_name);
                     st->long_name_displayed = 1;
+                    report(st);
                 }
             }
 
@@ -201,17 +295,21 @@ void decode_sis(pids_t *st, uint8_t *bits)
             {
                 latitude = decode_signed_int(bits, &off, 22) / 8192.0;
                 st->altitude = (st->altitude & 0x0f0) | (decode_int(bits, &off, 4) << 8);
-                if ((latitude != st->latitude) && !isnan(st->longitude))
-                    log_debug("Station location: %f, %f, %dm", latitude, st->longitude, st->altitude);
-                st->latitude = latitude;
+                if (latitude != st->latitude)
+                {
+                    st->latitude = latitude;
+                    report(st);
+                }
             }
             else
             {
                 longitude = decode_signed_int(bits, &off, 22) / 8192.0;
                 st->altitude = (st->altitude & 0xf00) | (decode_int(bits, &off, 4) << 4);
-                if ((longitude != st->longitude) && !isnan(st->latitude))
-                    log_debug("Station location: %f, %f, %dm", st->latitude, longitude, st->altitude);
-                st->longitude = longitude;
+                if (longitude != st->longitude)
+                {
+                    st->longitude = longitude;
+                    report(st);
+                }
             }
             break;
         case 5:
@@ -251,13 +349,8 @@ void decode_sis(pids_t *st, uint8_t *bits)
 
                 if (complete)
                 {
-                    char *utf8 = utf8_encode(st->message_encoding, st->message, st->message_len);
-                    if (utf8)
-                    {
-                        log_debug("Message (priority %d): %s", st->message_priority, utf8);
-                        free(utf8);
-                    }
                     st->message_displayed = 1;
+                    report(st);
                 }
             }
             break;
@@ -284,9 +377,7 @@ void decode_sis(pids_t *st, uint8_t *bits)
                     || st->audio_services[prog_num].sound_exp != audio_service.sound_exp)
                 {
                     st->audio_services[prog_num] = audio_service;
-                    log_debug("Audio program %d: %s, type %d, sound experience %d",
-                        prog_num, audio_service.access ? "restricted" : "public",
-                        audio_service.type, audio_service.sound_exp);
+                    report(st);
                 }
                 break;
             case 1:
@@ -306,9 +397,7 @@ void decode_sis(pids_t *st, uint8_t *bits)
                     else if (st->data_services[j].type == -1)
                     {
                         st->data_services[j] = data_service;
-                        log_debug("Data service: %s, type %d, MIME type %03x",
-                            data_service.access ? "restricted" : "public",
-                            data_service.type, data_service.mime_type);
+                        report(st);
                         break;
                     }
                 }
@@ -413,13 +502,8 @@ void decode_sis(pids_t *st, uint8_t *bits)
 
                     if (complete)
                     {
-                        char *utf8 = utf8_encode(st->slogan_encoding, st->slogan, st->slogan_len);
-                        if (utf8)
-                        {
-                            log_debug("Slogan: %s", utf8);
-                            free(utf8);
-                        }
                         st->slogan_displayed = 1;
+                        report(st);
                     }
                 }
             }
@@ -461,14 +545,8 @@ void decode_sis(pids_t *st, uint8_t *bits)
 
                 if (complete)
                 {
-                    int cnt_bytes = 1 + (2 * st->alert_cnt_len);
-                    char *utf8 = utf8_encode(st->alert_encoding, st->alert + cnt_bytes, st->alert_len - cnt_bytes);
-                    if (utf8)
-                    {
-                        log_debug("Alert: %s", utf8);
-                        free(utf8);
-                    }
                     st->alert_displayed = 1;
+                    report(st);
                 }
             }
             break;
@@ -491,7 +569,7 @@ void pids_frame_push(pids_t *st, uint8_t *bits)
         decode_sis(st, reversed);
 }
 
-void pids_init(pids_t *st)
+void pids_init(pids_t *st, input_t *input)
 {
     int i;
 
@@ -535,4 +613,6 @@ void pids_init(pids_t *st)
     memset(st->alert_have_frame, 0, sizeof(st->alert_have_frame));
     st->alert_seq = -1;
     st->alert_displayed = 0;
+
+    st->input = input;
 }

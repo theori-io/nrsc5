@@ -90,8 +90,28 @@ enum
     NRSC5_EVENT_AUDIO,
     NRSC5_EVENT_ID3,
     NRSC5_EVENT_SIG,
-    NRSC5_EVENT_LOT
+    NRSC5_EVENT_LOT,
+    NRSC5_EVENT_SIS
 };
+
+struct nrsc5_sis_asd_t
+{
+    struct nrsc5_sis_asd_t *next;
+    unsigned int program;
+    unsigned int access;
+    unsigned int type;
+    unsigned int sound_exp;
+};
+typedef struct nrsc5_sis_asd_t nrsc5_sis_asd_t;
+
+struct nrsc5_sis_dsd_t
+{
+    struct nrsc5_sis_dsd_t *next;
+    unsigned int access;
+    unsigned int type;
+    uint32_t mime_type;
+};
+typedef struct nrsc5_sis_dsd_t nrsc5_sis_dsd_t;
 
 struct nrsc5_event_t
 {
@@ -146,6 +166,19 @@ struct nrsc5_event_t
         struct {
             nrsc5_sig_service_t *services;
         } sig;
+        struct {
+            const char *country_code;
+            int fcc_facility_id;
+            const char *name;
+            const char *slogan;
+            const char *message;
+            const char *alert;
+            float latitude;
+            float longitude;
+            int altitude;
+            nrsc5_sis_asd_t *audio_services;
+            nrsc5_sis_dsd_t *data_services;
+        } sis;
     };
 };
 typedef struct nrsc5_event_t nrsc5_event_t;

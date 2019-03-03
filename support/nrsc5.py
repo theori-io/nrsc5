@@ -1,6 +1,7 @@
 from ctypes import *
 import collections
 import enum
+import math
 import platform
 
 
@@ -16,6 +17,7 @@ class EventType(enum.Enum):
     ID3 = 8
     SIG = 9
     LOT = 10
+    SIS = 11
 
 
 class ServiceType(enum.Enum):
@@ -46,6 +48,67 @@ class MIMEType(enum.Enum):
     TTN_STM_WEATHER = 0xEF042E96
 
 
+class Access(enum.Enum):
+    PUBLIC = 0
+    RESTRICTED = 1
+
+
+class ServiceDataType(enum.Enum):
+    NON_SPECIFIC = 0
+    NEWS = 1
+    SPORTS = 3
+    WEATHER = 29
+    EMERGENCY = 31
+    TRAFFIC = 65
+    IMAGE_MAPS = 66
+    TEXT = 80
+    ADVERTISING = 256
+    FINANCIAL = 257
+    STOCK_TICKER = 258
+    NAVIGATION = 259
+    ELECTRONIC_PROGRAM_GUIDE = 260
+    AUDIO = 261
+    PRIVATE_DATA_NETWORK = 262
+    SERVICE_MAINTENANCE = 263
+    HD_RADIO_SYSTEM_SERVICES = 264
+    AUDIO_RELATED_DATA = 265
+
+
+class ProgramType(enum.Enum):
+    UNDEFINED = 0
+    NEWS = 1
+    INFORMATION = 2
+    SPORTS = 3
+    TALK = 4
+    ROCK = 5
+    CLASSIC_ROCK = 6
+    ADULT_HITS = 7
+    SOFT_ROCK = 8
+    TOP_40 = 9
+    COUNTRY = 10
+    OLDIES = 11
+    SOFT = 12
+    NOSTALGIA = 13
+    JAZZ = 14
+    CLASSICAL = 15
+    RHYTHM_AND_BLUES = 16
+    SOFT_RHYTHM_AND_BLUES = 17
+    FOREIGN_LANGUAGE = 18
+    RELIGIOUS_MUSIC = 19
+    RELIGIOUS_TALK = 20
+    PERSONALITY = 21
+    PUBLIC = 22
+    COLLEGE = 23
+    SPANISH_TALK = 24
+    SPANISH_MUSIC = 25
+    HIP_HOP = 26
+    WEATHER = 29
+    EMERGENCY_TEST = 30
+    EMERGENCY = 31
+    TRAFFIC = 65
+    SPECIAL_READING_SERVICES = 76
+
+
 IQ = collections.namedtuple("IQ", ["data"])
 MER = collections.namedtuple("MER", ["lower", "upper"])
 BER = collections.namedtuple("BER", ["cber"])
@@ -60,6 +123,10 @@ SIGComponent = collections.namedtuple("SIGComponent", ["type", "id", "audio", "d
 SIGService = collections.namedtuple("SIGService", ["type", "number", "name", "components"])
 SIG = collections.namedtuple("SIG", ["services"])
 LOT = collections.namedtuple("LOT", ["port", "lot", "mime", "name", "data"])
+SISAudioService = collections.namedtuple("SISAudioService", ["program", "access", "type", "sound_exp"])
+SISDataService = collections.namedtuple("SISDataService", ["access", "type", "mime_type"])
+SIS = collections.namedtuple("SIS", ["country_code", "fcc_facility_id", "name", "slogan", "message", "alert",
+                                     "latitude", "longitude", "altitude", "audio_services", "data_services"])
 
 
 class _IQ(Structure):
@@ -191,6 +258,47 @@ class _LOT(Structure):
     ]
 
 
+class _SISAudioService(Structure):
+    pass
+
+
+_SISAudioService._fields_ = [
+    ("next", POINTER(_SISAudioService)),
+    ("program", c_uint),
+    ("access", c_uint),
+    ("type", c_uint),
+    ("sound_exp", c_uint),
+]
+
+
+class _SISDataService(Structure):
+    pass
+
+
+_SISDataService._fields_ = [
+    ("next", POINTER(_SISDataService)),
+    ("access", c_uint),
+    ("type", c_uint),
+    ("mime_type", c_uint32),
+]
+
+
+class _SIS(Structure):
+    _fields_ = [
+        ("country_code", c_char_p),
+        ("fcc_facility_id", c_int),
+        ("name", c_char_p),
+        ("slogan", c_char_p),
+        ("message", c_char_p),
+        ("alert", c_char_p),
+        ("latitude", c_float),
+        ("longitude", c_float),
+        ("altitude", c_int),
+        ("audio_services", POINTER(_SISAudioService)),
+        ("data_services", POINTER(_SISDataService)),
+    ]
+
+
 class _EventUnion(Union):
     _fields_ = [
         ("iq", _IQ),
@@ -201,6 +309,7 @@ class _EventUnion(Union):
         ("id3", _ID3),
         ("sig", _SIG),
         ("lot", _LOT),
+        ("sis", _SIS),
     ]
 
 
@@ -240,7 +349,12 @@ class NRSC5:
     def _callback_wrapper(self, c_evt):
         c_evt = c_evt.contents
         evt = None
-        type = EventType(c_evt.event)
+
+        try:
+            type = EventType(c_evt.event)
+        except ValueError:
+            return
+
         if type == EventType.IQ:
             iq = c_evt.u.iq
             evt = IQ(iq.data[:iq.count])
@@ -275,11 +389,12 @@ class NRSC5:
                     component = component_ptr.contents
                     component_type = ComponentType(component.type)
                     if component_type == ComponentType.AUDIO:
-                        audio = SIGAudioComponent(component.u.audio.port, component.u.audio.type,
+                        audio = SIGAudioComponent(component.u.audio.port, ProgramType(component.u.audio.type),
                                                   MIMEType(component.u.audio.mime))
                         components.append(SIGComponent(component_type, component.id, audio, None))
                     if component_type == ComponentType.DATA:
-                        data = SIGDataComponent(component.u.data.port, component.u.data.service_data_type,
+                        data = SIGDataComponent(component.u.data.port,
+                                                ServiceDataType(component.u.data.service_data_type),
                                                 component.u.data.type, MIMEType(component.u.data.mime))
                         components.append(SIGComponent(component_type, component.id, None, data))
                     component_ptr = component.next
@@ -289,6 +404,31 @@ class NRSC5:
         elif type == EventType.LOT:
             lot = c_evt.u.lot
             evt = LOT(lot.port, lot.lot, MIMEType(lot.mime), self._decode(lot.name), lot.data[:lot.size])
+        elif type == EventType.SIS:
+            sis = c_evt.u.sis
+
+            latitude, longitude, altitude = None, None, None
+            if not math.isnan(sis.latitude):
+                latitude, longitude, altitude = sis.latitude, sis.longitude, sis.altitude
+
+            audio_services = []
+            audio_service_ptr = sis.audio_services
+            while audio_service_ptr:
+                asd = audio_service_ptr.contents
+                audio_services.append(SISAudioService(asd.program, Access(asd.access),
+                                                      ProgramType(asd.type), asd.sound_exp))
+                audio_service_ptr = asd.next
+
+            data_services = []
+            data_service_ptr = sis.data_services
+            while data_service_ptr:
+                dsd = data_service_ptr.contents
+                data_services.append(SISDataService(Access(dsd.access), ServiceDataType(dsd.type), dsd.mime_type))
+                data_service_ptr = dsd.next
+
+            evt = SIS(self._decode(sis.country_code), sis.fcc_facility_id, self._decode(sis.name),
+                      self._decode(sis.slogan), self._decode(sis.message), self._decode(sis.alert),
+                      latitude, longitude, altitude, audio_services, data_services)
         self.callback(type, evt)
 
     def __init__(self, callback):

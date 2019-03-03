@@ -19,6 +19,7 @@
 #include <nrsc5.h>
 #include <pthread.h>
 #include <sys/time.h>
+#include <termios.h>
 
 #include <assert.h>
 #include <stdio.h>
@@ -99,7 +100,7 @@ static void reset_audio_buffers(state_t *st)
     st->tail = NULL;
 }
 
-static void push_audio_buffer(state_t *st, const int16_t *data, size_t count)
+static void push_audio_buffer(state_t *st, unsigned int program, const int16_t *data, size_t count)
 {
     audio_buffer_t *b;
     struct timespec ts;
@@ -115,6 +116,9 @@ static void push_audio_buffer(state_t *st, const int16_t *data, size_t count)
     }
 
     pthread_mutex_lock(&st->mutex);
+    if (program != st->program)
+        goto unlock;
+
     while (st->free == NULL)
     {
         if (pthread_cond_timedwait(&st->cond, &st->mutex, &ts) == ETIMEDOUT)
@@ -131,6 +135,13 @@ static void push_audio_buffer(state_t *st, const int16_t *data, size_t count)
     memcpy(b->data, data, count * sizeof(data[0]));
 
     pthread_mutex_lock(&st->mutex);
+    if (program != st->program)
+    {
+        b->next = st->free;
+        st->free = b;
+        goto unlock;
+    }
+
     b->next = NULL;
     if (st->tail)
         st->tail->next = b;
@@ -142,6 +153,8 @@ static void push_audio_buffer(state_t *st, const int16_t *data, size_t count)
         st->audio_ready++;
 
     pthread_cond_signal(&st->cond);
+
+unlock:
     pthread_mutex_unlock(&st->mutex);
 }
 
@@ -225,6 +238,32 @@ static void dump_ber(float cber)
     log_info("BER: %f, avg: %f, min: %f, max: %f", cber, sum / count, min, max);
 }
 
+static void done_signal(state_t *st)
+{
+    pthread_mutex_lock(&st->mutex);
+    st->done = 1;
+    pthread_cond_signal(&st->cond);
+    pthread_mutex_unlock(&st->mutex);
+}
+
+static void change_program(state_t *st, unsigned int program)
+{
+    pthread_mutex_lock(&st->mutex);
+
+    // reset audio buffers
+    st->audio_ready = 0;
+    if (st->tail)
+    {
+        st->tail->next = st->free;
+        st->free = st->head;
+        st->head = st->tail = NULL;
+    }
+    // update current program
+    st->program = program;
+
+    pthread_mutex_unlock(&st->mutex);
+}
+
 static void callback(const nrsc5_event_t *evt, void *opaque)
 {
     state_t *st = opaque;
@@ -236,10 +275,7 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
     switch (evt->event)
     {
     case NRSC5_EVENT_LOST_DEVICE:
-        pthread_mutex_lock(&st->mutex);
-        st->done = 1;
-        pthread_cond_signal(&st->cond);
-        pthread_mutex_unlock(&st->mutex);
+        done_signal(st);
         break;
     case NRSC5_EVENT_BER:
         dump_ber(evt->ber.cber);
@@ -267,8 +303,7 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
         }
         break;
     case NRSC5_EVENT_AUDIO:
-        if (evt->audio.program == st->program)
-            push_audio_buffer(st, evt->audio.data, evt->audio.count);
+        push_audio_buffer(st, evt->audio.program, evt->audio.data, evt->audio.count);
         break;
     case NRSC5_EVENT_SYNC:
         log_info("Synchronized");
@@ -345,6 +380,49 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
                      data_service->type, data_service->mime_type);
         break;
     }
+}
+
+static void restore_termios(void *arg)
+{
+    tcsetattr(STDIN_FILENO, TCSANOW, arg);
+}
+
+static void *input_main(void *arg)
+{
+    state_t *st = arg;
+    struct termios prev_termios, t;
+
+    // disable terminal canonical mode
+    tcgetattr(STDIN_FILENO, &prev_termios);
+    pthread_cleanup_push(restore_termios, &prev_termios);
+    t = prev_termios;
+    t.c_lflag &= ~ICANON;
+    tcsetattr(STDIN_FILENO, TCSANOW, &t);
+
+    while (!st->done)
+    {
+        int ch = getchar();
+
+        switch (ch)
+        {
+        case 'q':
+            done_signal(st);
+            // user wants to immediately exit, so reset audio buffer
+            change_program(st, -1);
+            break;
+        case '0':
+        case '1':
+        case '2':
+        case '3':
+            change_program(st, ch - '0');
+            break;
+        }
+    }
+
+    // restore terminal settings
+    pthread_cleanup_pop(1);
+
+    return NULL;
 }
 
 static void help(const char *progname)
@@ -516,6 +594,7 @@ static void cleanup(state_t *st)
 int main(int argc, char *argv[])
 {
     pthread_mutex_t log_mutex;
+    pthread_t input_thread;
     nrsc5_t *radio = NULL;
     state_t *st = calloc(1, sizeof(state_t));
 
@@ -564,6 +643,8 @@ int main(int argc, char *argv[])
     nrsc5_set_callback(radio, callback, st);
     nrsc5_start(radio);
 
+    pthread_create(&input_thread, NULL, input_main, st);
+
     while (1)
     {
         audio_buffer_t *b;
@@ -595,6 +676,9 @@ int main(int argc, char *argv[])
         pthread_cond_signal(&st->cond);
         pthread_mutex_unlock(&st->mutex);
     }
+
+    pthread_cancel(input_thread);
+    pthread_join(input_thread, NULL);
 
     nrsc5_close(radio);
     cleanup(st);

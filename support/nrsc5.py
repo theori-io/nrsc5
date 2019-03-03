@@ -372,10 +372,17 @@ class NRSC5:
             evt = Audio(audio.program, audio.data[:audio.count * 2])
         elif type == EventType.ID3:
             id3 = c_evt.u.id3
-            ufid = UFID(self._decode(id3.ufid.owner), self._decode(id3.ufid.id))
-            xhdr = XHDR(None if id3.xhdr.mime == 0 else MIMEType(id3.xhdr.mime),
-                        None if id3.xhdr.param == -1 else id3.xhdr.param,
-                        None if id3.xhdr.lot == -1 else id3.xhdr.lot)
+
+            ufid = None
+            if id3.ufid.owner or id3.ufid.id:
+                ufid = UFID(self._decode(id3.ufid.owner), self._decode(id3.ufid.id))
+
+            xhdr = None
+            if id3.xhdr.mime != 0 or id3.xhdr.param != -1 or id3.xhdr.lot != -1:
+                xhdr = XHDR(None if id3.xhdr.mime == 0 else MIMEType(id3.xhdr.mime),
+                            None if id3.xhdr.param == -1 else id3.xhdr.param,
+                            None if id3.xhdr.lot == -1 else id3.xhdr.lot)
+
             evt = ID3(id3.program, self._decode(id3.title), self._decode(id3.artist),
                       self._decode(id3.album), self._decode(id3.genre), ufid, xhdr)
         elif type == EventType.SIG:

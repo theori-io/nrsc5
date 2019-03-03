@@ -227,6 +227,8 @@ static void dump_ber(float cber)
 static void callback(const nrsc5_event_t *evt, void *opaque)
 {
     state_t *st = opaque;
+    nrsc5_sig_service_t *sig_service;
+    nrsc5_sig_component_t *sig_component;
 
     switch (evt->event)
     {
@@ -285,6 +287,32 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
                 log_info("Unique file identifier: %s %s", evt->id3.ufid.owner, evt->id3.ufid.id);
             if (evt->id3.xhdr.param >= 0)
                 log_info("XHDR: %d %08X %d", evt->id3.xhdr.param, evt->id3.xhdr.mime, evt->id3.xhdr.lot);
+        }
+        break;
+    case NRSC5_EVENT_SIG:
+        sig_service = evt->sig.services;
+        while (sig_service)
+        {
+            log_info("SIG Service: type=%s number=%d name=%s",
+                     sig_service->type == NRSC5_SIG_SERVICE_AUDIO ? "audio" : "data",
+                     sig_service->number, sig_service->name);
+            sig_component = sig_service->components;
+            while (sig_component)
+            {
+                if (sig_component->type == NRSC5_SIG_SERVICE_AUDIO)
+                {
+                    log_info("  Audio component: id=%d port=%d type=%d mime=%08X", sig_component->id,
+                             sig_component->audio.port, sig_component->audio.type, sig_component->audio.mime);
+                }
+                else if (sig_component->type == NRSC5_SIG_SERVICE_DATA)
+                {
+                    log_info("  Data component: id=%d port=%d service_data_type=%d type=%d mime=%08X",
+                             sig_component->id, sig_component->data.port, sig_component->data.service_data_type,
+                             sig_component->data.type, sig_component->data.mime);
+                }
+                sig_component = sig_component->next;
+            }
+            sig_service = sig_service->next;
         }
         break;
     case NRSC5_EVENT_LOT:

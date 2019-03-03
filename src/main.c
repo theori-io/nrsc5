@@ -305,12 +305,12 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
             {
                 if (sig_component->type == NRSC5_SIG_SERVICE_AUDIO)
                 {
-                    log_info("  Audio component: id=%d port=%d type=%d mime=%08X", sig_component->id,
+                    log_info("  Audio component: id=%d port=%04X type=%d mime=%08X", sig_component->id,
                              sig_component->audio.port, sig_component->audio.type, sig_component->audio.mime);
                 }
                 else if (sig_component->type == NRSC5_SIG_SERVICE_DATA)
                 {
-                    log_info("  Data component: id=%d port=%d service_data_type=%d type=%d mime=%08X",
+                    log_info("  Data component: id=%d port=%04X service_data_type=%d type=%d mime=%08X",
                              sig_component->id, sig_component->data.port, sig_component->data.service_data_type,
                              sig_component->data.type, sig_component->data.mime);
                 }
@@ -335,7 +335,7 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
             log_info("Alert: %s", evt->sis.alert);
         if (!isnan(evt->sis.latitude))
             log_info("Station location: %f, %f, %dm", evt->sis.latitude, evt->sis.longitude, evt->sis.altitude);
-        for (audio_service = evt->sis.audio_services; audio_service != NULL; audio_service = audio_service->next) 
+        for (audio_service = evt->sis.audio_services; audio_service != NULL; audio_service = audio_service->next)
             log_info("Audio program %d: %s, type %d, sound experience %d",
                      audio_service->program, audio_service->access ? "restricted" : "public",
                      audio_service->type, audio_service->sound_exp);

@@ -22,7 +22,7 @@
 
 static char *chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ ?-*$ ";
 
-uint16_t crc12(uint8_t *bits)
+static uint16_t crc12(uint8_t *bits)
 {
     uint16_t poly = 0xD010;
     uint16_t reg = 0x0000;
@@ -45,7 +45,7 @@ uint16_t crc12(uint8_t *bits)
     return reg & 0xfff;
 }
 
-int check_crc12(uint8_t *bits)
+static int check_crc12(uint8_t *bits)
 {
     uint16_t expected_crc = 0;
     int i;
@@ -58,7 +58,7 @@ int check_crc12(uint8_t *bits)
     return expected_crc == crc12(bits);
 }
 
-unsigned int decode_int(uint8_t *bits, int *off, unsigned int length)
+static unsigned int decode_int(uint8_t *bits, int *off, unsigned int length)
 {
     unsigned int i, result = 0;
     for (i = 0; i < length; i++)
@@ -69,23 +69,23 @@ unsigned int decode_int(uint8_t *bits, int *off, unsigned int length)
     return result;
 }
 
-int decode_signed_int(uint8_t *bits, int *off, unsigned int length)
+static int decode_signed_int(uint8_t *bits, int *off, unsigned int length)
 {
     int result = (int) decode_int(bits, off, length);
     return (result & (1 << (length - 1))) ? result - (1 << length) : result;
 }
 
-char decode_char5(uint8_t *bits, int *off)
+static char decode_char5(uint8_t *bits, int *off)
 {
     return chars[decode_int(bits, off, 5)];
 }
 
-char decode_char7(uint8_t *bits, int *off)
+static char decode_char7(uint8_t *bits, int *off)
 {
     return (char) decode_int(bits, off, 7);
 }
 
-char *utf8_encode(int encoding, char *buf, int len)
+static char *utf8_encode(int encoding, char *buf, int len)
 {
     if (encoding == 0)
         return iso_8859_1_to_utf_8((uint8_t *) buf, len);
@@ -97,7 +97,7 @@ char *utf8_encode(int encoding, char *buf, int len)
     return NULL;
 }
 
-void report(pids_t *st)
+static void report(pids_t *st)
 {
     int i;
     char *country_code = NULL;
@@ -190,7 +190,7 @@ void report(pids_t *st)
     }
 }
 
-void decode_sis(pids_t *st, uint8_t *bits)
+static void decode_sis(pids_t *st, uint8_t *bits)
 {
     int payloads, off, i;
 

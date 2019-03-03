@@ -199,9 +199,7 @@ void sync_process(sync_t *st)
         {
             if (find_first_block(st, UB_END, &psmi) != 0)
             {
-                log_debug("lost sync (%d, %d)!", find_first_block(st, LB_START, &psmi), find_first_block(st, UB_END, &psmi));
-                nrsc5_report_lost_sync(st->input->radio);
-                st->input->sync_state = SYNC_STATE_NONE;
+                input_set_sync_state(st->input, SYNC_STATE_NONE);
             }
         }
     }
@@ -215,10 +213,8 @@ void sync_process(sync_t *st)
 
         if (offset == 0)
         {
-            log_info("Synchronized!");
-            nrsc5_report_sync(st->input->radio);
+            input_set_sync_state(st->input, SYNC_STATE_FINE);
             decode_reset(&st->input->decode);
-            st->input->sync_state = SYNC_STATE_FINE;
         }
         else if (st->cfo_wait == 0)
         {

@@ -260,7 +260,7 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
             st->audio_packets++;
             st->audio_bytes += evt->hdc.count * sizeof(evt->hdc.data[0]);
             if (st->audio_packets >= 32) {
-                log_debug("Audio bit rate: %.1f kbps", (float)st->audio_bytes * 8 * 44100 / 2048 / st->audio_packets / 1000);
+                log_info("Audio bit rate: %.1f kbps", (float)st->audio_bytes * 8 * 44100 / 2048 / st->audio_packets / 1000);
                 st->audio_packets = 0;
                 st->audio_bytes = 0;
             }
@@ -271,9 +271,11 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
             push_audio_buffer(st, evt->audio.data, evt->audio.count);
         break;
     case NRSC5_EVENT_SYNC:
+        log_info("Synchronized");
         st->audio_ready = 0;
         break;
     case NRSC5_EVENT_LOST_SYNC:
+        log_info("Lost synchronization");
         break;
     case NRSC5_EVENT_ID3:
         if (evt->id3.program == st->program)

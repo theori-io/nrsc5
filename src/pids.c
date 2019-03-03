@@ -190,6 +190,7 @@ static void report(pids_t *st)
 static void decode_sis(pids_t *st, uint8_t *bits)
 {
     int payloads, off, i;
+    int updated = 0;
 
     if (bits[0] != 0) return;
     payloads = bits[1] + 1;
@@ -228,7 +229,7 @@ static void decode_sis(pids_t *st, uint8_t *bits)
             {
                 strcpy(st->country_code, country_code);
                 st->fcc_facility_id = fcc_facility_id;
-                report(st);
+                updated = 1;
             }
             break;
         case 1:
@@ -244,7 +245,7 @@ static void decode_sis(pids_t *st, uint8_t *bits)
             if (strcmp(short_name, st->short_name) != 0)
             {
                 strcpy(st->short_name, short_name);
-                report(st);
+                updated = 1;
             }
             break;
         case 2:
@@ -277,7 +278,7 @@ static void decode_sis(pids_t *st, uint8_t *bits)
                 if (complete)
                 {
                     st->long_name_displayed = 1;
-                    report(st);
+                    updated = 1;
                 }
             }
 
@@ -295,7 +296,8 @@ static void decode_sis(pids_t *st, uint8_t *bits)
                 if (latitude != st->latitude)
                 {
                     st->latitude = latitude;
-                    report(st);
+                    if (!isnan(st->longitude))
+                        updated = 1;
                 }
             }
             else
@@ -305,7 +307,8 @@ static void decode_sis(pids_t *st, uint8_t *bits)
                 if (longitude != st->longitude)
                 {
                     st->longitude = longitude;
-                    report(st);
+                    if (!isnan(st->latitude))
+                        updated = 1;
                 }
             }
             break;
@@ -347,7 +350,7 @@ static void decode_sis(pids_t *st, uint8_t *bits)
                 if (complete)
                 {
                     st->message_displayed = 1;
-                    report(st);
+                    updated = 1;
                 }
             }
             break;
@@ -374,7 +377,7 @@ static void decode_sis(pids_t *st, uint8_t *bits)
                     || st->audio_services[prog_num].sound_exp != audio_service.sound_exp)
                 {
                     st->audio_services[prog_num] = audio_service;
-                    report(st);
+                    updated = 1;
                 }
                 break;
             case 1:
@@ -394,7 +397,7 @@ static void decode_sis(pids_t *st, uint8_t *bits)
                     else if (st->data_services[j].type == -1)
                     {
                         st->data_services[j] = data_service;
-                        report(st);
+                        updated = 1;
                         break;
                     }
                 }
@@ -500,7 +503,7 @@ static void decode_sis(pids_t *st, uint8_t *bits)
                     if (complete)
                     {
                         st->slogan_displayed = 1;
-                        report(st);
+                        updated = 1;
                     }
                 }
             }
@@ -543,7 +546,7 @@ static void decode_sis(pids_t *st, uint8_t *bits)
                 if (complete)
                 {
                     st->alert_displayed = 1;
-                    report(st);
+                    updated = 1;
                 }
             }
             break;
@@ -551,6 +554,9 @@ static void decode_sis(pids_t *st, uint8_t *bits)
             log_error("unexpected msg_id: %d", msg_id);
         }
     }
+
+    if (updated == 1)
+        report(st);
 }
 
 void pids_frame_push(pids_t *st, uint8_t *bits)

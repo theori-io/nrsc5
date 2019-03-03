@@ -157,9 +157,9 @@ class NRSC5CLI:
             if self.args.w:
                 self.iq_output.write(evt.data)
         elif type == nrsc5.EventType.SYNC:
-            logging.info("Got Sync")
+            logging.info("Synchronized")
         elif type == nrsc5.EventType.LOST_SYNC:
-            logging.info("Lost sync")
+            logging.info("Lost synchronization")
         elif type == nrsc5.EventType.MER:
             logging.info("MER: {:.1f} dB (lower), {:.1f} dB (upper)".format(evt.lower, evt.upper))
         elif type == nrsc5.EventType.BER:

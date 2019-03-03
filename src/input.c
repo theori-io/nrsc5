@@ -203,11 +203,11 @@ void input_reset(input_t *st)
     st->avail = 0;
     st->used = 0;
     st->skip = 0;
-    st->sync_state = SYNC_STATE_NONE;
     for (int i = 0; i < SNR_FFT_LEN; ++i)
         st->snr_power[i] = 0;
     st->snr_cnt = 0;
 
+    input_set_sync_state(st, SYNC_STATE_NONE);
     firdecim_q15_reset(st->decim);
     acquire_reset(&st->acq);
     decode_reset(&st->decode);
@@ -221,6 +221,7 @@ void input_init(input_t *st, nrsc5_t *radio, output_t *output)
     st->output = output;
     st->snr_cb = NULL;
     st->snr_cb_arg = NULL;
+    st->sync_state = SYNC_STATE_NONE;
 
     st->decim = firdecim_q15_create(decim_taps, sizeof(decim_taps) / sizeof(decim_taps[0]));
     st->snr_fft = fftwf_plan_dft_1d(SNR_FFT_LEN, st->snr_fft_in, st->snr_fft_out, FFTW_FORWARD, 0);
@@ -241,6 +242,19 @@ void input_free(input_t *st)
     firdecim_q15_free(st->decim);
     fftwf_destroy_plan(st->snr_fft);
     fftwf_cleanup();
+}
+
+void input_set_sync_state(input_t *st, unsigned int new_state)
+{
+    if (st->sync_state == new_state)
+        return;
+
+    if (st->sync_state == SYNC_STATE_FINE)
+        nrsc5_report_lost_sync(st->radio);
+    if (new_state == SYNC_STATE_FINE)
+        nrsc5_report_sync(st->radio);
+
+    st->sync_state = new_state;
 }
 
 void input_aas_push(input_t *st, uint8_t *psd, unsigned int len)

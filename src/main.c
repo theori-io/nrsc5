@@ -290,14 +290,13 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
         }
         break;
     case NRSC5_EVENT_SIG:
-        sig_service = evt->sig.services;
-        while (sig_service)
+        for (sig_service = evt->sig.services; sig_service != NULL; sig_service = sig_service->next)
         {
             log_info("SIG Service: type=%s number=%d name=%s",
                      sig_service->type == NRSC5_SIG_SERVICE_AUDIO ? "audio" : "data",
                      sig_service->number, sig_service->name);
-            sig_component = sig_service->components;
-            while (sig_component)
+
+            for (sig_component = sig_service->components; sig_component != NULL; sig_component = sig_component->next)
             {
                 if (sig_component->type == NRSC5_SIG_SERVICE_AUDIO)
                 {
@@ -310,9 +309,7 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
                              sig_component->id, sig_component->data.port, sig_component->data.service_data_type,
                              sig_component->data.type, sig_component->data.mime);
                 }
-                sig_component = sig_component->next;
             }
-            sig_service = sig_service->next;
         }
         break;
     case NRSC5_EVENT_LOT:

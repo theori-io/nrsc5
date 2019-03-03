@@ -185,9 +185,9 @@ class NRSC5CLI:
                     logging.info("Album: " + evt.album)
                 if evt.genre:
                     logging.info("Genre: " + evt.genre)
-                if evt.ufid.owner:
+                if evt.ufid:
                     logging.info("Unique file identifier: {} {}".format(evt.ufid.owner, evt.ufid.id))
-                if evt.xhdr.param:
+                if evt.xhdr:
                     logging.info("XHDR: param={} mime={} lot={}"
                                  .format(evt.xhdr.param, evt.xhdr.mime, evt.xhdr.lot))
         elif type == nrsc5.EventType.SIG:

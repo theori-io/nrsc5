@@ -100,8 +100,8 @@ static char *utf8_encode(int encoding, char *buf, int len)
 static void report(pids_t *st)
 {
     int i;
-    char *country_code = NULL;
-    char *name = NULL;
+    const char *country_code = NULL;
+    const char *name = NULL;
     char *slogan = NULL;
     char *message = NULL;
     char *alert = NULL;
@@ -120,7 +120,7 @@ static void report(pids_t *st)
     if (st->slogan_displayed)
         slogan = utf8_encode(st->slogan_encoding, st->slogan, st->slogan_len);
     else if (st->long_name_displayed)
-        slogan = st->long_name;
+        slogan = strdup(st->long_name);
 
     if (st->message_displayed)
         message = utf8_encode(st->message_encoding, st->message, st->message_len);
@@ -168,12 +168,9 @@ static void report(pids_t *st)
     nrsc5_report_sis(st->input->radio, country_code, st->fcc_facility_id, name, slogan, message, alert,
                      latitude, longitude, altitude, audio_services, data_services);
 
-    if (st->slogan_displayed)
-        free(slogan);
-    if (st->message_displayed)
-        free(message);
-    if (st->alert_displayed)
-        free(alert);
+    free(slogan);
+    free(message);
+    free(alert);
 
     while (audio_services)
     {

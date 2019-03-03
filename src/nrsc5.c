@@ -555,3 +555,26 @@ void nrsc5_report_sig(nrsc5_t *st, sig_service_t *services, unsigned int count)
         free(p);
     }
 }
+
+void nrsc5_report_sis(nrsc5_t *st, const char *country_code, int fcc_facility_id, const char *name,
+                      const char *slogan, const char *message, const char *alert,
+                      float latitude, float longitude, int altitude, nrsc5_sis_asd_t *audio_services,
+                      nrsc5_sis_dsd_t *data_services)
+{
+    nrsc5_event_t evt;
+
+    evt.event = NRSC5_EVENT_SIS;
+    evt.sis.country_code = country_code;
+    evt.sis.fcc_facility_id = fcc_facility_id;
+    evt.sis.name = name;
+    evt.sis.slogan = slogan;
+    evt.sis.message = message;
+    evt.sis.alert = alert;
+    evt.sis.latitude = latitude;
+    evt.sis.longitude = longitude;
+    evt.sis.altitude = altitude;
+    evt.sis.audio_services = audio_services;
+    evt.sis.data_services = data_services;
+
+    nrsc5_report(st, &evt);
+}

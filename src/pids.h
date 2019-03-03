@@ -30,6 +30,8 @@ typedef struct
 
 typedef struct
 {
+    struct input_t *input;
+
     char country_code[3];
     int fcc_facility_id;
 
@@ -73,4 +75,4 @@ typedef struct
 } pids_t;
 
 void pids_frame_push(pids_t *st, uint8_t *bits);
-void pids_init(pids_t *st);
+void pids_init(pids_t *st, struct input_t *input);

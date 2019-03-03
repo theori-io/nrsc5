@@ -15,6 +15,7 @@
 
 #include <ao/ao.h>
 #include <getopt.h>
+#include <math.h>
 #include <nrsc5.h>
 #include <pthread.h>
 #include <sys/time.h>
@@ -229,6 +230,8 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
     state_t *st = opaque;
     nrsc5_sig_service_t *sig_service;
     nrsc5_sig_component_t *sig_component;
+    nrsc5_sis_asd_t *audio_service;
+    nrsc5_sis_dsd_t *data_service;
 
     switch (evt->event)
     {
@@ -316,6 +319,28 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
         if (st->aas_files_path)
             dump_aas_file(st, evt);
         log_info("LOT file: port=%04X lot=%d name=%s size=%d mime=%08X", evt->lot.port, evt->lot.lot, evt->lot.name, evt->lot.size, evt->lot.mime);
+        break;
+    case NRSC5_EVENT_SIS:
+        if (evt->sis.country_code)
+            log_info("Country: %s, FCC facility ID: %d", evt->sis.country_code, evt->sis.fcc_facility_id);
+        if (evt->sis.name)
+            log_info("Station name: %s", evt->sis.name);
+        if (evt->sis.slogan)
+            log_info("Slogan: %s", evt->sis.slogan);
+        if (evt->sis.message)
+            log_info("Message: %s", evt->sis.message);
+        if (evt->sis.alert)
+            log_info("Alert: %s", evt->sis.alert);
+        if (!isnan(evt->sis.latitude))
+            log_info("Station location: %f, %f, %dm", evt->sis.latitude, evt->sis.longitude, evt->sis.altitude);
+        for (audio_service = evt->sis.audio_services; audio_service != NULL; audio_service = audio_service->next) 
+            log_info("Audio program %d: %s, type %d, sound experience %d",
+                     audio_service->program, audio_service->access ? "restricted" : "public",
+                     audio_service->type, audio_service->sound_exp);
+        for (data_service = evt->sis.data_services; data_service != NULL; data_service = data_service->next)
+            log_info("Data service: %s, type %d, MIME type %03x",
+                     data_service->access ? "restricted" : "public",
+                     data_service->type, data_service->mime_type);
         break;
     }
 }

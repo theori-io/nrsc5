@@ -207,6 +207,25 @@ class NRSC5CLI:
                 path = os.path.join(self.args.dump_aas_files, evt.name)
                 with open(path, "wb") as f:
                     f.write(evt.data)
+        elif type == nrsc5.EventType.SIS:
+            if evt.country_code:
+                logging.info("Country: {}, FCC facility ID: {}".format(evt.country_code, evt.fcc_facility_id))
+            if evt.name:
+                logging.info("Station name: {}".format(evt.name))
+            if evt.slogan:
+                logging.info("Slogan: {}".format(evt.slogan))
+            if evt.message:
+                logging.info("Message: {}".format(evt.message))
+            if evt.alert:
+                logging.info("Alert: {}".format(evt.alert))
+            if evt.latitude:
+                logging.info("Station location: {}, {}, {}m".format(evt.latitude, evt.longitude, evt.altitude))
+            for audio_service in evt.audio_services:
+                logging.info("Audio program {}: {}, {}, sound experience {}".format(
+                    audio_service.program, audio_service.access, audio_service.type, audio_service.sound_exp))
+            for data_service in evt.data_services:
+                logging.info("Data service: {}, {}, MIME type {:03x}".format(
+                    data_service.access, data_service.type, data_service.mime_type))
 
 
 if __name__ == "__main__":

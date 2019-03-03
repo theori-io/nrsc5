@@ -59,9 +59,9 @@ static inline cint16_t cf_to_cq15(float complex x)
     return cq15;
 }
 
-static inline float complex cq15_to_cf(cint16_t cq15)
+static inline float complex cq15_to_cf_conj(cint16_t cq15)
 {
-    return CMPLXF((float)cq15.r / 32767.0f, (float)cq15.i / 32767.0f);
+    return CMPLXF((float)cq15.r / 32767.0f, (float)cq15.i / -32767.0f);
 }
 
 static inline float normf(float complex v)

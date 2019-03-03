@@ -29,6 +29,7 @@ class NRSC5CLI:
         parser.add_argument("-p", metavar="ppm-error", type=int, default=0)
         parser.add_argument("-g", metavar="gain", type=float)
         input_group.add_argument("-r", metavar="iq-input")
+        parser.add_argument("--iq-input-format", choices=["cu8", "cs16"], default="cu8")
         parser.add_argument("-w", metavar="iq-output")
         parser.add_argument("-o", metavar="wav-output")
         parser.add_argument("--dump-hdc", metavar="hdc-output")
@@ -79,7 +80,10 @@ class NRSC5CLI:
                     data = iq_input.read(32768)
                     if len(data) == 0:
                         break
-                    self.radio.pipe_samples(data[:(len(data) // 4) * 4])
+                    if self.args.iq_input_format == "cu8":
+                        self.radio.pipe_samples_cu8(data[:(len(data) // 4) * 4])
+                    elif self.args.iq_input_format == "cs16":
+                        self.radio.pipe_samples_cs16(data[:(len(data) // 4) * 4])
             else:
                 with self.device_condition:
                     self.device_condition.wait()

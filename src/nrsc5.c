@@ -52,7 +52,7 @@ static int do_auto_gain(nrsc5_t *st)
             if (rtlsdr_read_sync(st->dev, st->samples_buf, len, &len) != 0)
                 goto error;
 
-            input_push(&st->input, st->samples_buf, len);
+            input_push_cu8(&st->input, st->samples_buf, len);
         }
         log_debug("Gain: %.1f dB, CNR: %.1f dB", gain / 10.0f, 10 * log10f(st->auto_gain_snr));
         if (st->auto_gain_snr > best_snr)
@@ -81,7 +81,7 @@ static void worker_cb(uint8_t *buf, uint32_t len, void *arg)
     if (st->stopped && st->dev)
         rtlsdr_cancel_async(st->dev);
     else
-        input_push(&st->input, buf, len);
+        input_push_cu8(&st->input, buf, len);
 }
 
 static void *worker_thread(void *arg)
@@ -136,7 +136,7 @@ static void *worker_thread(void *arg)
             {
                 int count = fread(st->samples_buf, 4, sizeof(st->samples_buf) / 4, st->iq_file);
                 if (count > 0)
-                    input_push(&st->input, st->samples_buf, count * 4);
+                    input_push_cu8(&st->input, st->samples_buf, count * 4);
                 if (feof(st->iq_file) || ferror(st->iq_file))
                     err = 1;
             }
@@ -353,9 +353,16 @@ NRSC5_API void nrsc5_set_callback(nrsc5_t *st, nrsc5_callback_t callback, void *
     pthread_mutex_unlock(&st->worker_mutex);
 }
 
-NRSC5_API int nrsc5_pipe_samples(nrsc5_t *st, uint8_t *samples, unsigned int length)
+NRSC5_API int nrsc5_pipe_samples_cu8(nrsc5_t *st, uint8_t *samples, unsigned int length)
 {
-    input_push(&st->input, samples, length);
+    input_push_cu8(&st->input, samples, length);
+
+    return 0;
+}
+
+NRSC5_API int nrsc5_pipe_samples_cs16(nrsc5_t *st, int16_t *samples, unsigned int length)
+{
+    input_push_cs16(&st->input, samples, length);
 
     return 0;
 }

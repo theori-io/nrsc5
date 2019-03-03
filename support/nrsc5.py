@@ -492,9 +492,16 @@ class NRSC5:
         self.callback_func = CFUNCTYPE(None, POINTER(_Event), c_void_p)(callback_closure)
         NRSC5.libnrsc5.nrsc5_set_callback(self.radio, self.callback_func, None)
 
-    def pipe_samples(self, samples):
+    def pipe_samples_cu8(self, samples):
         if len(samples) % 4 != 0:
             raise NRSC5Error("len(samples) must be a multiple of 4.")
-        result = NRSC5.libnrsc5.nrsc5_pipe_samples(self.radio, samples, len(samples))
+        result = NRSC5.libnrsc5.nrsc5_pipe_samples_cu8(self.radio, samples, len(samples))
+        if result != 0:
+            raise NRSC5Error("Failed to pipe samples.")
+
+    def pipe_samples_cs16(self, samples):
+        if len(samples) % 4 != 0:
+            raise NRSC5Error("len(samples) must be a multiple of 4.")
+        result = NRSC5.libnrsc5.nrsc5_pipe_samples_cs16(self.radio, samples, len(samples) // 2)
         if result != 0:
             raise NRSC5Error("Failed to pipe samples.")

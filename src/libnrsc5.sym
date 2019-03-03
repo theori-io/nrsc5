@@ -11,4 +11,5 @@ _nrsc5_get_gain
 _nrsc5_set_gain
 _nrsc5_set_auto_gain
 _nrsc5_set_callback
-_nrsc5_pipe_samples
+_nrsc5_pipe_samples_cu8
+_nrsc5_pipe_samples_cs16

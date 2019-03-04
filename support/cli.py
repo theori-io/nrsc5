@@ -196,11 +196,11 @@ class NRSC5CLI:
                              .format(service.type, service.number, service.name))
                 for component in service.components:
                     if component.type == nrsc5.ComponentType.AUDIO:
-                        logging.info("  Audio component: id={} port={} type={} mime={}"
+                        logging.info("  Audio component: id={} port={:04X} type={} mime={}"
                                      .format(component.id, component.audio.port,
                                              component.audio.type, component.audio.mime))
                     elif component.type == nrsc5.ComponentType.DATA:
-                        logging.info("  Data component: id={} port={} service_data_type={} type={} mime={}"
+                        logging.info("  Data component: id={} port={:04X} service_data_type={} type={} mime={}"
                                      .format(component.id, component.data.port,
                                              component.data.service_data_type,
                                              component.data.type, component.data.mime))

@@ -693,6 +693,6 @@ void output_aas_push(output_t *st, uint8_t *buf, unsigned int len)
     }
     else
     {
-        log_warn("unknown AAS port %x, seq %x, length %d", port, seq, len);
+        log_warn("unknown AAS port %04X, seq %04X, length %d", port, seq, len);
     }
 }

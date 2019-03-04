@@ -414,7 +414,8 @@ static void *input_main(void *arg)
 #ifdef __MINGW32__
         ch = _getch();
 #else
-        ch = getchar();
+        if (read(STDIN_FILENO, &ch, 1) != 1)
+            break;
 #endif
 
         switch (ch)

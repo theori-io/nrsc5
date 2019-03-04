@@ -19,6 +19,7 @@
 #include <nrsc5.h>
 #include <pthread.h>
 #include <sys/time.h>
+#include <unistd.h>
 
 #include <assert.h>
 #include <stdio.h>
@@ -29,7 +30,6 @@
 #include <windows.h>
 #else
 #include <termios.h>
-#include <unistd.h>
 #endif
 
 #include "bitwriter.h"
@@ -395,6 +395,9 @@ static void restore_termios(void *arg)
 static void *input_main(void *arg)
 {
     state_t *st = arg;
+
+    if (!isatty(STDIN_FILENO))
+        return NULL;
 
 #ifndef __MINGW32__
     struct termios prev_termios, t;

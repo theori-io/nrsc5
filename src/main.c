@@ -19,14 +19,17 @@
 #include <nrsc5.h>
 #include <pthread.h>
 #include <sys/time.h>
-#include <termios.h>
 
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
 
 #ifdef __MINGW32__
+#include <conio.h>
 #include <windows.h>
+#else
+#include <termios.h>
+#include <unistd.h>
 #endif
 
 #include "bitwriter.h"
@@ -382,14 +385,18 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
     }
 }
 
+#ifndef __MINGW32__
 static void restore_termios(void *arg)
 {
     tcsetattr(STDIN_FILENO, TCSANOW, arg);
 }
+#endif
 
 static void *input_main(void *arg)
 {
     state_t *st = arg;
+
+#ifndef __MINGW32__
     struct termios prev_termios, t;
 
     // disable terminal canonical mode
@@ -398,10 +405,17 @@ static void *input_main(void *arg)
     t = prev_termios;
     t.c_lflag &= ~ICANON;
     tcsetattr(STDIN_FILENO, TCSANOW, &t);
+#endif
 
     while (!st->done)
     {
-        int ch = getchar();
+        int ch;
+
+#ifdef __MINGW32__
+        ch = _getch();
+#else
+        ch = getchar();
+#endif
 
         switch (ch)
         {
@@ -419,8 +433,10 @@ static void *input_main(void *arg)
         }
     }
 
+#ifndef __MINGW32__
     // restore terminal settings
     pthread_cleanup_pop(1);
+#endif
 
     return NULL;
 }

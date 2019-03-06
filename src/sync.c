@@ -215,6 +215,7 @@ void sync_process(sync_t *st)
         {
             input_set_sync_state(st->input, SYNC_STATE_FINE);
             decode_reset(&st->input->decode);
+            frame_reset(&st->input->frame);
         }
         else if (st->cfo_wait == 0)
         {

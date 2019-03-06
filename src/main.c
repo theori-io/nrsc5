@@ -700,6 +700,7 @@ int main(int argc, char *argv[])
     pthread_cancel(input_thread);
     pthread_join(input_thread, NULL);
 
+    nrsc5_stop(radio);
     nrsc5_close(radio);
     cleanup(st);
     free(st);

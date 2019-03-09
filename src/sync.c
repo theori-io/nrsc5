@@ -23,6 +23,7 @@
 #include "sync.h"
 
 #define PM_PARTITIONS 10
+#define MAX_PARTITIONS 14
 #define PARTITION_DATA_CARRIERS 18
 #define PARTITION_WIDTH 19
 
@@ -384,15 +385,21 @@ void sync_process(sync_t *st)
 void sync_adjust(sync_t *st, int sample_adj)
 {
     int i;
-    for (i = 0; i < FFT; i++)
-        st->costas_phase[i] -= sample_adj * (i - (FFT / 2)) * 2 * M_PI / FFT;
+    for (i = 0; i < MAX_PARTITIONS * PARTITION_WIDTH + 1; i++)
+    {
+        st->costas_phase[LB_START + i] -= sample_adj * (LB_START + i - (FFT / 2)) * 2 * M_PI / FFT;
+        st->costas_phase[UB_END - i] -= sample_adj * (UB_END - i - (FFT / 2)) * 2 * M_PI / FFT;
+    }
 }
 
 void sync_push(sync_t *st, float complex *fftout)
 {
     unsigned int i;
-    for (i = 0; i < FFT; ++i)
-        st->buffer[i][st->idx] = fftout[i];
+    for (i = 0; i < MAX_PARTITIONS * PARTITION_WIDTH + 1; i++)
+    {
+        st->buffer[LB_START + i][st->idx] = fftout[LB_START + i];
+        st->buffer[UB_END - i][st->idx] = fftout[UB_END - i];
+    }
 
     if (++st->idx == BLKSZ)
     {
@@ -404,10 +411,13 @@ void sync_push(sync_t *st, float complex *fftout)
 
 void sync_reset(sync_t *st)
 {
-    for (unsigned int i = 0; i < FFT; i++)
+    unsigned int i;
+    for (i = 0; i < MAX_PARTITIONS * PARTITION_WIDTH + 1; i++)
     {
-        st->costas_freq[i] = 0;
-        st->costas_phase[i] = 0;
+        st->costas_freq[LB_START + i] = 0;
+        st->costas_phase[LB_START + i] = 0;
+        st->costas_freq[UB_END - i] = 0;
+        st->costas_phase[UB_END - i] = 0;
     }
 
     st->idx = 0;

@@ -36,15 +36,15 @@ static float calc_cber(int8_t *coded, uint8_t *decoded)
         // shift in new bit
         r = (r >> 1) | (decoded[i] << 6);
 
-        if ((coded[j++] > 0 ? 1 : 0) != (__builtin_popcount(r & 0133) & 1))
+        if ((coded[j++] > 0) != __builtin_parity(r & 0133))
             errors++;
 
-        if ((coded[j++] > 0 ? 1 : 0) != (__builtin_popcount(r & 0171) & 1))
+        if ((coded[j++] > 0) != __builtin_parity(r & 0171))
             errors++;
 
         if ((j % 6) == 5)
             j++;
-        else if ((coded[j++] > 0 ? 1 : 0) != (__builtin_popcount(r & 0165) & 1))
+        else if ((coded[j++] > 0) != __builtin_parity(r & 0165))
             errors++;
     }
 

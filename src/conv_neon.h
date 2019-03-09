@@ -171,11 +171,3 @@ static inline void gen_metrics_k7_n3(const int8_t *val, const int16_t *out,
 
 	_neon_metrics_k7_n4(_val, out, sums, paths, norm);
 }
-
-static inline void gen_metrics_k7_n4(const int8_t *val, const int16_t *out,
-		       int16_t *sums, int16_t *paths, int norm)
-{
-	const int16_t _val[4] = { val[0], val[1], val[2], val[3] };
-
-	_neon_metrics_k7_n4(_val, out, sums, paths, norm);
-}

@@ -164,14 +164,14 @@ void input_push_cu8(input_t *st, uint8_t *buf, uint32_t len)
     if (input_shift(st, len / 4) != 0)
         return;
 
-    for (i = 0; i < len / 4; i++)
+    for (i = 0; i < len; i += 4)
     {
         cint16_t x[2];
 
-        x[0].r = U8_Q15(buf[i * 4 + 0]);
-        x[0].i = U8_Q15(buf[i * 4 + 1]);
-        x[1].r = U8_Q15(buf[i * 4 + 2]);
-        x[1].i = U8_Q15(buf[i * 4 + 3]);
+        x[0].r = U8_Q15(buf[i]);
+        x[0].i = U8_Q15(buf[i + 1]);
+        x[1].r = U8_Q15(buf[i + 2]);
+        x[1].i = U8_Q15(buf[i + 3]);
 
         halfband_q15_execute(st->decim, x, &st->buffer[st->avail++]);
     }

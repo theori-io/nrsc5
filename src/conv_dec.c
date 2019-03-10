@@ -41,6 +41,7 @@
 #endif
 
 #define PARITY(X) __builtin_parity(X)
+#define TAIL_BITING_EXTRA 32
 
 /*
  * Trellis State
@@ -263,13 +264,13 @@ static void reset_decoder(struct vdecoder *dec, int term)
 }
 
 static int _traceback(struct vdecoder *dec,
-		       unsigned state, uint8_t *out, int len)
+		       unsigned state, uint8_t *out, int len, int offset)
 {
 	int i;
 	unsigned path;
 
 	for (i = len - 1; i >= 0; i--) {
-		path = dec->paths[i][state] + 1;
+		path = dec->paths[i + offset][state] + 1;
 		out[i] = dec->trellis->vals[state];
 		state = vstate_lshift(state, dec->k, path);
 	}
@@ -313,6 +314,10 @@ static int traceback(struct vdecoder *dec, uint8_t *out, int term, int len)
 		}
 		if (max < 0)
 			return -EPROTO;
+		for (i = dec->len - 1; i >= len + TAIL_BITING_EXTRA; i--) {
+			path = dec->paths[i][state] + 1;
+			state = vstate_lshift(state, dec->k, path);
+		}
 	} else {
 		for (i = dec->len - 1; i >= len; i--) {
 			path = dec->paths[i][state] + 1;
@@ -323,11 +328,9 @@ static int traceback(struct vdecoder *dec, uint8_t *out, int term, int len)
 	if (dec->recursive)
 		_traceback_rec(dec, state, out, len);
 	else
-		state =_traceback(dec, state, out, len);
+		state =_traceback(dec, state, out, len, term == CONV_TERM_TAIL_BITING ? TAIL_BITING_EXTRA : 0);
 
 	/* Don't handle the odd case of recursize tail-biting codes */
-	if (term == CONV_TERM_TAIL_BITING)
-		_traceback(dec, state, out, len);
 
 	return max - max_p;
 }
@@ -369,7 +372,7 @@ static struct vdecoder *alloc_vdec(const struct lte_conv_code *code)
 	if (code->term == CONV_TERM_FLUSH)
 		dec->len = code->len + code->k - 1;
 	else
-		dec->len = code->len;
+		dec->len = code->len + TAIL_BITING_EXTRA * 2;
 
 	dec->trellis = generate_trellis(code);
 	if (!dec->trellis)
@@ -393,13 +396,19 @@ fail:
  * accumulated path metric sums and path selections are stored. Normalize on
  * the interval specified by the decoder.
  */
-static void _conv_decode(struct vdecoder *dec, const int8_t *seq)
+static void _conv_decode(struct vdecoder *dec, const int8_t *seq, int term, int len)
 {
-	int i;
+	int i, j = 0;
 	struct vtrellis *trellis = dec->trellis;
 
-	for (i = 0; i < dec->len; i++) {
-		gen_metrics_k7_n3(&seq[dec->n * i],
+	if (term == CONV_TERM_TAIL_BITING)
+		j = len - TAIL_BITING_EXTRA;
+
+	for (i = 0; i < dec->len; i++, j++) {
+		if (term == CONV_TERM_TAIL_BITING && j == len)
+			j = 0;
+
+		gen_metrics_k7_n3(&seq[dec->n * j],
 				 trellis->outputs,
 				 trellis->sums,
 				 dec->paths[i],
@@ -407,12 +416,12 @@ static void _conv_decode(struct vdecoder *dec, const int8_t *seq)
 	}
 }
 
-int nrsc5_conv_decode_p1(const int8_t *in, uint8_t *out)
+static int nrsc5_conv_decode(const int8_t *in, uint8_t *out, int len)
 {
 	const struct lte_conv_code code = {
 		.n = 3,
 		.k = 7,
-		.len = P1_FRAME_LEN,
+		.len = len,
 		.gen = { 0133, 0171, 0165 },
 		.term = CONV_TERM_TAIL_BITING,
 	};
@@ -425,71 +434,25 @@ int nrsc5_conv_decode_p1(const int8_t *in, uint8_t *out)
 	reset_decoder(vdec, code.term);
 
 	/* Propagate through the trellis with interval normalization */
-	_conv_decode(vdec, in);
-
-	if (code.term == CONV_TERM_TAIL_BITING)
-		_conv_decode(vdec, in);
+	_conv_decode(vdec, in, code.term, code.len);
 
 	rc = traceback(vdec, out, code.term, code.len);
 
 	free_vdec(vdec);
 	return rc;
+}
+
+int nrsc5_conv_decode_p1(const int8_t *in, uint8_t *out)
+{
+	return nrsc5_conv_decode(in, out, P1_FRAME_LEN);
 }
 
 int nrsc5_conv_decode_pids(const int8_t *in, uint8_t *out)
 {
-	const struct lte_conv_code code = {
-		.n = 3,
-		.k = 7,
-		.len = PIDS_FRAME_LEN,
-		.gen = { 0133, 0171, 0165 },
-		.term = CONV_TERM_TAIL_BITING,
-	};
-	int rc;
-
-	struct vdecoder *vdec = alloc_vdec(&code);
-	if (!vdec)
-		return -EFAULT;
-
-	reset_decoder(vdec, code.term);
-
-	/* Propagate through the trellis with interval normalization */
-	_conv_decode(vdec, in);
-
-	if (code.term == CONV_TERM_TAIL_BITING)
-		_conv_decode(vdec, in);
-
-	rc = traceback(vdec, out, code.term, code.len);
-
-	free_vdec(vdec);
-	return rc;
+	return nrsc5_conv_decode(in, out, PIDS_FRAME_LEN);
 }
 
 int nrsc5_conv_decode_p3(const int8_t *in, uint8_t *out)
 {
-	const struct lte_conv_code code = {
-		.n = 3,
-		.k = 7,
-		.len = P3_FRAME_LEN,
-		.gen = { 0133, 0171, 0165 },
-		.term = CONV_TERM_TAIL_BITING,
-	};
-	int rc;
-
-	struct vdecoder *vdec = alloc_vdec(&code);
-	if (!vdec)
-		return -EFAULT;
-
-	reset_decoder(vdec, code.term);
-
-	/* Propagate through the trellis with interval normalization */
-	_conv_decode(vdec, in);
-
-	if (code.term == CONV_TERM_TAIL_BITING)
-		_conv_decode(vdec, in);
-
-	rc = traceback(vdec, out, code.term, code.len);
-
-	free_vdec(vdec);
-	return rc;
+	return nrsc5_conv_decode(in, out, P3_FRAME_LEN);
 }

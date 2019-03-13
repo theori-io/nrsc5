@@ -111,7 +111,7 @@ static void *worker_thread(void *arg)
                     if (do_auto_gain(st) != 0)
                     {
                         st->stopped = 1;
-                        st->worker_stopped = 1;
+                        continue;
                     }
                 }
             }
@@ -146,7 +146,6 @@ static void *worker_thread(void *arg)
             if (err)
             {
                 st->stopped = 1;
-                st->worker_stopped = 1;
                 nrsc5_report_lost_device(st);
             }
         }

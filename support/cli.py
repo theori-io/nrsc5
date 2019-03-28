@@ -2,22 +2,26 @@
 
 import argparse
 import logging
-import nrsc5
 import os
-import pyaudio
 import queue
 import sys
 import threading
 import wave
 
+import pyaudio
+
+import nrsc5
 
 class NRSC5CLI:
     def __init__(self):
-        self.radio = nrsc5.NRSC5(lambda type, evt: self.callback(type, evt))
+        self.radio = nrsc5.NRSC5(lambda evt_type, evt: self.callback(evt_type, evt))
         self.nrsc5_version = self.radio.get_version()
         self.parse_args()
         self.audio_queue = queue.Queue(maxsize=64)
         self.device_condition = threading.Condition()
+        self.iq_output = None
+        self.wav_output = None
+        self.hdc_output = None
 
     def parse_args(self):
         parser = argparse.ArgumentParser(description="Receive NRSC-5 signals.")
@@ -78,7 +82,7 @@ class NRSC5CLI:
             if self.args.r:
                 while True:
                     data = iq_input.read(32768)
-                    if len(data) == 0:
+                    if not data:
                         break
                     if self.args.iq_input_format == "cu8":
                         self.radio.pipe_samples_cu8(data[:(len(data) // 4) * 4])
@@ -89,8 +93,8 @@ class NRSC5CLI:
                     self.device_condition.wait()
         except KeyboardInterrupt:
             logging.info("Stopping...")
-        except nrsc5.NRSC5Error as e:
-            logging.error(e)
+        except nrsc5.NRSC5Error as err:
+            logging.error(err)
 
         self.radio.stop()
         self.radio.close()
@@ -111,16 +115,16 @@ class NRSC5CLI:
             self.hdc_output.close()
 
     def audio_worker(self):
-        p = pyaudio.PyAudio()
+        audio = pyaudio.PyAudio()
         try:
-            index = p.get_default_output_device_info()["index"]
-            stream = p.open(format=pyaudio.paInt16,
-                            channels=2,
-                            rate=44100,
-                            output_device_index=index,
-                            output=True)
+            index = audio.get_default_output_device_info()["index"]
+            stream = audio.open(format=pyaudio.paInt16,
+                                channels=2,
+                                rate=44100,
+                                output_device_index=index,
+                                output=True)
         except OSError:
-            logging.warn("No audio output device available.")
+            logging.warning("No audio output device available.")
             stream = None
 
         while True:
@@ -134,7 +138,7 @@ class NRSC5CLI:
         if stream:
             stream.stop_stream()
             stream.close()
-        p.terminate()
+        audio.terminate()
 
     def adts_header(self, length):
         length += 7
@@ -148,88 +152,91 @@ class NRSC5CLI:
             0xfc
         ])
 
-    def callback(self, type, evt):
-        if type == nrsc5.EventType.LOST_DEVICE:
+    def callback(self, evt_type, evt):
+        if evt_type == nrsc5.EventType.LOST_DEVICE:
             logging.info("Lost device")
             with self.device_condition:
                 self.device_condition.notify()
-        elif type == nrsc5.EventType.IQ:
+        elif evt_type == nrsc5.EventType.IQ:
             if self.args.w:
                 self.iq_output.write(evt.data)
-        elif type == nrsc5.EventType.SYNC:
+        elif evt_type == nrsc5.EventType.SYNC:
             logging.info("Synchronized")
-        elif type == nrsc5.EventType.LOST_SYNC:
+        elif evt_type == nrsc5.EventType.LOST_SYNC:
             logging.info("Lost synchronization")
-        elif type == nrsc5.EventType.MER:
-            logging.info("MER: {:.1f} dB (lower), {:.1f} dB (upper)".format(evt.lower, evt.upper))
-        elif type == nrsc5.EventType.BER:
-            logging.info("BER: {:.6f}".format(evt.cber))
-        elif type == nrsc5.EventType.HDC:
+        elif evt_type == nrsc5.EventType.MER:
+            logging.info("MER: %.1f dB (lower), %.1f dB (upper)", evt.lower, evt.upper)
+        elif evt_type == nrsc5.EventType.BER:
+            logging.info("BER: %.6f", evt.cber)
+        elif evt_type == nrsc5.EventType.HDC:
             if self.args.dump_hdc:
                 if evt.program == self.args.program:
                     self.hdc_output.write(self.adts_header(len(evt.data)))
                     self.hdc_output.write(evt.data)
-        elif type == nrsc5.EventType.AUDIO:
+        elif evt_type == nrsc5.EventType.AUDIO:
             if evt.program == self.args.program:
                 if self.args.o:
                     self.wav_output.writeframes(evt.data)
                 else:
                     self.audio_queue.put(evt.data)
-        elif type == nrsc5.EventType.ID3:
+        elif evt_type == nrsc5.EventType.ID3:
             if evt.program == self.args.program:
                 if evt.title:
-                    logging.info("Title: " + evt.title)
+                    logging.info("Title: %s", evt.title)
                 if evt.artist:
-                    logging.info("Artist: " + evt.artist)
+                    logging.info("Artist: %s", evt.artist)
                 if evt.album:
-                    logging.info("Album: " + evt.album)
+                    logging.info("Album: %s", evt.album)
                 if evt.genre:
-                    logging.info("Genre: " + evt.genre)
+                    logging.info("Genre: %s", evt.genre)
                 if evt.ufid:
-                    logging.info("Unique file identifier: {} {}".format(evt.ufid.owner, evt.ufid.id))
+                    logging.info("Unique file identifier: %s %s", evt.ufid.owner, evt.ufid.id)
                 if evt.xhdr:
-                    logging.info("XHDR: param={} mime={} lot={}"
-                                 .format(evt.xhdr.param, evt.xhdr.mime, evt.xhdr.lot))
-        elif type == nrsc5.EventType.SIG:
+                    logging.info("XHDR: param=%s mime=%s lot=%s",
+                                 evt.xhdr.param, evt.xhdr.mime, evt.xhdr.lot)
+        elif evt_type == nrsc5.EventType.SIG:
             for service in evt:
-                logging.info("SIG Service: type={} number={} name={}"
-                             .format(service.type, service.number, service.name))
+                logging.info("SIG Service: type=%s number=%s name=%s",
+                             service.type, service.number, service.name)
                 for component in service.components:
                     if component.type == nrsc5.ComponentType.AUDIO:
-                        logging.info("  Audio component: id={} port={:04X} type={} mime={}"
-                                     .format(component.id, component.audio.port,
-                                             component.audio.type, component.audio.mime))
+                        logging.info("  Audio component: id=%s port=%04X type=%s mime=%s",
+                                     component.id, component.audio.port,
+                                     component.audio.type, component.audio.mime)
                     elif component.type == nrsc5.ComponentType.DATA:
-                        logging.info("  Data component: id={} port={:04X} service_data_type={} type={} mime={}"
-                                     .format(component.id, component.data.port,
-                                             component.data.service_data_type,
-                                             component.data.type, component.data.mime))
-        elif type == nrsc5.EventType.LOT:
-            logging.info("LOT file: port={:04X} lot={} name={} size={} mime={}"
-                         .format(evt.port, evt.lot, evt.name, len(evt.data), evt.mime))
+                        logging.info("  Data component: id=%s port=%04X service_data_type=%s type=%s mime=%s",
+                                     component.id, component.data.port,
+                                     component.data.service_data_type,
+                                     component.data.type, component.data.mime)
+        elif evt_type == nrsc5.EventType.LOT:
+            logging.info("LOT file: port=%04X lot=%s name=%s size=%s mime=%s",
+                         evt.port, evt.lot, evt.name, len(evt.data), evt.mime)
             if self.args.dump_aas_files:
                 path = os.path.join(self.args.dump_aas_files, evt.name)
-                with open(path, "wb") as f:
-                    f.write(evt.data)
-        elif type == nrsc5.EventType.SIS:
+                with open(path, "wb") as file:
+                    file.write(evt.data)
+        elif evt_type == nrsc5.EventType.SIS:
             if evt.country_code:
-                logging.info("Country: {}, FCC facility ID: {}".format(evt.country_code, evt.fcc_facility_id))
+                logging.info("Country: %s, FCC facility ID: %s",
+                             evt.country_code, evt.fcc_facility_id)
             if evt.name:
-                logging.info("Station name: {}".format(evt.name))
+                logging.info("Station name: %s", evt.name)
             if evt.slogan:
-                logging.info("Slogan: {}".format(evt.slogan))
+                logging.info("Slogan: %s", evt.slogan)
             if evt.message:
-                logging.info("Message: {}".format(evt.message))
+                logging.info("Message: %s", evt.message)
             if evt.alert:
-                logging.info("Alert: {}".format(evt.alert))
+                logging.info("Alert: %s", evt.alert)
             if evt.latitude:
-                logging.info("Station location: {}, {}, {}m".format(evt.latitude, evt.longitude, evt.altitude))
+                logging.info("Station location: %s, %s, %sm",
+                             evt.latitude, evt.longitude, evt.altitude)
             for audio_service in evt.audio_services:
-                logging.info("Audio program {}: {}, {}, sound experience {}".format(
-                    audio_service.program, audio_service.access, audio_service.type, audio_service.sound_exp))
+                logging.info("Audio program %s: %s, %s, sound experience %s",
+                             audio_service.program, audio_service.access,
+                             audio_service.type, audio_service.sound_exp)
             for data_service in evt.data_services:
-                logging.info("Data service: {}, {}, MIME type {:03x}".format(
-                    data_service.access, data_service.type, data_service.mime_type))
+                logging.info("Data service: %s, %s, MIME type %03x",
+                             data_service.access, data_service.type, data_service.mime_type)
 
 
 if __name__ == "__main__":

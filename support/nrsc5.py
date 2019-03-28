@@ -1,5 +1,5 @@
-from ctypes import *
 import collections
+import ctypes
 import enum
 import math
 import platform
@@ -129,177 +129,177 @@ SIS = collections.namedtuple("SIS", ["country_code", "fcc_facility_id", "name", 
                                      "latitude", "longitude", "altitude", "audio_services", "data_services"])
 
 
-class _IQ(Structure):
+class _IQ(ctypes.Structure):
     _fields_ = [
-        ("data", POINTER(c_char)),
-        ("count", c_size_t),
+        ("data", ctypes.POINTER(ctypes.c_char)),
+        ("count", ctypes.c_size_t),
     ]
 
 
-class _MER(Structure):
+class _MER(ctypes.Structure):
     _fields_ = [
-        ("lower", c_float),
-        ("upper", c_float),
+        ("lower", ctypes.c_float),
+        ("upper", ctypes.c_float),
     ]
 
 
-class _BER(Structure):
+class _BER(ctypes.Structure):
     _fields_ = [
-        ("cber", c_float),
+        ("cber", ctypes.c_float),
     ]
 
 
-class _HDC(Structure):
+class _HDC(ctypes.Structure):
     _fields_ = [
-        ("program", c_uint),
-        ("data", POINTER(c_char)),
-        ("count", c_size_t),
+        ("program", ctypes.c_uint),
+        ("data", ctypes.POINTER(ctypes.c_char)),
+        ("count", ctypes.c_size_t),
     ]
 
 
-class _Audio(Structure):
+class _Audio(ctypes.Structure):
     _fields_ = [
-        ("program", c_uint),
-        ("data", POINTER(c_char)),
-        ("count", c_size_t),
+        ("program", ctypes.c_uint),
+        ("data", ctypes.POINTER(ctypes.c_char)),
+        ("count", ctypes.c_size_t),
     ]
 
 
-class _UFID(Structure):
+class _UFID(ctypes.Structure):
     _fields_ = [
-        ("owner", c_char_p),
-        ("id", c_char_p),
+        ("owner", ctypes.c_char_p),
+        ("id", ctypes.c_char_p),
     ]
 
 
-class _XHDR(Structure):
+class _XHDR(ctypes.Structure):
     _fields_ = [
-        ("mime", c_uint32),
-        ("param", c_int),
-        ("lot", c_int),
+        ("mime", ctypes.c_uint32),
+        ("param", ctypes.c_int),
+        ("lot", ctypes.c_int),
     ]
 
 
-class _ID3(Structure):
+class _ID3(ctypes.Structure):
     _fields_ = [
-        ("program", c_uint),
-        ("title", c_char_p),
-        ("artist", c_char_p),
-        ("album", c_char_p),
-        ("genre", c_char_p),
+        ("program", ctypes.c_uint),
+        ("title", ctypes.c_char_p),
+        ("artist", ctypes.c_char_p),
+        ("album", ctypes.c_char_p),
+        ("genre", ctypes.c_char_p),
         ("ufid", _UFID),
         ("xhdr", _XHDR),
     ]
 
 
-class _SIGData(Structure):
+class _SIGData(ctypes.Structure):
     _fields_ = [
-        ("port", c_uint16),
-        ("service_data_type", c_uint16),
-        ("type", c_uint8),
-        ("mime", c_uint32),
+        ("port", ctypes.c_uint16),
+        ("service_data_type", ctypes.c_uint16),
+        ("type", ctypes.c_uint8),
+        ("mime", ctypes.c_uint32),
     ]
 
 
-class _SIGAudio(Structure):
+class _SIGAudio(ctypes.Structure):
     _fields_ = [
-        ("port", c_uint8),
-        ("type", c_uint8),
-        ("mime", c_uint32),
+        ("port", ctypes.c_uint8),
+        ("type", ctypes.c_uint8),
+        ("mime", ctypes.c_uint32),
     ]
 
 
-class _SIGUnion(Union):
+class _SIGUnion(ctypes.Union):
     _fields_ = [
         ("audio", _SIGAudio),
         ("data", _SIGData),
     ]
 
 
-class _SIGComponent(Structure):
+class _SIGComponent(ctypes.Structure):
     pass
 
 
 _SIGComponent._fields_ = [
-    ("next", POINTER(_SIGComponent)),
-    ("type", c_uint8),
-    ("id", c_uint8),
+    ("next", ctypes.POINTER(_SIGComponent)),
+    ("type", ctypes.c_uint8),
+    ("id", ctypes.c_uint8),
     ("u", _SIGUnion),
 ]
 
 
-class _SIGService(Structure):
+class _SIGService(ctypes.Structure):
     pass
 
 
 _SIGService._fields_ = [
-    ("next", POINTER(_SIGService)),
-    ("type", c_uint8),
-    ("number", c_uint16),
-    ("name", c_char_p),
-    ("components", POINTER(_SIGComponent)),
+    ("next", ctypes.POINTER(_SIGService)),
+    ("type", ctypes.c_uint8),
+    ("number", ctypes.c_uint16),
+    ("name", ctypes.c_char_p),
+    ("components", ctypes.POINTER(_SIGComponent)),
 ]
 
 
-class _SIG(Structure):
+class _SIG(ctypes.Structure):
     _fields_ = [
-        ("services", POINTER(_SIGService)),
+        ("services", ctypes.POINTER(_SIGService)),
     ]
 
 
-class _LOT(Structure):
+class _LOT(ctypes.Structure):
     _fields_ = [
-        ("port", c_uint16),
-        ("lot", c_uint),
-        ("size", c_uint),
-        ("mime", c_uint32),
-        ("name", c_char_p),
-        ("data", POINTER(c_char)),
+        ("port", ctypes.c_uint16),
+        ("lot", ctypes.c_uint),
+        ("size", ctypes.c_uint),
+        ("mime", ctypes.c_uint32),
+        ("name", ctypes.c_char_p),
+        ("data", ctypes.POINTER(ctypes.c_char)),
     ]
 
 
-class _SISAudioService(Structure):
+class _SISAudioService(ctypes.Structure):
     pass
 
 
 _SISAudioService._fields_ = [
-    ("next", POINTER(_SISAudioService)),
-    ("program", c_uint),
-    ("access", c_uint),
-    ("type", c_uint),
-    ("sound_exp", c_uint),
+    ("next", ctypes.POINTER(_SISAudioService)),
+    ("program", ctypes.c_uint),
+    ("access", ctypes.c_uint),
+    ("type", ctypes.c_uint),
+    ("sound_exp", ctypes.c_uint),
 ]
 
 
-class _SISDataService(Structure):
+class _SISDataService(ctypes.Structure):
     pass
 
 
 _SISDataService._fields_ = [
-    ("next", POINTER(_SISDataService)),
-    ("access", c_uint),
-    ("type", c_uint),
-    ("mime_type", c_uint32),
+    ("next", ctypes.POINTER(_SISDataService)),
+    ("access", ctypes.c_uint),
+    ("type", ctypes.c_uint),
+    ("mime_type", ctypes.c_uint32),
 ]
 
 
-class _SIS(Structure):
+class _SIS(ctypes.Structure):
     _fields_ = [
-        ("country_code", c_char_p),
-        ("fcc_facility_id", c_int),
-        ("name", c_char_p),
-        ("slogan", c_char_p),
-        ("message", c_char_p),
-        ("alert", c_char_p),
-        ("latitude", c_float),
-        ("longitude", c_float),
-        ("altitude", c_int),
-        ("audio_services", POINTER(_SISAudioService)),
-        ("data_services", POINTER(_SISDataService)),
+        ("country_code", ctypes.c_char_p),
+        ("fcc_facility_id", ctypes.c_int),
+        ("name", ctypes.c_char_p),
+        ("slogan", ctypes.c_char_p),
+        ("message", ctypes.c_char_p),
+        ("alert", ctypes.c_char_p),
+        ("latitude", ctypes.c_float),
+        ("longitude", ctypes.c_float),
+        ("altitude", ctypes.c_int),
+        ("audio_services", ctypes.POINTER(_SISAudioService)),
+        ("data_services", ctypes.POINTER(_SISDataService)),
     ]
 
 
-class _EventUnion(Union):
+class _EventUnion(ctypes.Union):
     _fields_ = [
         ("iq", _IQ),
         ("mer", _MER),
@@ -313,9 +313,9 @@ class _EventUnion(Union):
     ]
 
 
-class _Event(Structure):
+class _Event(ctypes.Structure):
     _fields_ = [
-        ("event", c_uint),
+        ("event", ctypes.c_uint),
         ("u", _EventUnion),
     ]
 
@@ -337,40 +337,40 @@ class NRSC5:
                 lib_name = "libnrsc5.dylib"
             else:
                 raise NRSC5Error("Unsupported platform: " + platform.system())
-            NRSC5.libnrsc5 = cdll.LoadLibrary(lib_name)
-            self.radio = c_void_p()
+            NRSC5.libnrsc5 = ctypes.cdll.LoadLibrary(lib_name)
+            self.radio = ctypes.c_void_p()
 
-    def _decode(self, str):
-        if str is None:
-            return str
-        else:
-            return str.decode()
+    @staticmethod
+    def _decode(string):
+        if string is None:
+            return string
+        return string.decode()
 
     def _callback_wrapper(self, c_evt):
         c_evt = c_evt.contents
         evt = None
 
         try:
-            type = EventType(c_evt.event)
+            evt_type = EventType(c_evt.event)
         except ValueError:
             return
 
-        if type == EventType.IQ:
+        if evt_type == EventType.IQ:
             iq = c_evt.u.iq
             evt = IQ(iq.data[:iq.count])
-        elif type == EventType.MER:
+        elif evt_type == EventType.MER:
             mer = c_evt.u.mer
             evt = MER(mer.lower, mer.upper)
-        elif type == EventType.BER:
+        elif evt_type == EventType.BER:
             ber = c_evt.u.ber
             evt = BER(ber.cber)
-        elif type == EventType.HDC:
+        elif evt_type == EventType.HDC:
             hdc = c_evt.u.hdc
             evt = HDC(hdc.program, hdc.data[:hdc.count])
-        elif type == EventType.AUDIO:
+        elif evt_type == EventType.AUDIO:
             audio = c_evt.u.audio
             evt = Audio(audio.program, audio.data[:audio.count * 2])
-        elif type == EventType.ID3:
+        elif evt_type == EventType.ID3:
             id3 = c_evt.u.id3
 
             ufid = None
@@ -385,7 +385,7 @@ class NRSC5:
 
             evt = ID3(id3.program, self._decode(id3.title), self._decode(id3.artist),
                       self._decode(id3.album), self._decode(id3.genre), ufid, xhdr)
-        elif type == EventType.SIG:
+        elif evt_type == EventType.SIG:
             evt = []
             service_ptr = c_evt.u.sig.services
             while service_ptr:
@@ -408,10 +408,10 @@ class NRSC5:
                 evt.append(SIGService(ServiceType(service.type), service.number,
                                       self._decode(service.name), components))
                 service_ptr = service.next
-        elif type == EventType.LOT:
+        elif evt_type == EventType.LOT:
             lot = c_evt.u.lot
             evt = LOT(lot.port, lot.lot, MIMEType(lot.mime), self._decode(lot.name), lot.data[:lot.size])
-        elif type == EventType.SIS:
+        elif evt_type == EventType.SIS:
             sis = c_evt.u.sis
 
             latitude, longitude, altitude = None, None, None
@@ -436,26 +436,27 @@ class NRSC5:
             evt = SIS(self._decode(sis.country_code), sis.fcc_facility_id, self._decode(sis.name),
                       self._decode(sis.slogan), self._decode(sis.message), self._decode(sis.alert),
                       latitude, longitude, altitude, audio_services, data_services)
-        self.callback(type, evt)
+        self.callback(evt_type, evt)
 
     def __init__(self, callback):
         self._load_library()
-        self.radio = c_void_p()
+        self.radio = ctypes.c_void_p()
         self.callback = callback
 
-    def get_version(self):
-        version = c_char_p()
-        NRSC5.libnrsc5.nrsc5_get_version(byref(version))
+    @staticmethod
+    def get_version():
+        version = ctypes.c_char_p()
+        NRSC5.libnrsc5.nrsc5_get_version(ctypes.byref(version))
         return version.value.decode()
 
     def open(self, device_index, ppm_error):
-        result = NRSC5.libnrsc5.nrsc5_open(byref(self.radio), device_index, ppm_error)
+        result = NRSC5.libnrsc5.nrsc5_open(ctypes.byref(self.radio), device_index, ppm_error)
         if result != 0:
             raise NRSC5Error("Failed to open RTL-SDR.")
         self._set_callback()
 
     def open_pipe(self):
-        result = NRSC5.libnrsc5.nrsc5_open_pipe(byref(self.radio))
+        result = NRSC5.libnrsc5.nrsc5_open_pipe(ctypes.byref(self.radio))
         if result != 0:
             raise NRSC5Error("Failed to open pipe.")
         self._set_callback()
@@ -470,22 +471,22 @@ class NRSC5:
         NRSC5.libnrsc5.nrsc5_stop(self.radio)
 
     def get_frequency(self):
-        frequency = c_float()
-        NRSC5.libnrsc5.nrsc5_get_frequency(self.radio, byref(frequency))
+        frequency = ctypes.c_float()
+        NRSC5.libnrsc5.nrsc5_get_frequency(self.radio, ctypes.byref(frequency))
         return frequency.value
 
     def set_frequency(self, freq):
-        result = NRSC5.libnrsc5.nrsc5_set_frequency(self.radio, c_float(freq))
+        result = NRSC5.libnrsc5.nrsc5_set_frequency(self.radio, ctypes.c_float(freq))
         if result != 0:
             raise NRSC5Error("Failed to set frequency.")
 
     def get_gain(self):
-        gain = c_float()
-        NRSC5.libnrsc5.nrsc5_get_gain(self.radio, byref(gain))
+        gain = ctypes.c_float()
+        NRSC5.libnrsc5.nrsc5_get_gain(self.radio, ctypes.byref(gain))
         return gain.value
 
     def set_gain(self, gain):
-        result = NRSC5.libnrsc5.nrsc5_set_gain(self.radio, c_float(gain))
+        result = NRSC5.libnrsc5.nrsc5_set_gain(self.radio, ctypes.c_float(gain))
         if result != 0:
             raise NRSC5Error("Failed to set gain.")
 
@@ -496,7 +497,7 @@ class NRSC5:
         def callback_closure(evt, opaque):
             self._callback_wrapper(evt)
 
-        self.callback_func = CFUNCTYPE(None, POINTER(_Event), c_void_p)(callback_closure)
+        self.callback_func = ctypes.CFUNCTYPE(None, ctypes.POINTER(_Event), ctypes.c_void_p)(callback_closure)
         NRSC5.libnrsc5.nrsc5_set_callback(self.radio, self.callback_func, None)
 
     def pipe_samples_cu8(self, samples):

@@ -1,0 +1,13 @@
+diff --git a/src/audio_out.c b/src/audio_out.c
+index f5942d6..166c72b 100644
+--- a/src/audio_out.c
++++ b/src/audio_out.c
+@@ -1387,7 +1387,7 @@ ao_device *ao_open_file (int driver_id, const char *filename, int overwrite,
+ 		}
+ 
+ 
+-		file = fopen(filename, "w");
++		file = fopen(filename, "wb");
+ 	}
+ 
+ 

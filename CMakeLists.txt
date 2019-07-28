@@ -189,6 +189,7 @@ if (NOT USE_SYSTEM_LIBAO)
         PREFIX ${LIBAO_PREFIX}
 
         UPDATE_COMMAND ""
+        PATCH_COMMAND patch -p1 -Ni "${CMAKE_SOURCE_DIR}/support/libao-win-fix.patch" || exit 0
         CONFIGURE_COMMAND ${LIBAO_PREFIX}/src/libao_external/configure ${HOST_TRIPLE_ARG} --prefix=${LIBAO_PREFIX} --enable-static --disable-shared --disable-pulse
     )
     ExternalProject_Add_Step (

@@ -222,7 +222,7 @@ if (USE_FAAD2)
         PATCH_COMMAND patch -p1 -Ni "${CMAKE_SOURCE_DIR}/support/faad2-hdc-support.patch" || exit 0
         COMMAND sh ./bootstrap
 
-        CONFIGURE_COMMAND ${FAAD2_PREFIX}/src/faad2_external/configure ${HOST_TRIPLE_ARG} ${FAAD2_CONFIGURE_ARGS} --prefix=${FAAD2_PREFIX} --with-hdc "CFLAGS=-O3 -fPIC ${CMAKE_C_FLAGS}"
+        CONFIGURE_COMMAND ${FAAD2_PREFIX}/src/faad2_external/configure ${HOST_TRIPLE_ARG} ${FAAD2_CONFIGURE_ARGS} --prefix=${FAAD2_PREFIX} --with-hdc "CFLAGS=-O2 -fPIC ${CMAKE_C_FLAGS}"
     )
 
     add_library (faad2 STATIC IMPORTED)

@@ -250,7 +250,7 @@ static void output_id3(output_t *st, unsigned int program, uint8_t *buf, unsigne
             }
             else
             {
-                xhdr_mime = data[0] | (data[1] << 8) | (data[2] << 16) | (data[3] << 24);
+                xhdr_mime = data[0] | (data[1] << 8) | (data[2] << 16) | ((uint32_t)data[3] << 24);
                 xhdr_param = data[4];
                 extlen = data[5];
                 if (6u + extlen != frame_len)
@@ -398,7 +398,7 @@ static void parse_sig(output_t *st, uint8_t *buf, unsigned int len)
                 comp->data.port = p[1] | (p[2] << 8);
                 comp->data.service_data_type = p[3] | (p[4] << 8);
                 comp->data.type = p[5];
-                comp->data.mime = p[8] | (p[9] << 8) | (p[10] << 16) | (p[11] << 24);
+                comp->data.mime = p[8] | (p[9] << 8) | (p[10] << 16) | ((uint32_t)p[11] << 24);
 
                 aas_port_t *port = &st->ports[port_idx++];
                 port->port = comp->data.port;
@@ -421,7 +421,7 @@ static void parse_sig(output_t *st, uint8_t *buf, unsigned int len)
                 comp->id = p[0];
                 comp->audio.port = p[1];
                 comp->audio.type = p[2];
-                comp->audio.mime = p[7] | (p[8] << 8) | (p[9] << 16) | (p[10] << 24);
+                comp->audio.mime = p[7] | (p[8] << 8) | (p[9] << 16) | ((uint32_t)p[10] << 24);
             }
             p += l - 1;
             break;
@@ -572,7 +572,7 @@ static void process_port(output_t *st, uint16_t port_id, uint8_t *buf, unsigned 
         }
         uint8_t hdrlen = buf[0];
         uint16_t lot = buf[2] | (buf[3] << 8);
-        uint32_t seq = buf[4] | (buf[5] << 8) | (buf[6] << 16) | (buf[7] << 24);
+        uint32_t seq = buf[4] | (buf[5] << 8) | (buf[6] << 16) | ((uint32_t)buf[7] << 24);
         if (hdrlen < 8 || hdrlen > len)
         {
             log_warn("wrong header len (port %04X, len %d, hdrlen %d)", port_id, len, hdrlen);
@@ -609,8 +609,8 @@ static void process_port(output_t *st, uint16_t port_id, uint8_t *buf, unsigned 
             // uint32_t xxx
             // uint32_t size
             // uint32_t mimeHash
-            file->size = buf[8] | (buf[9] << 8) | (buf[10] << 16) | (buf[11] << 24);
-            file->mime = buf[12] | (buf[13] << 8) | (buf[14] << 16) | (buf[15] << 24);
+            file->size = buf[8] | (buf[9] << 8) | (buf[10] << 16) | ((uint32_t)buf[11] << 24);
+            file->mime = buf[12] | (buf[13] << 8) | (buf[14] << 16) | ((uint32_t)buf[15] << 24);
             buf += 16;
             len -= 16;
             hdrlen -= 16;

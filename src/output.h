@@ -63,8 +63,8 @@ typedef struct
     unsigned int timestamp;
     char *name;
     uint32_t mime;
-    unsigned int lot;
-    unsigned int size;
+    uint16_t lot;
+    uint32_t size;
     uint8_t **fragments;
 } aas_file_t;
 

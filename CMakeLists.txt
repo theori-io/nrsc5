@@ -188,7 +188,7 @@ if (NOT USE_SYSTEM_LIBAO)
         libao_external
         TIMEOUT 120
         GIT_REPOSITORY "https://github.com/xiph/libao.git"
-        GIT_TAG 1.2.2
+        GIT_TAG 20dc8ed9fa4605f5c25e7496ede42e8ba6468225
         PREFIX ${LIBAO_PREFIX}
 
         UPDATE_COMMAND ""

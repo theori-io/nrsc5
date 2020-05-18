@@ -121,6 +121,7 @@ if (NOT USE_SYSTEM_LIBUSB)
     set (LIBUSB_PREFIX "${CMAKE_BINARY_DIR}/libusb-prefix")
     ExternalProject_Add (
         libusb_external
+        TIMEOUT 120
         GIT_REPOSITORY "https://github.com/libusb/libusb.git"
         GIT_TAG v1.0.22
         PREFIX ${LIBUSB_PREFIX}
@@ -151,6 +152,7 @@ if (NOT USE_SYSTEM_RTLSDR)
     set (RTLSDR_PREFIX "${CMAKE_BINARY_DIR}/rtlsdr-prefix")
     ExternalProject_Add (
         rtlsdr_external
+        TIMEOUT 120
         GIT_REPOSITORY "https://github.com/osmocom/rtl-sdr.git"
         GIT_TAG f68bb2fa772ad94f58c59babd78353667570630b
         PREFIX ${RTLSDR_PREFIX}
@@ -184,8 +186,9 @@ if (NOT USE_SYSTEM_LIBAO)
     set (LIBAO_PREFIX "${CMAKE_BINARY_DIR}/libao-prefix")
     ExternalProject_Add (
         libao_external
-        GIT_REPOSITORY "https://git.xiph.org/libao.git"
-        GIT_TAG d5221655dfd1a2156aa6be83b5aadea7c1e0f5bd
+        TIMEOUT 120
+        GIT_REPOSITORY "https://github.com/xiph/libao.git"
+        GIT_TAG 1.2.2
         PREFIX ${LIBAO_PREFIX}
 
         UPDATE_COMMAND ""
@@ -214,6 +217,7 @@ if (USE_FAAD2)
     set (FAAD2_PREFIX "${CMAKE_BINARY_DIR}/faad2-prefix")
     ExternalProject_Add (
         faad2_external
+        TIMEOUT 120
         GIT_REPOSITORY "https://github.com/dsvensson/faad2.git"
         GIT_TAG b7aa099fd3220b71180ed2b0bc19dc6209a1b418
         PREFIX ${FAAD2_PREFIX}

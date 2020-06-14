@@ -187,12 +187,11 @@ if (NOT USE_SYSTEM_LIBAO)
     ExternalProject_Add (
         libao_external
         TIMEOUT 120
-        GIT_REPOSITORY "https://github.com/xiph/libao.git"
-        GIT_TAG 20dc8ed9fa4605f5c25e7496ede42e8ba6468225
+        GIT_REPOSITORY "https://gitlab.xiph.org/xiph/libao.git"
+        GIT_TAG cafce902a73c1050474a62feff83e428bbbee5f4
         PREFIX ${LIBAO_PREFIX}
 
         UPDATE_COMMAND ""
-        PATCH_COMMAND patch -p1 -Ni "${CMAKE_SOURCE_DIR}/support/libao-win-fix.patch" || exit 0
         CONFIGURE_COMMAND ${LIBAO_PREFIX}/src/libao_external/configure ${HOST_TRIPLE_ARG} --prefix=${LIBAO_PREFIX} --enable-static --disable-shared --disable-pulse
     )
     ExternalProject_Add_Step (

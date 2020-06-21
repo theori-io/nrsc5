@@ -16,6 +16,7 @@
 #include "config.h"
 
 #include <math.h>
+#include <string.h>
 
 #include "defines.h"
 #include "input.h"
@@ -166,6 +167,53 @@ float phase_diff(float a, float b)
     return diff;
 }
 
+void detect_cfo(sync_t *st)
+{
+    for (int cfo = -2 * PARTITION_WIDTH; cfo < 2 * PARTITION_WIDTH; cfo++)
+    {
+        int offset;
+        int best_offset = -1;
+        unsigned int best_count = 0;
+        unsigned int offset_count[BLKSZ];
+
+        memset(offset_count, 0, BLKSZ * sizeof(unsigned int));
+
+        for (int i = 0; i <= PM_PARTITIONS; i++)
+        {
+            adjust_ref(st, cfo + LB_START + i * PARTITION_WIDTH, cfo);
+            offset = find_ref(st, cfo + LB_START + i * PARTITION_WIDTH, (PM_PARTITIONS-i) & 0x3);
+            if (offset >= 0)
+                offset_count[offset]++;
+
+            adjust_ref(st, cfo + UB_END - i * PARTITION_WIDTH, cfo);
+            offset = find_ref(st, cfo + UB_END - i * PARTITION_WIDTH, (PM_PARTITIONS-i) & 0x3);
+            if (offset >= 0)
+                offset_count[offset]++;
+        }
+
+        for (offset = 0; offset < BLKSZ; offset++)
+        {
+            if (offset_count[offset] > best_count) {
+                best_offset = offset;
+                best_count = offset_count[offset];
+            }
+        }
+
+        if (best_offset >= 0 && best_count >= 3)
+        {
+            // At least three offsets matched, so this is likely the correct CFO.
+            input_set_skip(st->input, best_offset * FFTCP);
+            acquire_cfo_adjust(&st->input->acq, cfo);
+
+            log_debug("Block @ %d", best_offset);
+
+            // Wait until the buffers have cleared before measuring again.
+            st->cfo_wait = 8;
+            break;
+        }
+    }
+}
+
 void sync_process(sync_t *st)
 {
     int i, partitions_per_band;
@@ -220,29 +268,7 @@ void sync_process(sync_t *st)
         }
         else if (st->cfo_wait == 0)
         {
-            for (i = -2 * PARTITION_WIDTH; i < 2 * PARTITION_WIDTH; ++i)
-            {
-                int offset2;
-                adjust_ref(st, LB_START + (PM_PARTITIONS * PARTITION_WIDTH) + i, i);
-                offset = find_ref(st, LB_START + (PM_PARTITIONS * PARTITION_WIDTH) + i, 0);
-                if (offset < 0)
-                    continue;
-                // We think we found the start. Check upperband to confirm.
-                adjust_ref(st, UB_END - (PM_PARTITIONS * PARTITION_WIDTH) + i, i);
-                offset2 = find_ref(st, UB_END - (PM_PARTITIONS * PARTITION_WIDTH) + i, 0);
-                if (offset2 == offset)
-                {
-                    // The offsets matched, so 'i' is likely the CFO.
-                    input_set_skip(st->input, offset * FFTCP);
-                    acquire_cfo_adjust(&st->input->acq, i);
-
-                    log_debug("Block @ %d", offset);
-
-                    // Wait until the buffers have cleared before measuring again.
-                    st->cfo_wait = 8;
-                    break;
-                }
-            }
+            detect_cfo(st);
         }
         else
         {

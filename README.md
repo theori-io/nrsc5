@@ -121,6 +121,12 @@ Tune to 90.5 MHz and convert audio program 0 to WAV format for playback in an ex
 
      $ nrsc5 -o - 90.5 0 | mplayer -
 
+### Keyboard commands:
+
+To switch between audio programs at runtime, press `0`, `1`, `2`, or `3`.
+
+To quit, press `Q`.
+
 ### RTL-SDR drivers on Windows
 
 If you get errors trying to access your RTL-SDR device, then you may need to use [Zadig](http://zadig.akeo.ie/) to change the USB driver. Once you download and run Zadig, select your RTL-SDR device, ensure the driver is set to WinUSB, and then click "Replace Driver". If your device is not listed, enable "Options" -> "List All Devices".

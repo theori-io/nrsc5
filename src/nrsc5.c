@@ -179,6 +179,72 @@ NRSC5_API void nrsc5_get_version(const char **version)
     *version = GIT_COMMIT_HASH;
 }
 
+NRSC5_API void nrsc5_service_data_type_name(unsigned int type, const char **name)
+{
+    switch (type)
+    {
+    case NRSC5_SERVICE_DATA_TYPE_NON_SPECIFIC: *name = "Non-specific"; break;
+    case NRSC5_SERVICE_DATA_TYPE_NEWS: *name = "News"; break;
+    case NRSC5_SERVICE_DATA_TYPE_SPORTS: *name = "Sports"; break;
+    case NRSC5_SERVICE_DATA_TYPE_WEATHER: *name = "Weather"; break;
+    case NRSC5_SERVICE_DATA_TYPE_EMERGENCY: *name = "Emergency"; break;
+    case NRSC5_SERVICE_DATA_TYPE_TRAFFIC: *name = "Traffic"; break;
+    case NRSC5_SERVICE_DATA_TYPE_IMAGE_MAPS: *name = "Image Maps"; break;
+    case NRSC5_SERVICE_DATA_TYPE_TEXT: *name = "Text"; break;
+    case NRSC5_SERVICE_DATA_TYPE_ADVERTISING: *name = "Advertising"; break;
+    case NRSC5_SERVICE_DATA_TYPE_FINANCIAL: *name = "Financial"; break;
+    case NRSC5_SERVICE_DATA_TYPE_STOCK_TICKER: *name = "Stock Ticker"; break;
+    case NRSC5_SERVICE_DATA_TYPE_NAVIGATION: *name = "Navigation"; break;
+    case NRSC5_SERVICE_DATA_TYPE_ELECTRONIC_PROGRAM_GUIDE: *name = "Electronic Program Guide"; break;
+    case NRSC5_SERVICE_DATA_TYPE_AUDIO: *name = "Audio"; break;
+    case NRSC5_SERVICE_DATA_TYPE_PRIVATE_DATA_NETWORK: *name = "Private Data Network"; break;
+    case NRSC5_SERVICE_DATA_TYPE_SERVICE_MAINTENANCE: *name = "Service Maintenance"; break;
+    case NRSC5_SERVICE_DATA_TYPE_HD_RADIO_SYSTEM_SERVICES: *name = "HD Radio System Services"; break;
+    case NRSC5_SERVICE_DATA_TYPE_AUDIO_RELATED_DATA: *name = "Audio-Related Objects"; break;
+    default: *name = "Unknown"; break;
+    }
+}
+
+NRSC5_API void nrsc5_program_type_name(unsigned int type, const char **name)
+{
+    switch (type)
+    {
+    case NRSC5_PROGRAM_TYPE_UNDEFINED: *name = "None"; break;
+    case NRSC5_PROGRAM_TYPE_NEWS: *name = "News"; break;
+    case NRSC5_PROGRAM_TYPE_INFORMATION: *name = "Information"; break;
+    case NRSC5_PROGRAM_TYPE_SPORTS: *name = "Sports"; break;
+    case NRSC5_PROGRAM_TYPE_TALK: *name = "Talk"; break;
+    case NRSC5_PROGRAM_TYPE_ROCK: *name = "Rock"; break;
+    case NRSC5_PROGRAM_TYPE_CLASSIC_ROCK: *name = "Classic Rock"; break;
+    case NRSC5_PROGRAM_TYPE_ADULT_HITS: *name = "Adult Hits"; break;
+    case NRSC5_PROGRAM_TYPE_SOFT_ROCK: *name = "Soft Rock"; break;
+    case NRSC5_PROGRAM_TYPE_TOP_40: *name = "Top 40"; break;
+    case NRSC5_PROGRAM_TYPE_COUNTRY: *name = "Country"; break;
+    case NRSC5_PROGRAM_TYPE_OLDIES: *name = "Oldies"; break;
+    case NRSC5_PROGRAM_TYPE_SOFT: *name = "Soft"; break;
+    case NRSC5_PROGRAM_TYPE_NOSTALGIA: *name = "Nostalgia"; break;
+    case NRSC5_PROGRAM_TYPE_JAZZ: *name = "Jazz"; break;
+    case NRSC5_PROGRAM_TYPE_CLASSICAL: *name = "Classical"; break;
+    case NRSC5_PROGRAM_TYPE_RHYTHM_AND_BLUES: *name = "Rhythm and Blues"; break;
+    case NRSC5_PROGRAM_TYPE_SOFT_RHYTHM_AND_BLUES: *name = "Soft Rhythm and Blues"; break;
+    case NRSC5_PROGRAM_TYPE_FOREIGN_LANGUAGE: *name = "Foreign Language"; break;
+    case NRSC5_PROGRAM_TYPE_RELIGIOUS_MUSIC: *name = "Religious Music"; break;
+    case NRSC5_PROGRAM_TYPE_RELIGIOUS_TALK: *name = "Religious Talk"; break;
+    case NRSC5_PROGRAM_TYPE_PERSONALITY: *name = "Personality"; break;
+    case NRSC5_PROGRAM_TYPE_PUBLIC: *name = "Public"; break;
+    case NRSC5_PROGRAM_TYPE_COLLEGE: *name = "College"; break;
+    case NRSC5_PROGRAM_TYPE_SPANISH_TALK: *name = "Spanish Talk"; break;
+    case NRSC5_PROGRAM_TYPE_SPANISH_MUSIC: *name = "Spanish Music"; break;
+    case NRSC5_PROGRAM_TYPE_HIP_HOP: *name = "Hip-Hop"; break;
+    case NRSC5_PROGRAM_TYPE_WEATHER: *name = "Weather"; break;
+    case NRSC5_PROGRAM_TYPE_EMERGENCY_TEST: *name = "Emergency Test"; break;
+    case NRSC5_PROGRAM_TYPE_EMERGENCY: *name = "Emergency"; break;
+    case NRSC5_PROGRAM_TYPE_TRAFFIC: *name = "Traffic"; break;
+    case NRSC5_PROGRAM_TYPE_SPECIAL_READING_SERVICES: *name = "Special Reading Services"; break;
+    default: *name = "Unknown"; break;
+    }
+}
+
 NRSC5_API int nrsc5_open(nrsc5_t **result, int device_index, int ppm_error)
 {
     int err;

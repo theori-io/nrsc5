@@ -374,13 +374,22 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
         if (!isnan(evt->sis.latitude))
             log_info("Station location: %f, %f, %dm", evt->sis.latitude, evt->sis.longitude, evt->sis.altitude);
         for (audio_service = evt->sis.audio_services; audio_service != NULL; audio_service = audio_service->next)
-            log_info("Audio program %d: %s, type %d, sound experience %d",
-                     audio_service->program, audio_service->access ? "restricted" : "public",
-                     audio_service->type, audio_service->sound_exp);
+        {
+            const char *name = NULL;
+            nrsc5_program_type_name(audio_service->type, &name);
+            log_info("Audio program %d: %s, type: %s, sound experience %d",
+                     audio_service->program,
+                     audio_service->access == NRSC5_ACCESS_PUBLIC ? "public" : "restricted",
+                     name, audio_service->sound_exp);
+        }
         for (data_service = evt->sis.data_services; data_service != NULL; data_service = data_service->next)
-            log_info("Data service: %s, type %d, MIME type %03x",
-                     data_service->access ? "restricted" : "public",
-                     data_service->type, data_service->mime_type);
+        {
+            const char *name = NULL;
+            nrsc5_service_data_type_name(data_service->type, &name);
+            log_info("Data service: %s, type: %s, MIME type %03x",
+                     data_service->access == NRSC5_ACCESS_PUBLIC ? "public" : "restricted",
+                     name, data_service->mime_type);
+        }
         break;
     }
 }

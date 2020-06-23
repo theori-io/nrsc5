@@ -449,6 +449,18 @@ class NRSC5:
         NRSC5.libnrsc5.nrsc5_get_version(ctypes.byref(version))
         return version.value.decode()
 
+    @staticmethod
+    def service_data_type_name(type):
+        name = ctypes.c_char_p()
+        NRSC5.libnrsc5.nrsc5_service_data_type_name(type.value, ctypes.byref(name))
+        return name.value.decode()
+
+    @staticmethod
+    def program_type_name(type):
+        name = ctypes.c_char_p()
+        NRSC5.libnrsc5.nrsc5_program_type_name(type.value, ctypes.byref(name))
+        return name.value.decode()
+
     def open(self, device_index, ppm_error):
         result = NRSC5.libnrsc5.nrsc5_open(ctypes.byref(self.radio), device_index, ppm_error)
         if result != 0:

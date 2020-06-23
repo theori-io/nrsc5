@@ -22,28 +22,6 @@
 #define AAS_TYPE_PACKET 1
 #define AAS_TYPE_LOT    3
 
-typedef enum
-{
-    NonSpecific = 0,
-    News = 1,
-    Sports = 3,
-    Weather = 29,
-    Emergency = 31,
-    Traffic = 65,
-    ImageMaps = 66,
-    Text = 80,
-    Advertising = 256,
-    Financial,
-    StockTicker,
-    Navigation,
-    ElectronicProgramGuide,
-    Audio,
-    PrivateDataNetwork,
-    ServiceMaintenance,
-    HDRadioSystemServices,
-    AudioRelated
-} service_data_type_t;
-
 enum
 {
     SIG_COMPONENT_NONE,

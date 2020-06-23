@@ -298,32 +298,6 @@ static void output_id3(output_t *st, unsigned int program, uint8_t *buf, unsigne
     free(ufid_id);
 }
 
-static const char * service_data_type_name(unsigned int type)
-{
-    switch (type)
-    {
-    case NonSpecific: return "Non-specific";
-    case News: return "News";
-    case Sports: return "Sports";
-    case Weather: return "Weather";
-    case Emergency: return "Emergency";
-    case Traffic: return "Traffic";
-    case ImageMaps: return "Image Maps";
-    case Text: return "Text";
-    case Advertising: return "Advertising";
-    case Financial: return "Financial";
-    case StockTicker: return "Stock Ticker";
-    case Navigation: return "Navigation";
-    case ElectronicProgramGuide: return "Electronic Program Guide";
-    case Audio: return "Audio";
-    case PrivateDataNetwork: return "Private Data Network";
-    case ServiceMaintenance: return "Service Maintenance";
-    case HDRadioSystemServices: return "HD Radio System Services";
-    case AudioRelated: return "Audio-Related Objects";
-    default: return "Unknown";
-    }
-}
-
 static void parse_sig(output_t *st, uint8_t *buf, unsigned int len)
 {
     int port_idx = 0, service_idx = 0, component_idx = 0;

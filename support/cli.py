@@ -231,12 +231,16 @@ class NRSC5CLI:
                 logging.info("Station location: %s, %s, %sm",
                              evt.latitude, evt.longitude, evt.altitude)
             for audio_service in evt.audio_services:
-                logging.info("Audio program %s: %s, %s, sound experience %s",
-                             audio_service.program, audio_service.access,
-                             audio_service.type, audio_service.sound_exp)
+                logging.info("Audio program %s: %s, type: %s, sound experience %s",
+                             audio_service.program,
+                             "public" if audio_service.access == nrsc5.Access.PUBLIC else "restricted",
+                             self.radio.program_type_name(audio_service.type),
+                             audio_service.sound_exp)
             for data_service in evt.data_services:
-                logging.info("Data service: %s, %s, MIME type %03x",
-                             data_service.access, data_service.type, data_service.mime_type)
+                logging.info("Data service: %s, type: %s, MIME type %03x",
+                             "public" if data_service.access == nrsc5.Access.PUBLIC else "restricted",
+                             self.radio.service_data_type_name(data_service.type),
+                             data_service.mime_type)
 
 
 if __name__ == "__main__":

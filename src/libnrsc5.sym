@@ -1,4 +1,6 @@
 _nrsc5_get_version
+_nrsc5_service_data_type_name
+_nrsc5_program_type_name
 _nrsc5_open
 _nrsc5_open_file
 _nrsc5_open_pipe

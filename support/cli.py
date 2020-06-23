@@ -47,7 +47,7 @@ class NRSC5CLI:
 
     def run(self):
         logging.basicConfig(level=self.args.l * 10,
-                            format="%(asctime)s %(levelname)-5s %(filename)s:%(lineno)d: %(message)s",
+                            format="%(asctime)s %(message)s",
                             datefmt="%H:%M:%S")
         if self.args.q:
             logging.disable(logging.CRITICAL)

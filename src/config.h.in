@@ -1,7 +1,6 @@
 #pragma once
 
 #cmakedefine USE_FAAD2
-#cmakedefine USE_COLOR
 
 #cmakedefine HAVE_PTHREAD_SETNAME_NP
 #cmakedefine HAVE_STRNDUP

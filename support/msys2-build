@@ -21,7 +21,6 @@ cmake -G "MSYS Makefiles" \
     -D USE_SYSTEM_RTLSDR=OFF \
     -D USE_SYSTEM_LIBAO=OFF \
     -D USE_SYSTEM_FFTW=OFF \
-    -D USE_COLOR=OFF \
     -D USE_SSE=ON \
     -D CMAKE_INSTALL_PREFIX=${MINGW_PREFIX} \
     ..

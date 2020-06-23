@@ -16,7 +16,6 @@ This program receives NRSC-5 digital radio stations using an RTL-SDR dongle. It 
 
 Available build options:
 
-    -DUSE_COLOR=ON       Colorize log output. [default=OFF]
     -DUSE_NEON=ON        Use NEON instructions. [ARM, default=OFF]
     -DUSE_SSE=ON         Use SSSE3 instructions. [x86, default=OFF]
     -DUSE_FAAD2=ON       AAC decoding with FAAD2. [default=ON]

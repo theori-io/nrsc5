@@ -7,7 +7,6 @@ project (nrsc5 C)
 
 execute_process (COMMAND ${CMAKE_C_COMPILER} -dumpmachine OUTPUT_VARIABLE HOST_TRIPLE_DEFAULT OUTPUT_STRIP_TRAILING_WHITESPACE)
 
-option (USE_COLOR "Colorize log output")
 option (USE_NEON "Use NEON instructions")
 option (USE_SSE "Use SSE3 instructions")
 option (USE_FAAD2 "AAC decoding with FAAD2" ON)

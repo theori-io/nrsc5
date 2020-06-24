@@ -17,6 +17,22 @@ static int snr_callback(void *arg, float snr)
     return 1;
 }
 
+static int get_tuner_gains(nrsc5_t *st, int *gains)
+{
+    if (st->dev)
+        return rtlsdr_get_tuner_gains(st->dev, gains);
+    assert(st->rtltcp);
+    return rtltcp_get_tuner_gains(st->rtltcp, gains);
+}
+
+static int set_tuner_gain(nrsc5_t *st, int gain)
+{
+    if (st->dev)
+        return rtlsdr_set_tuner_gain(st->dev, gain);
+    assert(st->rtltcp);
+    return rtltcp_set_tuner_gain(st->rtltcp, gain);
+}
+
 static int do_auto_gain(nrsc5_t *st)
 {
     int gain_count, best_gain = 0, ret = 1;
@@ -25,7 +41,7 @@ static int do_auto_gain(nrsc5_t *st)
 
     input_set_snr_callback(&st->input, snr_callback, st);
 
-    gain_count = rtlsdr_get_tuner_gains(st->dev, NULL);
+    gain_count = get_tuner_gains(st, NULL);
     if (gain_count < 0)
         goto error;
 
@@ -33,7 +49,7 @@ static int do_auto_gain(nrsc5_t *st)
     if (!gain_list)
         goto error;
 
-    gain_count = rtlsdr_get_tuner_gains(st->dev, gain_list);
+    gain_count = get_tuner_gains(st, gain_list);
     if (gain_count < 0)
         goto error;
 
@@ -41,16 +57,32 @@ static int do_auto_gain(nrsc5_t *st)
     {
         int gain = gain_list[i];
 
-        if (rtlsdr_set_tuner_gain(st->dev, gain_list[i]) != 0)
+        if (set_tuner_gain(st, gain_list[i]) != 0)
             continue;
+
+        if (st->rtltcp)
+        {
+            // there is no good way to wait for samples after the new gain was applied
+            // dump 250ms of samples and hope for the best
+            rtltcp_reset_buffer(st->rtltcp, (SAMPLE_RATE / 4) * 2);
+        }
 
         st->auto_gain_snr_ready = 0;
         while (!st->auto_gain_snr_ready)
         {
             int len = sizeof(st->samples_buf);
 
-            if (rtlsdr_read_sync(st->dev, st->samples_buf, len, &len) != 0)
-                goto error;
+            if (st->dev)
+            {
+                if (rtlsdr_read_sync(st->dev, st->samples_buf, len, &len) != 0)
+                    goto error;
+            }
+            else
+            {
+                assert(st->rtltcp);
+                if (rtltcp_read(st->rtltcp, st->samples_buf, len) != len)
+                    goto error;
+            }
 
             input_push_cu8(&st->input, st->samples_buf, len);
         }
@@ -65,7 +97,7 @@ static int do_auto_gain(nrsc5_t *st)
 
     log_debug("Best gain: %.1f dB, CNR: %.1f dB", best_gain / 10.0f, 10 * log10f(best_snr));
     st->gain = best_gain;
-    rtlsdr_set_tuner_gain(st->dev, best_gain);
+    set_tuner_gain(st, best_gain);
     ret = 0;
 
 error:
@@ -101,18 +133,15 @@ static void *worker_thread(void *arg)
             st->worker_stopped = 0;
             pthread_cond_broadcast(&st->worker_cond);
 
-            if (st->dev)
-            {
-                if (rtlsdr_reset_buffer(st->dev) != 0)
-                    log_error("rtlsdr_reset_buffer failed");
+            if (st->dev && rtlsdr_reset_buffer(st->dev) != 0)
+                log_error("rtlsdr_reset_buffer failed");
 
-                if (st->auto_gain && st->gain < 0)
+            if (st->dev || st->rtltcp)
+            {
+                if (st->auto_gain && st->gain < 0 && do_auto_gain(st) != 0)
                 {
-                    if (do_auto_gain(st) != 0)
-                    {
-                        st->stopped = 1;
-                        continue;
-                    }
+                    st->stopped = 1;
+                    continue;
                 }
             }
         }

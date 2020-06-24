@@ -10,6 +10,7 @@ elseif (CMAKE_SYSTEM_NAME MATCHES Darwin)
     set (EXPORTS_LINKER_FLAGS "-exported_symbols_list ${CMAKE_CURRENT_SOURCE_DIR}/libnrsc5.sym")
 elseif (CMAKE_SYSTEM_NAME MATCHES Windows)
     set (EXPORTS_LINKER_FLAGS "-Wl,--exclude-all-symbols")
+    set (SOCKET_LIBRARY ws2_32)
 endif()
 if (USE_STATIC)
     set (STATIC_LINKER_FLAGS -static)
@@ -41,6 +42,7 @@ add_library (
     nrsc5.c
     output.c
     pids.c
+    rtltcp.c
     sync.c
 
     firdecim_q15.c
@@ -66,6 +68,7 @@ set (
     ${FFTW3F_LIBRARIES}
     ${RTL_SDR_LIBRARIES}
     ${THREAD_LIBRARY}
+    ${SOCKET_LIBRARY}
     m
 )
 
@@ -100,6 +103,7 @@ target_link_libraries (
     nrsc5_static
     ${AO_LIBRARIES}
     ${THREAD_LIBRARY}
+    ${SOCKET_LIBRARY}
 )
 
 install (

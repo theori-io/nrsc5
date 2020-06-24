@@ -4,6 +4,7 @@ _nrsc5_program_type_name
 _nrsc5_open
 _nrsc5_open_file
 _nrsc5_open_pipe
+_nrsc5_open_rtltcp
 _nrsc5_close
 _nrsc5_start
 _nrsc5_stop

@@ -10,11 +10,13 @@
 #include "defines.h"
 #include "input.h"
 #include "output.h"
+#include "rtltcp.h"
 
 struct nrsc5_t
 {
     rtlsdr_dev_t *dev;
     FILE *iq_file;
+    rtltcp_t *rtltcp;
     uint8_t samples_buf[128 * 256];
     float freq;
     int gain;

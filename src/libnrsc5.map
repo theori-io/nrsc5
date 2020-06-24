@@ -6,6 +6,7 @@ LIBNRSC5_1.0 {
         nrsc5_open;
         nrsc5_open_file;
         nrsc5_open_pipe;
+        nrsc5_open_rtltcp;
         nrsc5_close;
         nrsc5_start;
         nrsc5_stop;

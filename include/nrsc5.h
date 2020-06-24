@@ -263,6 +263,7 @@ void nrsc5_program_type_name(unsigned int type, const char **name);
 int nrsc5_open(nrsc5_t **, int device_index, int ppm_error);
 int nrsc5_open_file(nrsc5_t **, FILE *fp);
 int nrsc5_open_pipe(nrsc5_t **);
+int nrsc5_open_rtltcp(nrsc5_t **, int socket, int ppm_error);
 void nrsc5_close(nrsc5_t *);
 void nrsc5_start(nrsc5_t *);
 void nrsc5_stop(nrsc5_t *);

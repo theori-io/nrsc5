@@ -29,6 +29,7 @@ link_directories (
     ${AO_LIBRARY_DIRS}
     ${RTL_SDR_LIBRARY_DIRS}
     ${FFTW3F_LIBRARY_DIRS}
+    ${LIBUSB_LIBRARY_DIRS}
 )
 
 add_library (

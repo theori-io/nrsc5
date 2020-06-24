@@ -91,6 +91,9 @@ Replace `32` with `64` if you want a 64-bit build. Once the build is complete, c
                                          (automatic gain selection if not specified)
        -d device-index                 rtl-sdr device
        -p ppm-error                    rtl-sdr ppm error
+       -H rtltcp-host                  rtl_tcp host with optional port
+                                         (example: localhost:1234)
+                                         (automatic gain selection is not supported)
        -r iq-input                     read IQ samples from input file
        -w iq-output                    write IQ samples to output file
        -o audio-output                 write audio to output WAV file

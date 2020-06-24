@@ -17,3 +17,5 @@ RTLTCP_DEFINE(set_offset_tuning, 0x0a)
 rtltcp_t *rtltcp_open(int socket);
 void rtltcp_close(rtltcp_t *);
 int rtltcp_read(rtltcp_t *, uint8_t *buf, size_t cnt);
+int rtltcp_get_tuner_gains(rtltcp_t *, int *gains);
+int rtltcp_reset_buffer(rtltcp_t *, size_t cnt);

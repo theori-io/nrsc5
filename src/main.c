@@ -27,8 +27,12 @@
 
 #ifdef __MINGW32__
 #include <conio.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
 #include <windows.h>
 #else
+#include <netdb.h>
+#include <sys/socket.h>
 #include <termios.h>
 #endif
 
@@ -51,6 +55,7 @@ typedef struct {
     unsigned int device_index;
     int ppm_error;
     char *input_name;
+    char *rtltcp_host;
     ao_device *dev;
     FILE *hdc_file;
     FILE *iq_file;
@@ -394,6 +399,40 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
     }
 }
 
+static int connect_tcp(char *host, const char *default_port)
+{
+    int err, s;
+    struct addrinfo hints, *res;
+    char *p = strchr(host, ':');
+
+#ifdef __MINGW32__
+    WSADATA wsa_data;
+    if (WSAStartup(MAKEWORD(2, 2), &wsa_data) != 0)
+        return -1;
+#endif
+
+    if (p)
+    {
+        *p = 0;
+        default_port = p + 1;
+    }
+
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = PF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    err = getaddrinfo(host, default_port, &hints, &res);
+    if (err)
+        return err;
+    s = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+    if (s == -1)
+        return errno;
+    if (connect(s, res->ai_addr, res->ai_addrlen) < 0)
+        return errno;
+
+    freeaddrinfo(res);
+    return s;
+}
+
 #ifndef __MINGW32__
 static void restore_termios(void *arg)
 {
@@ -456,7 +495,7 @@ static void *input_main(void *arg)
 
 static void help(const char *progname)
 {
-    fprintf(stderr, "Usage: %s [-v] [-q] [-l log-level] [-d device-index] [-p ppm-error] [-g gain] [-r iq-input] [-w iq-output] [-o wav-output] [--dump-hdc hdc-output] [--dump-aas-files directory] frequency program\n", progname);
+    fprintf(stderr, "Usage: %s [-v] [-q] [-l log-level] [-d device-index] [-H rtltcp-host] [-p ppm-error] [-g gain] [-r iq-input] [-w iq-output] [-o wav-output] [--dump-hdc hdc-output] [--dump-aas-files directory] frequency program\n", progname);
 }
 
 static int parse_args(state_t *st, int argc, char *argv[])
@@ -473,7 +512,7 @@ static int parse_args(state_t *st, int argc, char *argv[])
 
     st->gain = -1;
 
-    while ((opt = getopt_long(argc, argv, "r:w:o:d:p:g:ql:v", long_opts, NULL)) != -1)
+    while ((opt = getopt_long(argc, argv, "r:w:o:d:p:g:ql:vH:", long_opts, NULL)) != -1)
     {
         switch (opt)
         {
@@ -516,6 +555,9 @@ static int parse_args(state_t *st, int argc, char *argv[])
             nrsc5_get_version(&version);
             printf("nrsc5 revision %s\n", version);
             return 1;
+        case 'H':
+            st->rtltcp_host = strdup(optarg);
+            break;
         default:
             help(argv[0]);
             return 1;
@@ -652,6 +694,20 @@ int main(int argc, char *argv[])
         {
             log_fatal("Open IQ failed.");
             return 1;
+        }
+    }
+    else if (st->rtltcp_host)
+    {
+        int s = connect_tcp(st->rtltcp_host, "1234");
+        if (s == -1)
+        {
+            log_fatal("Connection failed.");
+            return -1;
+        }
+        if (nrsc5_open_rtltcp(&radio, s, st->ppm_error) != 0)
+        {
+            log_fatal("Open remote device failed.");
+            return -1;
         }
     }
     else

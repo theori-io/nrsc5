@@ -30,7 +30,7 @@ class NRSC5CLI:
         parser.add_argument("-q", action="store_true")
         parser.add_argument("-l", metavar="log-level", type=int, default=1)
         parser.add_argument("-d", metavar="device-index", type=int, default=0)
-        parser.add_argument("-p", metavar="ppm-error", type=int, default=0)
+        parser.add_argument("-p", metavar="ppm-error", type=int)
         parser.add_argument("-g", metavar="gain", type=float)
         input_group.add_argument("-r", metavar="iq-input")
         parser.add_argument("--iq-input-format", choices=["cu8", "cs16"], default="cu8")
@@ -61,15 +61,18 @@ class NRSC5CLI:
             port = "1234"
             if ':' in host:
                 host, port = host.split(':')
-            self.radio.open_rtltcp(host, int(port), self.args.p)
+            self.radio.open_rtltcp(host, int(port))
             self.radio.set_frequency(self.args.frequency)
             if self.args.g:
                 self.radio.set_gain(self.args.g)
         else:
-            self.radio.open(self.args.d, self.args.p)
+            self.radio.open(self.args.d)
             self.radio.set_frequency(self.args.frequency)
             if self.args.g:
                 self.radio.set_gain(self.args.g)
+
+        if self.args.p is not None:
+            self.radio.set_freq_correction(self.args.p)
 
         if self.args.w:
             self.iq_output = sys.stdout.buffer if self.args.w == "-" else open(self.args.w, "wb")

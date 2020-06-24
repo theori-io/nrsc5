@@ -22,6 +22,7 @@
 #include <unistd.h>
 
 #include <assert.h>
+#include <limits.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -511,6 +512,7 @@ static int parse_args(state_t *st, int argc, char *argv[])
     int opt;
 
     st->gain = -1;
+    st->ppm_error = INT_MIN;
 
     while ((opt = getopt_long(argc, argv, "r:w:o:d:p:g:ql:vH:", long_opts, NULL)) != -1)
     {
@@ -704,7 +706,7 @@ int main(int argc, char *argv[])
             log_fatal("Connection failed.");
             return -1;
         }
-        if (nrsc5_open_rtltcp(&radio, s, st->ppm_error) != 0)
+        if (nrsc5_open_rtltcp(&radio, s) != 0)
         {
             log_fatal("Open remote device failed.");
             return -1;
@@ -712,11 +714,16 @@ int main(int argc, char *argv[])
     }
     else
     {
-        if (nrsc5_open(&radio, st->device_index, st->ppm_error) != 0)
+        if (nrsc5_open(&radio, st->device_index) != 0)
         {
             log_fatal("Open device failed.");
             return 1;
         }
+    }
+    if (st->ppm_error != INT_MIN && nrsc5_set_freq_correction(radio, st->ppm_error) != 0)
+    {
+        log_fatal("Set frequency correction failed.");
+        return 1;
     }
     if (nrsc5_set_frequency(radio, st->freq) != 0)
     {

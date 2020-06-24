@@ -10,6 +10,7 @@ LIBNRSC5_1.0 {
         nrsc5_close;
         nrsc5_start;
         nrsc5_stop;
+        nrsc5_set_freq_correction;
         nrsc5_get_frequency;
         nrsc5_set_frequency;
         nrsc5_get_gain;

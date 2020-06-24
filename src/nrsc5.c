@@ -291,7 +291,7 @@ static nrsc5_t *nrsc5_alloc()
     return st;
 }
 
-NRSC5_API int nrsc5_open(nrsc5_t **result, int device_index, int ppm_error)
+NRSC5_API int nrsc5_open(nrsc5_t **result, int device_index)
 {
     int err;
     nrsc5_t *st = nrsc5_alloc();
@@ -303,8 +303,6 @@ NRSC5_API int nrsc5_open(nrsc5_t **result, int device_index, int ppm_error)
     if (err) goto error;
     err = rtlsdr_set_tuner_gain_mode(st->dev, 1);
     if (err) goto error;
-    err = rtlsdr_set_freq_correction(st->dev, ppm_error);
-    if (err && err != -2) goto error;
     err = rtlsdr_set_offset_tuning(st->dev, 1);
     if (err && err != -2) goto error;
 
@@ -341,7 +339,7 @@ NRSC5_API int nrsc5_open_pipe(nrsc5_t **result)
     return 0;
 }
 
-NRSC5_API int nrsc5_open_rtltcp(nrsc5_t **result, int socket, int ppm_error)
+NRSC5_API int nrsc5_open_rtltcp(nrsc5_t **result, int socket)
 {
     int err;
     nrsc5_t *st = nrsc5_alloc();
@@ -353,8 +351,6 @@ NRSC5_API int nrsc5_open_rtltcp(nrsc5_t **result, int socket, int ppm_error)
     err = rtltcp_set_sample_rate(st->rtltcp, SAMPLE_RATE);
     if (err) goto error;
     err = rtltcp_set_tuner_gain_mode(st->rtltcp, 1);
-    if (err) goto error;
-    err = rtltcp_set_freq_correction(st->rtltcp, ppm_error);
     if (err) goto error;
     err = rtltcp_set_offset_tuning(st->rtltcp, 1);
     if (err) goto error;
@@ -417,6 +413,23 @@ NRSC5_API void nrsc5_stop(nrsc5_t *st)
     while (st->stopped != st->worker_stopped)
         pthread_cond_wait(&st->worker_cond, &st->worker_mutex);
     pthread_mutex_unlock(&st->worker_mutex);
+}
+
+NRSC5_API int nrsc5_set_freq_correction(nrsc5_t *st, int ppm_error)
+{
+    if (st->dev)
+    {
+        int err = rtlsdr_set_freq_correction(st->dev, ppm_error);
+        if (err && err != -2)
+            return 1;
+    }
+    else if (st->rtltcp)
+    {
+        int err = rtltcp_set_freq_correction(st->rtltcp, ppm_error);
+        if (err)
+            return 1;
+    }
+    return 0;
 }
 
 NRSC5_API void nrsc5_get_frequency(nrsc5_t *st, float *freq)

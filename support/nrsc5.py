@@ -462,8 +462,8 @@ class NRSC5:
         NRSC5.libnrsc5.nrsc5_program_type_name(type.value, ctypes.byref(name))
         return name.value.decode()
 
-    def open(self, device_index, ppm_error):
-        result = NRSC5.libnrsc5.nrsc5_open(ctypes.byref(self.radio), device_index, ppm_error)
+    def open(self, device_index):
+        result = NRSC5.libnrsc5.nrsc5_open(ctypes.byref(self.radio), device_index)
         if result != 0:
             raise NRSC5Error("Failed to open RTL-SDR.")
         self._set_callback()
@@ -474,9 +474,9 @@ class NRSC5:
             raise NRSC5Error("Failed to open pipe.")
         self._set_callback()
 
-    def open_rtltcp(self, host, port, ppm_error):
+    def open_rtltcp(self, host, port):
         s = socket.create_connection((host, port))
-        result = NRSC5.libnrsc5.nrsc5_open_rtltcp(ctypes.byref(self.radio), s.detach(), ppm_error)
+        result = NRSC5.libnrsc5.nrsc5_open_rtltcp(ctypes.byref(self.radio), s.detach())
         if result != 0:
             raise NRSC5Error("Failed to open rtl_tcp.")
         self._set_callback()
@@ -489,6 +489,11 @@ class NRSC5:
 
     def stop(self):
         NRSC5.libnrsc5.nrsc5_stop(self.radio)
+
+    def set_freq_correction(self, ppm_error):
+        result = NRSC5.libnrsc5.nrsc5_set_freq_correction(self.radio, ppm_error)
+        if result != 0:
+            raise NRSC5Error("Failed to set frequency correction.")
 
     def get_frequency(self):
         frequency = ctypes.c_float()

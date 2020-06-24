@@ -36,6 +36,7 @@ class NRSC5CLI:
         parser.add_argument("--iq-input-format", choices=["cu8", "cs16"], default="cu8")
         parser.add_argument("-w", metavar="iq-output")
         parser.add_argument("-o", metavar="wav-output")
+        parser.add_argument("-H", metavar="rtltcp-host")
         parser.add_argument("--dump-hdc", metavar="hdc-output")
         parser.add_argument("--dump-aas-files", metavar="directory")
         input_group.add_argument("frequency", nargs="?", type=float)
@@ -55,6 +56,15 @@ class NRSC5CLI:
         if self.args.r:
             iq_input = sys.stdin.buffer if self.args.r == "-" else open(self.args.r, "rb")
             self.radio.open_pipe()
+        elif self.args.H:
+            host = self.args.H
+            port = "1234"
+            if ':' in host:
+                host, port = host.split(':')
+            self.radio.open_rtltcp(host, int(port), self.args.p)
+            self.radio.set_frequency(self.args.frequency)
+            if self.args.g:
+                self.radio.set_gain(self.args.g)
         else:
             self.radio.open(self.args.d, self.args.p)
             self.radio.set_frequency(self.args.frequency)

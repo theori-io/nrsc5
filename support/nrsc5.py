@@ -3,6 +3,7 @@ import ctypes
 import enum
 import math
 import platform
+import socket
 
 
 class EventType(enum.Enum):
@@ -471,6 +472,13 @@ class NRSC5:
         result = NRSC5.libnrsc5.nrsc5_open_pipe(ctypes.byref(self.radio))
         if result != 0:
             raise NRSC5Error("Failed to open pipe.")
+        self._set_callback()
+
+    def open_rtltcp(self, host, port, ppm_error):
+        s = socket.create_connection((host, port))
+        result = NRSC5.libnrsc5.nrsc5_open_rtltcp(ctypes.byref(self.radio), s.detach(), ppm_error)
+        if result != 0:
+            raise NRSC5Error("Failed to open rtl_tcp.")
         self._set_callback()
 
     def close(self):

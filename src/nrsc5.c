@@ -132,6 +132,17 @@ static void *worker_thread(void *arg)
             {
                 err = rtlsdr_read_async(st->dev, worker_cb, st, 8, 512 * 1024);
             }
+            else if (st->rtltcp)
+            {
+                err = rtltcp_read(st->rtltcp, st->samples_buf, sizeof(st->samples_buf));
+                if (err >= 0)
+                {
+                    // a short read is possible when EOF and may not be aligned
+                    input_push_cu8(&st->input, st->samples_buf, err & ~3);
+                    if (err == sizeof(st->samples_buf))
+                        err = 0;
+                }
+            }
             else if (st->iq_file)
             {
                 int count = fread(st->samples_buf, 4, sizeof(st->samples_buf) / 4, st->iq_file);
@@ -245,10 +256,16 @@ NRSC5_API void nrsc5_program_type_name(unsigned int type, const char **name)
     }
 }
 
+static nrsc5_t *nrsc5_alloc()
+{
+    nrsc5_t *st = calloc(1, sizeof(*st));
+    return st;
+}
+
 NRSC5_API int nrsc5_open(nrsc5_t **result, int device_index, int ppm_error)
 {
     int err;
-    nrsc5_t *st = calloc(1, sizeof(*st));
+    nrsc5_t *st = nrsc5_alloc();
 
     if (rtlsdr_open(&st->dev, device_index) != 0)
         goto error_init;
@@ -278,11 +295,8 @@ error_init:
 
 NRSC5_API int nrsc5_open_file(nrsc5_t **result, FILE *fp)
 {
-    nrsc5_t *st;
-
-    st = calloc(1, sizeof(*st));
+    nrsc5_t *st = nrsc5_alloc();
     st->iq_file = fp;
-
     nrsc5_init(st);
 
     *result = st;
@@ -291,14 +305,39 @@ NRSC5_API int nrsc5_open_file(nrsc5_t **result, FILE *fp)
 
 NRSC5_API int nrsc5_open_pipe(nrsc5_t **result)
 {
-    nrsc5_t *st;
+    nrsc5_t *st = nrsc5_alloc();
+    nrsc5_init(st);
 
-    st = calloc(1, sizeof(*st));
+    *result = st;
+    return 0;
+}
+
+NRSC5_API int nrsc5_open_rtltcp(nrsc5_t **result, int socket, int ppm_error)
+{
+    int err;
+    nrsc5_t *st = nrsc5_alloc();
+
+    st->rtltcp = rtltcp_open(socket);
+    if (st->rtltcp == NULL)
+        goto error;
+
+    err = rtltcp_set_sample_rate(st->rtltcp, SAMPLE_RATE);
+    if (err) goto error;
+    err = rtltcp_set_tuner_gain_mode(st->rtltcp, 1);
+    if (err) goto error;
+    err = rtltcp_set_freq_correction(st->rtltcp, ppm_error);
+    if (err) goto error;
+    err = rtltcp_set_offset_tuning(st->rtltcp, 1);
+    if (err) goto error;
 
     nrsc5_init(st);
 
     *result = st;
     return 0;
+error:
+    free(st);
+    *result = NULL;
+    return 1;
 }
 
 NRSC5_API void nrsc5_close(nrsc5_t *st)
@@ -319,6 +358,8 @@ NRSC5_API void nrsc5_close(nrsc5_t *st)
         rtlsdr_close(st->dev);
     if (st->iq_file)
         fclose(st->iq_file);
+    if (st->rtltcp)
+        rtltcp_close(st->rtltcp);
 
     input_free(&st->input);
     output_free(&st->output);
@@ -364,16 +405,15 @@ NRSC5_API int nrsc5_set_frequency(nrsc5_t *st, float freq)
     if (!st->stopped)
         return 1;
 
-    if (st->dev)
-    {
-        if (rtlsdr_set_center_freq(st->dev, freq) != 0)
-            return 1;
+    if (st->dev && rtlsdr_set_center_freq(st->dev, freq) != 0)
+        return 1;
+    if (st->rtltcp && rtltcp_set_center_freq(st->rtltcp, freq) != 0)
+        return 1;
 
-        if (st->auto_gain)
-            st->gain = -1;
-        input_reset(&st->input);
-        output_reset(&st->output);
-    }
+    if (st->auto_gain)
+        st->gain = -1;
+    input_reset(&st->input);
+    output_reset(&st->output);
 
     st->freq = freq;
     return 0;
@@ -394,11 +434,10 @@ NRSC5_API int nrsc5_set_gain(nrsc5_t *st, float gain)
     if (!st->stopped)
         return 1;
 
-    if (st->dev)
-    {
-        if (rtlsdr_set_tuner_gain(st->dev, gain * 10) != 0)
-            return 1;
-    }
+    if (st->dev && rtlsdr_set_tuner_gain(st->dev, gain * 10) != 0)
+        return 1;
+    if (st->rtltcp && rtltcp_set_tuner_gain(st->rtltcp, gain * 10) != 0)
+        return 1;
 
     st->gain = gain;
     return 0;

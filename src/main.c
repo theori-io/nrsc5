@@ -403,7 +403,7 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
 static int connect_tcp(char *host, const char *default_port)
 {
     int err, s;
-    struct addrinfo hints, *res;
+    struct addrinfo hints, *res0;
     char *p = strchr(host, ':');
 
 #ifdef __MINGW32__
@@ -421,16 +421,25 @@ static int connect_tcp(char *host, const char *default_port)
     memset(&hints, 0, sizeof(hints));
     hints.ai_family = PF_UNSPEC;
     hints.ai_socktype = SOCK_STREAM;
-    err = getaddrinfo(host, default_port, &hints, &res);
+    err = getaddrinfo(host, default_port, &hints, &res0);
     if (err)
-        return err;
-    s = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-    if (s == -1)
-        return errno;
-    if (connect(s, res->ai_addr, res->ai_addrlen) < 0)
-        return errno;
+        return -1;
 
-    freeaddrinfo(res);
+    for (struct addrinfo *res = res0; res != NULL; res = res->ai_next)
+    {
+        s = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+        if (s == -1)
+            continue;
+
+        if (connect(s, res->ai_addr, res->ai_addrlen) == 0)
+            break;
+
+        // failed, try next address
+        close(s);
+        s = -1;
+    }
+
+    freeaddrinfo(res0);
     return s;
 }
 
@@ -704,12 +713,12 @@ int main(int argc, char *argv[])
         if (s == -1)
         {
             log_fatal("Connection failed.");
-            return -1;
+            return 1;
         }
         if (nrsc5_open_rtltcp(&radio, s) != 0)
         {
             log_fatal("Open remote device failed.");
-            return -1;
+            return 1;
         }
     }
     else

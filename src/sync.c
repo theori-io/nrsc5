@@ -31,7 +31,7 @@
 static void adjust_ref(sync_t *st, unsigned int ref, int cfo)
 {
     unsigned int n;
-    float cfo_freq = 2 * M_PI * cfo * CP / FFTCP;
+    float cfo_freq = 2 * M_PI * cfo * CP / FFT;
 
     // sync bits (after DBPSK)
     static const signed char sync[] = {
@@ -67,6 +67,12 @@ static void adjust_ref(sync_t *st, unsigned int ref, int cfo)
         }
         st->costas_phase[ref] += M_PI;
     }
+}
+
+static void reset_ref(sync_t *st, unsigned int ref)
+{
+    for (unsigned int n = 0; n < BLKSZ; n++)
+        st->buffer[ref][n] *= cexpf(I * st->phases[ref][n]);
 }
 
 static void decode_dbpsk(const float complex *buf, unsigned char *data, int size)
@@ -182,11 +188,13 @@ void detect_cfo(sync_t *st)
         {
             adjust_ref(st, cfo + LB_START + i * PARTITION_WIDTH, cfo);
             offset = find_ref(st, cfo + LB_START + i * PARTITION_WIDTH, (PM_PARTITIONS-i) & 0x3);
+            reset_ref(st, cfo + LB_START + i * PARTITION_WIDTH);
             if (offset >= 0)
                 offset_count[offset]++;
 
             adjust_ref(st, cfo + UB_END - i * PARTITION_WIDTH, cfo);
             offset = find_ref(st, cfo + UB_END - i * PARTITION_WIDTH, (PM_PARTITIONS-i) & 0x3);
+            reset_ref(st, cfo + UB_END - i * PARTITION_WIDTH);
             if (offset >= 0)
                 offset_count[offset]++;
         }
@@ -438,12 +446,10 @@ void sync_push(sync_t *st, float complex *fftout)
 void sync_reset(sync_t *st)
 {
     unsigned int i;
-    for (i = 0; i < MAX_PARTITIONS * PARTITION_WIDTH + 1; i++)
+    for (i = 0; i < FFT; i++)
     {
-        st->costas_freq[LB_START + i] = 0;
-        st->costas_phase[LB_START + i] = 0;
-        st->costas_freq[UB_END - i] = 0;
-        st->costas_phase[UB_END - i] = 0;
+        st->costas_freq[i] = 0;
+        st->costas_phase[i] = 0;
     }
 
     st->idx = 0;

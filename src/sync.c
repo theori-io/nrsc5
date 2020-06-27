@@ -108,10 +108,10 @@ static int fuzzy_match(const signed char *needle, unsigned int needle_size, cons
     return -1;
 }
 
-static int find_first_block(sync_t *st, unsigned int ref, int *psmi)
+static int find_first_block(sync_t *st, unsigned int ref, unsigned int rsid, int *psmi)
 {
-    static const signed char needle[] = {
-        0, 1, 1, 0, 0, 1, 0, -1, -1, 1, 1, 0, 0, 1, 0, -1, 0, 0, 0, 0, -1, 1, 1, 1
+    signed char needle[] = {
+        0, 1, 1, 0, 0, 1, 0, -1, -1, 1, rsid >> 1, rsid & 1, 0, (rsid >> 1) ^ (rsid & 1), 0, -1, 0, 0, 0, 0, -1, 1, 1, 1
     };
     unsigned char data[BLKSZ];
     int n;
@@ -187,13 +187,13 @@ void detect_cfo(sync_t *st)
         for (int i = 0; i <= PM_PARTITIONS; i++)
         {
             adjust_ref(st, cfo + LB_START + i * PARTITION_WIDTH, cfo);
-            offset = find_ref(st, cfo + LB_START + i * PARTITION_WIDTH, (PM_PARTITIONS-i) & 0x3);
+            offset = find_ref(st, cfo + LB_START + i * PARTITION_WIDTH, (30-i) & 0x3);
             reset_ref(st, cfo + LB_START + i * PARTITION_WIDTH);
             if (offset >= 0)
                 offset_count[offset]++;
 
             adjust_ref(st, cfo + UB_END - i * PARTITION_WIDTH, cfo);
-            offset = find_ref(st, cfo + UB_END - i * PARTITION_WIDTH, (PM_PARTITIONS-i) & 0x3);
+            offset = find_ref(st, cfo + UB_END - i * PARTITION_WIDTH, (30-i) & 0x3);
             reset_ref(st, cfo + UB_END - i * PARTITION_WIDTH);
             if (offset >= 0)
                 offset_count[offset]++;
@@ -249,26 +249,19 @@ void sync_process(sync_t *st)
         adjust_ref(st, UB_END - i, 0);
     }
 
-    // check if we lost synchronization or now have it
-    if (st->input->sync_state == SYNC_STATE_FINE)
+    // check if we now have synchronization
+    if (st->input->sync_state == SYNC_STATE_COARSE)
     {
-        if (decode_get_block(&st->input->decode) == 0 && find_first_block(st, LB_START, &psmi) != 0)
+        unsigned int good_refs = 0;
+        for (i = 0; i <= partitions_per_band; i++)
         {
-            if (find_first_block(st, UB_END, &psmi) != 0)
-            {
-                input_set_sync_state(st->input, SYNC_STATE_NONE);
-            }
+            if (find_first_block(st, LB_START + i * PARTITION_WIDTH, (30-i) & 0x3, &psmi) == 0)
+                good_refs++;
+            if (find_first_block(st, UB_END - i * PARTITION_WIDTH, (30-i) & 0x3, &psmi) == 0)
+                good_refs++;
         }
-    }
-    else if (st->input->sync_state == SYNC_STATE_COARSE)
-    {
-        // First and last reference subcarriers have the same data. Try both
-        // in case one of the sidebands is too corrupted.
-        int offset = find_first_block(st, LB_START, &psmi);
-        if (offset < 0)
-            offset = find_first_block(st, UB_END, &psmi);
 
-        if (offset == 0)
+        if (good_refs >= 4)
         {
             input_set_sync_state(st->input, SYNC_STATE_FINE);
             decode_reset(&st->input->decode);

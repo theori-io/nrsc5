@@ -27,11 +27,12 @@
 #define MAX_PARTITIONS 14
 #define PARTITION_DATA_CARRIERS 18
 #define PARTITION_WIDTH 19
+#define MIDDLE_REF_SC 30 // midpoint of Table 11-3 in 1011s.pdf
 
 static void adjust_ref(sync_t *st, unsigned int ref, int cfo)
 {
     unsigned int n;
-    float cfo_freq = 2 * M_PI * cfo * CP / FFTCP;
+    float cfo_freq = 2 * M_PI * cfo * CP / FFT;
 
     // sync bits (after DBPSK)
     static const signed char sync[] = {
@@ -69,6 +70,12 @@ static void adjust_ref(sync_t *st, unsigned int ref, int cfo)
     }
 }
 
+static void reset_ref(sync_t *st, unsigned int ref)
+{
+    for (unsigned int n = 0; n < BLKSZ; n++)
+        st->buffer[ref][n] *= cexpf(I * st->phases[ref][n]);
+}
+
 static void decode_dbpsk(const float complex *buf, unsigned char *data, int size)
 {
     unsigned char prev = 0;
@@ -102,19 +109,18 @@ static int fuzzy_match(const signed char *needle, unsigned int needle_size, cons
     return -1;
 }
 
-static int find_first_block(sync_t *st, unsigned int ref, int *psmi)
+static int find_first_block(sync_t *st, unsigned int ref, unsigned int rsid)
 {
-    static const signed char needle[] = {
-        0, 1, 1, 0, 0, 1, 0, -1, -1, 1, 1, 0, 0, 1, 0, -1, 0, 0, 0, 0, -1, 1, 1, 1
+    signed char needle[] = {
+        0, 1, 1, 0, 0, 1, 0, -1, -1, 1, rsid >> 1, rsid & 1, 0, (rsid >> 1) ^ (rsid & 1), 0, -1, 0, 0, 0, 0, -1, 1, 1, 1
     };
     unsigned char data[BLKSZ];
     int n;
 
-    *psmi = -1;
     decode_dbpsk(st->buffer[ref], data, BLKSZ);
     n = fuzzy_match(needle, sizeof(needle), data, BLKSZ);
     if (n == 0)
-        *psmi = (data[25] << 5) | (data[26] << 4) | (data[27] << 3) | (data[28] << 2) | (data[29] << 1) | data[30];
+        st->psmi = (data[25] << 5) | (data[26] << 4) | (data[27] << 3) | (data[28] << 2) | (data[29] << 1) | data[30];
     return n;
 }
 
@@ -181,12 +187,14 @@ void detect_cfo(sync_t *st)
         for (int i = 0; i <= PM_PARTITIONS; i++)
         {
             adjust_ref(st, cfo + LB_START + i * PARTITION_WIDTH, cfo);
-            offset = find_ref(st, cfo + LB_START + i * PARTITION_WIDTH, (PM_PARTITIONS-i) & 0x3);
+            offset = find_ref(st, cfo + LB_START + i * PARTITION_WIDTH, (MIDDLE_REF_SC-i) & 0x3);
+            reset_ref(st, cfo + LB_START + i * PARTITION_WIDTH);
             if (offset >= 0)
                 offset_count[offset]++;
 
             adjust_ref(st, cfo + UB_END - i * PARTITION_WIDTH, cfo);
-            offset = find_ref(st, cfo + UB_END - i * PARTITION_WIDTH, (PM_PARTITIONS-i) & 0x3);
+            offset = find_ref(st, cfo + UB_END - i * PARTITION_WIDTH, (MIDDLE_REF_SC-i) & 0x3);
+            reset_ref(st, cfo + UB_END - i * PARTITION_WIDTH);
             if (offset >= 0)
                 offset_count[offset]++;
         }
@@ -217,9 +225,8 @@ void detect_cfo(sync_t *st)
 void sync_process(sync_t *st)
 {
     int i, partitions_per_band;
-    static int psmi = 1;
 
-    switch (psmi) {
+    switch (st->psmi) {
         case 2:
             partitions_per_band = 11;
             break;
@@ -241,26 +248,19 @@ void sync_process(sync_t *st)
         adjust_ref(st, UB_END - i, 0);
     }
 
-    // check if we lost synchronization or now have it
-    if (st->input->sync_state == SYNC_STATE_FINE)
+    // check if we now have synchronization
+    if (st->input->sync_state == SYNC_STATE_COARSE)
     {
-        if (decode_get_block(&st->input->decode) == 0 && find_first_block(st, LB_START, &psmi) != 0)
+        unsigned int good_refs = 0;
+        for (i = 0; i <= partitions_per_band; i++)
         {
-            if (find_first_block(st, UB_END, &psmi) != 0)
-            {
-                input_set_sync_state(st->input, SYNC_STATE_NONE);
-            }
+            if (find_first_block(st, LB_START + i * PARTITION_WIDTH, (MIDDLE_REF_SC-i) & 0x3) == 0)
+                good_refs++;
+            if (find_first_block(st, UB_END - i * PARTITION_WIDTH, (MIDDLE_REF_SC-i) & 0x3) == 0)
+                good_refs++;
         }
-    }
-    else if (st->input->sync_state == SYNC_STATE_COARSE)
-    {
-        // First and last reference subcarriers have the same data. Try both
-        // in case one of the sidebands is too corrupted.
-        int offset = find_first_block(st, LB_START, &psmi);
-        if (offset < 0)
-            offset = find_first_block(st, UB_END, &psmi);
 
-        if (offset == 0)
+        if (good_refs >= 4)
         {
             input_set_sync_state(st->input, SYNC_STATE_FINE);
             decode_reset(&st->input->decode);
@@ -382,7 +382,7 @@ void sync_process(sync_t *st)
                     decode_push_pm(&st->input->decode, DEMOD(cimagf(c)) * mult_ub);
                 }
             }
-            if (psmi == 3) {
+            if (st->psmi == 3) {
                 for (i = LB_START + (PM_PARTITIONS * PARTITION_WIDTH); i < LB_START + (PM_PARTITIONS + 2) * PARTITION_WIDTH; i += PARTITION_WIDTH)
                 {
                     unsigned int j;
@@ -438,15 +438,14 @@ void sync_push(sync_t *st, float complex *fftout)
 void sync_reset(sync_t *st)
 {
     unsigned int i;
-    for (i = 0; i < MAX_PARTITIONS * PARTITION_WIDTH + 1; i++)
+    for (i = 0; i < FFT; i++)
     {
-        st->costas_freq[LB_START + i] = 0;
-        st->costas_phase[LB_START + i] = 0;
-        st->costas_freq[UB_END - i] = 0;
-        st->costas_phase[UB_END - i] = 0;
+        st->costas_freq[i] = 0;
+        st->costas_phase[i] = 0;
     }
 
     st->idx = 0;
+    st->psmi = 1;
     st->cfo_wait = 0;
     st->mer_cnt = 0;
     st->error_lb = 0;

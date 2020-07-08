@@ -257,6 +257,7 @@ typedef struct nrsc5_t nrsc5_t;
 /*
  * Public functions. All functions return void or an error code (0 == success).
  */
+void nrsc5_log_set_level(int level);
 void nrsc5_get_version(const char **version);
 void nrsc5_service_data_type_name(unsigned int type, const char **name);
 void nrsc5_program_type_name(unsigned int type, const char **name);

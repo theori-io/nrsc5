@@ -1,5 +1,6 @@
 LIBNRSC5_1.0 {
     global:
+        nrsc5_log_set_level;
         nrsc5_get_version;
         nrsc5_service_data_type_name;
         nrsc5_program_type_name;

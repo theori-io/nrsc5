@@ -11,6 +11,7 @@
 #include "input.h"
 #include "output.h"
 #include "rtltcp.h"
+#include "log.h"
 
 struct nrsc5_t
 {

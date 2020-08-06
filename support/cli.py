@@ -12,6 +12,7 @@ import pyaudio
 
 import nrsc5
 
+
 class NRSC5CLI:
     def __init__(self):
         self.radio = nrsc5.NRSC5(lambda evt_type, evt: self.callback(evt_type, evt))
@@ -28,6 +29,7 @@ class NRSC5CLI:
         input_group = parser.add_mutually_exclusive_group()
         parser.add_argument("-v", action="version", version="nrsc5 revision " + self.nrsc5_version)
         parser.add_argument("-q", action="store_true")
+        parser.add_argument("--am", action="store_true")
         parser.add_argument("-l", metavar="log-level", type=int, default=1)
         parser.add_argument("-d", metavar="device-index", type=int, default=0)
         parser.add_argument("-p", metavar="ppm-error", type=int)
@@ -70,6 +72,9 @@ class NRSC5CLI:
             self.radio.set_frequency(self.args.frequency)
             if self.args.g:
                 self.radio.set_gain(self.args.g)
+
+        if self.args.am:
+            self.radio.set_mode(nrsc5.Mode.AM)
 
         if self.args.p is not None:
             self.radio.set_freq_correction(self.args.p)

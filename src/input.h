@@ -13,7 +13,8 @@
 #include "output.h"
 #include "sync.h"
 
-#define INPUT_BUF_LEN (FFTCP * 512)
+#define INPUT_BUF_LEN (FFTCP_FM * 512)
+#define AM_DECIM_STAGES 5
 
 #define SNR_FFT_COUNT 256
 #define SNR_FFT_LEN 64
@@ -31,9 +32,10 @@ typedef struct input_t
     nrsc5_t *radio;
     output_t *output;
 
-    firdecim_q15 decim;
+    firdecim_q15 decim[AM_DECIM_STAGES];
+    cint16_t stages[AM_DECIM_STAGES][2];
     cint16_t buffer[INPUT_BUF_LEN];
-    unsigned int avail, used, skip;
+    unsigned int avail, used, skip, offset;
     unsigned int sync_state;
 
     fftwf_plan snr_fft;
@@ -51,6 +53,7 @@ typedef struct input_t
 } input_t;
 
 void input_init(input_t *st, nrsc5_t *radio, output_t *output);
+void input_set_mode(input_t *st);
 void input_reset(input_t *st);
 void input_free(input_t *st);
 void input_set_sync_state(input_t *st, unsigned int new_state);
@@ -58,5 +61,5 @@ void input_push_cu8(input_t *st, uint8_t *buf, uint32_t len);
 void input_push_cs16(input_t *st, int16_t *buf, uint32_t len);
 void input_set_snr_callback(input_t *st, input_snr_cb_t cb, void *);
 void input_set_skip(input_t *st, unsigned int skip);
-void input_pdu_push(input_t *st, uint8_t *pdu, unsigned int len, unsigned int program);
+void input_pdu_push(input_t *st, uint8_t *pdu, unsigned int len, unsigned int program, unsigned int stream_id);
 void input_aas_push(input_t *st, uint8_t *psd, unsigned int len);

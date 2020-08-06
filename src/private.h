@@ -19,6 +19,7 @@ struct nrsc5_t
     rtltcp_t *rtltcp;
     uint8_t samples_buf[128 * 256];
     float freq;
+    int mode;
     int gain;
     int auto_gain;
     int auto_gain_snr_ready;

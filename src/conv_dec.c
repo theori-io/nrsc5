@@ -32,12 +32,11 @@
 #include "defines.h"
 #include "conv.h"
 
+#include "conv_gen.h"
 #if defined(HAVE_SSE3)
 #include "conv_sse.h"
 #elif defined(HAVE_NEON)
 #include "conv_neon.h"
-#else
-#include "conv_gen.h"
 #endif
 
 #define PARITY(X) __builtin_parity(X)
@@ -122,6 +121,8 @@ static unsigned vstate_lshift(unsigned reg, int k, int val)
 		mask = 0x0e;
 	else if (k == 7)
 		mask = 0x3e;
+	else if (k == 9)
+		mask = 0xfe;
 	else
 		mask = 0;
 
@@ -177,8 +178,10 @@ static void gen_rec_state_info(const struct lte_conv_code *code,
 
 	if (code->k == 5)
 		mask = 0x0f;
-	else
+	else if (code->k == 7)
 		mask = 0x3f;
+	else
+	  mask = 0xff;
 
 	/* Check for recursive outputs */
 	for (i = 0; i < code->n; i++) {
@@ -201,7 +204,7 @@ static void free_trellis(struct vtrellis *trellis)
 	free(trellis);
 }
 
-#define NUM_STATES(K)	(K == 7 ? 64 : 16)
+#define NUM_STATES(K)	(K == 9 ? 256 : (K == 7 ? 64 : 16))
 
 /*
  * Allocate and initialize the trellis object
@@ -367,7 +370,7 @@ static struct vdecoder *alloc_vdec(const struct lte_conv_code *code)
 	dec->intrvl = INT16_MAX / (dec->n * INT8_MAX) - dec->k;
 
     assert(dec->n == 3);
-    assert(dec->k == 7);
+    assert(dec->k == 7 || dec->k == 9);
 
 	if (code->term == CONV_TERM_FLUSH)
 		dec->len = code->len + code->k - 1;
@@ -408,21 +411,28 @@ static void _conv_decode(struct vdecoder *dec, const int8_t *seq, int term, int 
 		if (term == CONV_TERM_TAIL_BITING && j == len)
 			j = 0;
 
-		gen_metrics_k7_n3(&seq[dec->n * j],
-				 trellis->outputs,
-				 trellis->sums,
-				 dec->paths[i],
-				 !(i % dec->intrvl));
+		if (dec->k == 7)
+			gen_metrics_k7_n3(&seq[dec->n * j],
+					 trellis->outputs,
+					 trellis->sums,
+					 dec->paths[i],
+					 !(i % dec->intrvl));
+		else if (dec->k == 9)
+			gen_metrics_k9_n3(&seq[dec->n * j],
+					 trellis->outputs,
+					 trellis->sums,
+					 dec->paths[i],
+					 !(i % dec->intrvl));
 	}
 }
 
-static int nrsc5_conv_decode(const int8_t *in, uint8_t *out, int len)
+static int nrsc5_conv_decode(const int8_t *in, uint8_t *out, int k, int len, unsigned int g1, unsigned int g2, unsigned int g3)
 {
 	const struct lte_conv_code code = {
 		.n = 3,
-		.k = 7,
+		.k = k,
 		.len = len,
-		.gen = { 0133, 0171, 0165 },
+		.gen = { g1, g2, g3 },
 		.term = CONV_TERM_TAIL_BITING,
 	};
 	int rc;
@@ -444,15 +454,30 @@ static int nrsc5_conv_decode(const int8_t *in, uint8_t *out, int len)
 
 int nrsc5_conv_decode_p1(const int8_t *in, uint8_t *out)
 {
-	return nrsc5_conv_decode(in, out, P1_FRAME_LEN);
+	return nrsc5_conv_decode(in, out, 7, P1_FRAME_LEN_FM, 0133, 0171, 0165);
 }
 
 int nrsc5_conv_decode_pids(const int8_t *in, uint8_t *out)
 {
-	return nrsc5_conv_decode(in, out, PIDS_FRAME_LEN);
+	return nrsc5_conv_decode(in, out, 7, PIDS_FRAME_LEN, 0133, 0171, 0165);
 }
 
 int nrsc5_conv_decode_p3(const int8_t *in, uint8_t *out)
 {
-	return nrsc5_conv_decode(in, out, P3_FRAME_LEN);
+	return nrsc5_conv_decode(in, out, 7, P3_FRAME_LEN_FM, 0133, 0171, 0165);
+}
+
+int nrsc5_conv_decode_e1(const int8_t *in, uint8_t *out, int len)
+{
+  return nrsc5_conv_decode(in, out, 9, len, 0561, 0657, 0711);
+}
+
+int nrsc5_conv_decode_e2(const int8_t *in, uint8_t *out, int len)
+{
+  return nrsc5_conv_decode(in, out, 9, len, 0561, 0753, 0711);
+}
+
+int nrsc5_conv_decode_e3(const int8_t *in, uint8_t *out, int len)
+{
+	return nrsc5_conv_decode(in, out, 9, len, 0561, 0753, 0711);
 }

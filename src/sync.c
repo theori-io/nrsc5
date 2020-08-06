@@ -29,10 +29,57 @@
 #define PARTITION_WIDTH 19
 #define MIDDLE_REF_SC 30 // midpoint of Table 11-3 in 1011s.pdf
 
+static uint8_t gray4(float f)
+{
+    if (f < -1)
+        return 0;
+    else if (f < 0)
+        return 2;
+    else if (f < 1)
+        return 3;
+    else
+        return 1;
+}
+
+static uint8_t gray8(float f)
+{
+    if (f < -3)
+        return 0;
+    else if (f < -2)
+        return 4;
+    else if (f < -1)
+        return 6;
+    else if (f < 0)
+        return 2;
+    else if (f < 1)
+        return 3;
+    else if (f < 2)
+        return 7;
+    else if (f < 3)
+        return 5;
+    else
+        return 1;
+}
+
+static uint8_t qpsk(complex float cf)
+{
+    return (crealf(cf) < 0 ? 0 : 1) | (cimagf(cf) < 0 ? 0 : 2);
+}
+
+static uint8_t qam16(complex float cf)
+{
+    return gray4(crealf(cf)) | (gray4(cimagf(cf)) << 2);
+}
+
+static uint8_t qam64(complex float cf)
+{
+    return gray8(crealf(cf)) | (gray8(cimagf(cf)) << 3);
+}
+
 static void adjust_ref(sync_t *st, unsigned int ref, int cfo)
 {
     unsigned int n;
-    float cfo_freq = 2 * M_PI * cfo * CP / FFT;
+    float cfo_freq = 2 * M_PI * cfo * CP_FM / FFT_FM;
 
     // sync bits (after DBPSK)
     static const signed char sync[] = {
@@ -135,6 +182,41 @@ static int find_ref(sync_t *st, unsigned int ref, unsigned int rsid)
     return fuzzy_match(needle, sizeof(needle), data, BLKSZ);
 }
 
+static int find_block_am(sync_t *st, unsigned int ref)
+{
+    signed char needle[] = {
+        0, 1, 1, 0, 0, 1, 0, -1, -1, 1, -1, -1, -1, -1, 0, -1, -1, -1, -1, -1, -1, 1, 1, -1, -1, -1, -1, -1, -1, -1, -1, -1
+    };
+    unsigned char data[BLKSZ];
+
+    for (int n = 0; n < BLKSZ; n++)
+    {
+        data[n] = cimagf(st->buffer[ref][n]) <= 0 ? 0 : 1;
+        if ((needle[n] >= 0) && (data[n] != needle[n])) return -1;
+    }
+
+    // parity checks
+    if (data[7] ^ data[8]) return -1;
+    if (data[10] ^ data[11] ^ data[12] ^ data[13]) return -1;
+    if (data[15] ^ data[16] ^ data[17] ^ data[18] ^ data[19] ^ data[20]) return -1;
+    if (data[23] ^ data[24] ^ data[25] ^ data[26] ^ data[27] ^ data[28] ^ data[29] ^ data[30] ^ data[31]) return -1;
+
+    return (data[17] << 2) | (data[18] << 1) | data[19];
+}
+
+static int find_ref_am(sync_t *st, unsigned int ref)
+{
+    signed char needle[] = {
+        0, 1, 1, 0, 0, 1, 0, -1, -1, 1, -1, -1, -1, -1, 0, -1, -1, -1, -1, -1, -1, 1, 1
+    };
+    unsigned char data[BLKSZ];
+
+    for (int n = 0; n < BLKSZ; n++)
+        data[n] = cimagf(st->buffer[ref][n]) <= 0 ? 0 : 1;
+
+    return fuzzy_match(needle, sizeof(needle), data, BLKSZ);
+}
+
 static float calc_smag(sync_t *st, unsigned int ref)
 {
     float sum = 0;
@@ -210,7 +292,7 @@ void detect_cfo(sync_t *st)
         if (best_offset >= 0 && best_count >= 3)
         {
             // At least three offsets matched, so this is likely the correct CFO.
-            input_set_skip(st->input, best_offset * FFTCP);
+            input_set_skip(st->input, best_offset * FFTCP_FM);
             acquire_cfo_adjust(&st->input->acq, cfo);
 
             log_debug("Block @ %d", best_offset);
@@ -222,7 +304,7 @@ void detect_cfo(sync_t *st)
     }
 }
 
-void sync_process(sync_t *st)
+void sync_process_fm(sync_t *st)
 {
     int i, partitions_per_band;
 
@@ -290,25 +372,25 @@ void sync_process(sync_t *st)
             samperr += phase_diff(st->phases[LB_START + i][0], st->phases[LB_START + i + PARTITION_WIDTH][0]);
             samperr += phase_diff(st->phases[UB_END - i - PARTITION_WIDTH][0], st->phases[UB_END - i][0]);
         }
-        samperr = samperr / (partitions_per_band * 2) * FFT / PARTITION_WIDTH / (2 * M_PI);
+        samperr = samperr / (partitions_per_band * 2) * FFT_FM / PARTITION_WIDTH / (2 * M_PI);
 
         for (i = 0; i < partitions_per_band * PARTITION_WIDTH + 1; i += PARTITION_WIDTH)
         {
             float x, y;
 
-            x = LB_START + i - (FFT / 2);
+            x = LB_START + i - (FFT_FM / 2);
             y = st->costas_freq[LB_START + i];
             angle += y;
             sum_xy += x * y;
             sum_x2 += x * x;
 
-            x = UB_END - i - (FFT / 2);
+            x = UB_END - i - (FFT_FM / 2);
             y = st->costas_freq[UB_END - i];
             angle += y;
             sum_xy += x * y;
             sum_x2 += x * x;
         }
-        samperr -= (sum_xy / sum_x2) * FFT / (2 * M_PI) * ACQUIRE_SYMBOLS;
+        samperr -= (sum_xy / sum_x2) * FFT_FM / (2 * M_PI) * ACQUIRE_SYMBOLS;
         st->samperr = roundf(samperr);
 
         angle /= (partitions_per_band + 1) * 2;
@@ -408,37 +490,165 @@ void sync_process(sync_t *st)
     }
 }
 
+void sync_process_am(sync_t *st)
+{
+    int offset;
+
+    for (int i = REF_INDEX_AM; i <= PIDS_2_INDEX_AM; i++)
+    {
+        for (int n = 0; n < BLKSZ; n++)
+        {
+            st->buffer[CENTER_AM + i][n] -= conjf(st->buffer[CENTER_AM - i][n]);
+        }
+    }
+
+    for (int i = PRIMARY_INDEX_AM; i <= MAX_INDEX_AM; i++)
+    {
+        for (int n = 0; n < BLKSZ; n++)
+        {
+            st->buffer[CENTER_AM - i][n] = -conjf(st->buffer[CENTER_AM - i][n]);
+        }
+    }
+
+    if (st->input->sync_state == SYNC_STATE_COARSE && st->cfo_wait == 0)
+    {
+        offset = find_ref_am(st, CENTER_AM + REF_INDEX_AM);
+        if (offset > 0)
+        {
+            input_set_skip(st->input, offset * FFTCP_AM);
+            log_debug("Block @ %d", offset);
+            st->cfo_wait = 8;
+        }
+    }
+    else
+    {
+        st->cfo_wait--;
+    }
+
+    if (st->input->sync_state == SYNC_STATE_COARSE)
+    {
+        int bc = find_block_am(st, CENTER_AM + REF_INDEX_AM);
+
+        if (bc == -1)
+            st->offset_history = 0;
+        else
+            st->offset_history = (st->offset_history << 4) | bc;
+
+        if ((st->offset_history & 0xffff) == 0x5670)
+        {
+            log_debug("Sync!");
+            st->input->sync_state = SYNC_STATE_FINE;
+            decode_reset(&st->input->decode);
+            frame_reset(&st->input->frame);
+            st->offset_history = 0;
+        }
+    }
+
+    if (st->input->sync_state == SYNC_STATE_FINE)
+    {
+        float complex pids1_mult = 2 * CMPLXF(1.5, -0.5) / (st->buffer[CENTER_AM + PIDS_1_INDEX_AM][8] + st->buffer[CENTER_AM + PIDS_1_INDEX_AM][24]);
+        float complex pids2_mult = 2 * CMPLXF(1.5, -0.5) / (st->buffer[CENTER_AM + PIDS_2_INDEX_AM][8] + st->buffer[CENTER_AM + PIDS_2_INDEX_AM][24]);
+
+        for (int n = 0; n < BLKSZ; n++)
+        {
+            st->buffer[CENTER_AM + PIDS_1_INDEX_AM][n] *= pids1_mult;
+            decode_push_pids(&st->input->decode, qam16(st->buffer[CENTER_AM + PIDS_1_INDEX_AM][n]));
+
+            st->buffer[CENTER_AM + PIDS_2_INDEX_AM][n] *= pids2_mult;
+            decode_push_pids(&st->input->decode, qam16(st->buffer[CENTER_AM + PIDS_2_INDEX_AM][n]));
+        }
+
+        float complex pl_mult[PARTITION_WIDTH_AM];
+        float complex pu_mult[PARTITION_WIDTH_AM];
+        float complex s_mult[PARTITION_WIDTH_AM];
+        float complex t_mult[PARTITION_WIDTH_AM];
+
+        float samperr = 0;
+        for (int col = 0; col < PARTITION_WIDTH_AM; col++)
+        {
+            int train1 = (5 + 11*col) % 32;
+            int train2 = (21 + 11*col) % 32;
+
+            pl_mult[col] = 2 * CMPLXF(2.5, -2.5) / (st->buffer[CENTER_AM - PRIMARY_INDEX_AM - col][train1] + st->buffer[CENTER_AM - PRIMARY_INDEX_AM - col][train2]);
+            pu_mult[col] = 2 * CMPLXF(2.5, -2.5) / (st->buffer[CENTER_AM + PRIMARY_INDEX_AM + col][train1] + st->buffer[CENTER_AM + PRIMARY_INDEX_AM + col][train2]);
+            s_mult[col] = 2 * CMPLXF(1.5, -0.5) / (st->buffer[CENTER_AM + SECONDARY_INDEX_AM + col][train1] + st->buffer[CENTER_AM + SECONDARY_INDEX_AM + col][train2]);
+            t_mult[col] = 2 * CMPLXF(-0.5, 0.5) / (st->buffer[CENTER_AM + TERTIARY_INDEX_AM + col][train1] + st->buffer[CENTER_AM + TERTIARY_INDEX_AM + col][train2]);
+
+            if (col > 0)
+            {
+                samperr += phase_diff(cargf(pl_mult[col]), cargf(pl_mult[col-1]));
+                samperr += phase_diff(cargf(pu_mult[col]), cargf(pu_mult[col-1]));
+            }
+        }
+        samperr = samperr / (2 * (PARTITION_WIDTH_AM-1)) * FFT_AM / (2 * M_PI);
+        st->samperr = roundf(samperr);
+
+        for (int n = 0; n < BLKSZ; n++)
+        {
+            for (int col = 0; col < PARTITION_WIDTH_AM; col++)
+            {
+                st->buffer[CENTER_AM - PRIMARY_INDEX_AM - col][n] *= pl_mult[col];
+                st->buffer[CENTER_AM + PRIMARY_INDEX_AM + col][n] *= pu_mult[col];
+                st->buffer[CENTER_AM + SECONDARY_INDEX_AM + col][n] *= s_mult[col];
+                st->buffer[CENTER_AM + TERTIARY_INDEX_AM + col][n] *= t_mult[col];
+
+                decode_push_pl_pu_s_t(
+                    &st->input->decode,
+                    qam64(st->buffer[CENTER_AM - PRIMARY_INDEX_AM - col][n]),
+                    qam64(st->buffer[CENTER_AM + PRIMARY_INDEX_AM + col][n]),
+                    qam16(st->buffer[CENTER_AM + SECONDARY_INDEX_AM + col][n]),
+                    qpsk(st->buffer[CENTER_AM + TERTIARY_INDEX_AM + col][n])
+                );
+            }
+        }
+    }
+}
+
 void sync_adjust(sync_t *st, int sample_adj)
 {
     int i;
     for (i = 0; i < MAX_PARTITIONS * PARTITION_WIDTH + 1; i++)
     {
-        st->costas_phase[LB_START + i] -= sample_adj * (LB_START + i - (FFT / 2)) * 2 * M_PI / FFT;
-        st->costas_phase[UB_END - i] -= sample_adj * (UB_END - i - (FFT / 2)) * 2 * M_PI / FFT;
+        st->costas_phase[LB_START + i] -= sample_adj * (LB_START + i - (FFT_FM / 2)) * 2 * M_PI / FFT_FM;
+        st->costas_phase[UB_END - i] -= sample_adj * (UB_END - i - (FFT_FM / 2)) * 2 * M_PI / FFT_FM;
     }
 }
 
 void sync_push(sync_t *st, float complex *fftout)
 {
     unsigned int i;
-    for (i = 0; i < MAX_PARTITIONS * PARTITION_WIDTH + 1; i++)
+
+    if (st->input->radio->mode == NRSC5_MODE_FM)
     {
-        st->buffer[LB_START + i][st->idx] = fftout[LB_START + i];
-        st->buffer[UB_END - i][st->idx] = fftout[UB_END - i];
+        for (i = 0; i < MAX_PARTITIONS * PARTITION_WIDTH + 1; i++)
+        {
+            st->buffer[LB_START + i][st->idx] = fftout[LB_START + i];
+            st->buffer[UB_END - i][st->idx] = fftout[UB_END - i];
+        }
+    }
+    else
+    {
+        for (i = CENTER_AM - MAX_INDEX_AM; i <= CENTER_AM + MAX_INDEX_AM; i++)
+        {
+            st->buffer[i][st->idx] = fftout[i];
+        }
     }
 
     if (++st->idx == BLKSZ)
     {
         st->idx = 0;
 
-        sync_process(st);
+        if (st->input->radio->mode == NRSC5_MODE_FM)
+            sync_process_fm(st);
+        else
+            sync_process_am(st);
     }
 }
 
 void sync_reset(sync_t *st)
 {
     unsigned int i;
-    for (i = 0; i < FFT; i++)
+    for (i = 0; i < FFT_FM; i++)
     {
         st->costas_freq[i] = 0;
         st->costas_phase[i] = 0;
@@ -447,6 +657,7 @@ void sync_reset(sync_t *st)
     st->idx = 0;
     st->psmi = 1;
     st->cfo_wait = 0;
+    st->offset_history = 0;
     st->mer_cnt = 0;
     st->error_lb = 0;
     st->error_ub = 0;

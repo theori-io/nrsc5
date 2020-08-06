@@ -6,6 +6,11 @@ import platform
 import socket
 
 
+class Mode(enum.Enum):
+    FM = 0
+    AM = 1
+
+
 class EventType(enum.Enum):
     LOST_DEVICE = 0
     IQ = 1
@@ -451,15 +456,15 @@ class NRSC5:
         return version.value.decode()
 
     @staticmethod
-    def service_data_type_name(type):
+    def service_data_type_name(service_data_type):
         name = ctypes.c_char_p()
-        NRSC5.libnrsc5.nrsc5_service_data_type_name(type.value, ctypes.byref(name))
+        NRSC5.libnrsc5.nrsc5_service_data_type_name(service_data_type.value, ctypes.byref(name))
         return name.value.decode()
 
     @staticmethod
-    def program_type_name(type):
+    def program_type_name(program_type):
         name = ctypes.c_char_p()
-        NRSC5.libnrsc5.nrsc5_program_type_name(type.value, ctypes.byref(name))
+        NRSC5.libnrsc5.nrsc5_program_type_name(program_type.value, ctypes.byref(name))
         return name.value.decode()
 
     def open(self, device_index):
@@ -489,6 +494,9 @@ class NRSC5:
 
     def stop(self):
         NRSC5.libnrsc5.nrsc5_stop(self.radio)
+
+    def set_mode(self, mode):
+        NRSC5.libnrsc5.nrsc5_set_mode(self.radio, mode.value)
 
     def set_freq_correction(self, ppm_error):
         result = NRSC5.libnrsc5.nrsc5_set_freq_correction(self.radio, ppm_error)

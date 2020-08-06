@@ -52,6 +52,7 @@ typedef struct buffer_t {
 
 typedef struct {
     float freq;
+    int mode;
     float gain;
     unsigned int device_index;
     int ppm_error;
@@ -505,7 +506,7 @@ static void *input_main(void *arg)
 
 static void help(const char *progname)
 {
-    fprintf(stderr, "Usage: %s [-v] [-q] [-l log-level] [-d device-index] [-H rtltcp-host] [-p ppm-error] [-g gain] [-r iq-input] [-w iq-output] [-o wav-output] [--dump-hdc hdc-output] [--dump-aas-files directory] frequency program\n", progname);
+    fprintf(stderr, "Usage: %s [-v] [-q] [--am] [-l log-level] [-d device-index] [-H rtltcp-host] [-p ppm-error] [-g gain] [-r iq-input] [-w iq-output] [-o wav-output] [--dump-hdc hdc-output] [--dump-aas-files directory] frequency program\n", progname);
 }
 
 static int parse_args(state_t *st, int argc, char *argv[])
@@ -513,6 +514,7 @@ static int parse_args(state_t *st, int argc, char *argv[])
     static const struct option long_opts[] = {
         { "dump-aas-files", required_argument, NULL, 1 },
         { "dump-hdc", required_argument, NULL, 2 },
+        { "am", no_argument, NULL, 3 },
         { 0 }
     };
     const char *version = NULL;
@@ -520,6 +522,7 @@ static int parse_args(state_t *st, int argc, char *argv[])
     char *endptr;
     int opt;
 
+    st->mode = NRSC5_MODE_FM;
     st->gain = -1;
     st->ppm_error = INT_MIN;
 
@@ -532,6 +535,9 @@ static int parse_args(state_t *st, int argc, char *argv[])
             break;
         case 2:
             hdc_name = optarg;
+            break;
+        case 3:
+            st->mode = NRSC5_MODE_AM;
             break;
         case 'r':
             st->input_name = strdup(optarg);
@@ -739,6 +745,7 @@ int main(int argc, char *argv[])
         log_fatal("Set frequency failed.");
         return 1;
     }
+    nrsc5_set_mode(radio, st->mode);
     if (st->gain >= 0.0f)
         nrsc5_set_gain(radio, st->gain);
     nrsc5_set_callback(radio, callback, st);

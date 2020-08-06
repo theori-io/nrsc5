@@ -100,6 +100,7 @@ static void _gen_path_metrics(int num_states, int16_t *sums,
 	memcpy(sums, new_sums, num_states * sizeof(int16_t));
 }
 
+#if !defined(HAVE_SSE3) && !defined(HAVE_NEON)
 static void gen_metrics_k7_n3(const int8_t *seq, const int16_t *out,
 		       int16_t *sums, int16_t *paths, int norm)
 {
@@ -107,5 +108,16 @@ static void gen_metrics_k7_n3(const int8_t *seq, const int16_t *out,
 
 	_gen_branch_metrics_n3(64, seq, out, metrics);
 	_gen_path_metrics(64, sums, metrics, paths, norm);
+
+}
+#endif
+
+static void gen_metrics_k9_n3(const int8_t *seq, const int16_t *out,
+		       int16_t *sums, int16_t *paths, int norm)
+{
+	int16_t metrics[128];
+
+	_gen_branch_metrics_n3(256, seq, out, metrics);
+	_gen_path_metrics(256, sums, metrics, paths, norm);
 
 }

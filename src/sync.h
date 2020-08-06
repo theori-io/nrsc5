@@ -7,18 +7,19 @@
 typedef struct
 {
     struct input_t *input;
-    float complex buffer[FFT][BLKSZ];
-    float phases[FFT][BLKSZ];
+    float complex buffer[FFT_FM][BLKSZ];
+    float phases[FFT_FM][BLKSZ];
     unsigned int idx;
     int psmi;
     int cfo_wait;
+    unsigned int offset_history;
     int samperr;
     float angle;
 
     float alpha;
     float beta;
-    float costas_freq[FFT];
-    float costas_phase[FFT];
+    float costas_freq[FFT_FM];
+    float costas_phase[FFT_FM];
 
     int mer_cnt;
     float error_lb;

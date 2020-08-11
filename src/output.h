@@ -110,7 +110,7 @@ typedef struct
     sig_service_t services[MAX_SIG_SERVICES];
 } output_t;
 
-void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int program);
+void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int program, unsigned int stream_id);
 void output_begin(output_t *st);
 void output_reset(output_t *st);
 void output_init(output_t *st, nrsc5_t *);

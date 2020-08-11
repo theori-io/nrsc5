@@ -100,6 +100,8 @@ Replace `32` with `64` if you want a 64-bit build. Once the build is complete, c
        -l log-level                    set log level
                                          (1 = DEBUG, 2 = INFO, 3 = WARN)
        -v                              print the version number and exit
+       --am                            receive AM signals
+                                         (default is FM)
        --dump-aas-files dir-name       dump AAS files
                                          (WARNING: insecure)
        --dump-hdc file-name            dump HDC packets

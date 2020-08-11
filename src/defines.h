@@ -13,36 +13,60 @@
 // Sample rate before decimation
 #define SAMPLE_RATE 1488375
 // FFT length in samples
-#define FFT 2048
+#define FFT_FM 2048
+#define FFT_AM 256
 // cyclic preflex length in samples
-#define CP 112
-#define FFTCP (FFT + CP)
+#define CP_FM 112
+#define CP_AM 14
+#define FFTCP_FM (FFT_FM + CP_FM)
+#define FFTCP_AM (FFT_AM + CP_AM)
 // OFDM symbols per L1 block
 #define BLKSZ 32
 // symbols processed by each invocation of acquire_process
 #define ACQUIRE_SYMBOLS (BLKSZ * 2)
 // index of first lower sideband subcarrier
-#define LB_START ((FFT / 2) - 546)
+#define LB_START ((FFT_FM / 2) - 546)
 // index of last upper sideband subcarrier
-#define UB_END ((FFT / 2) + 546)
+#define UB_END ((FFT_FM / 2) + 546)
+// index of AM carrier
+#define CENTER_AM (FFT_AM / 2)
+// indexes of AM subcarriers
+#define REF_INDEX_AM 1
+#define PIDS_1_INDEX_AM 27
+#define PIDS_2_INDEX_AM 53
+#define TERTIARY_INDEX_AM 2
+#define SECONDARY_INDEX_AM 28
+#define PRIMARY_INDEX_AM 57
+#define MAX_INDEX_AM 81
 // bits per P1 frame
-#define P1_FRAME_LEN 146176
+#define P1_FRAME_LEN_FM 146176
+#define P1_FRAME_LEN_AM 3750
 // bits per encoded P1 frame
-#define P1_FRAME_LEN_ENCODED (P1_FRAME_LEN * 5 / 2)
+#define P1_FRAME_LEN_ENCODED_FM (P1_FRAME_LEN_FM * 5 / 2)
+#define P1_FRAME_LEN_ENCODED_AM (P1_FRAME_LEN_AM * 12 / 5)
 // bits per PIDS frame
 #define PIDS_FRAME_LEN 80
 // bits per encoded PIDS frame
-#define PIDS_FRAME_LEN_ENCODED (PIDS_FRAME_LEN * 5 / 2)
+#define PIDS_FRAME_LEN_ENCODED_FM (PIDS_FRAME_LEN * 5 / 2)
+#define PIDS_FRAME_LEN_ENCODED_AM (PIDS_FRAME_LEN * 3)
 // bits per P3 frame
-#define P3_FRAME_LEN 4608
+#define P3_FRAME_LEN_FM 4608
+#define P3_FRAME_LEN_AM 24000
 // bits per encoded P3 frame
-#define P3_FRAME_LEN_ENCODED (P3_FRAME_LEN * 2)
+#define P3_FRAME_LEN_ENCODED_FM (P3_FRAME_LEN_FM * 2)
+#define P3_FRAME_LEN_ENCODED_AM (P3_FRAME_LEN_AM * 3 / 2)
 // bits per L2 PCI
 #define PCI_LEN 24
 // bytes per L2 PDU (max)
-#define MAX_PDU_LEN ((P1_FRAME_LEN - PCI_LEN) / 8)
+#define MAX_PDU_LEN ((P1_FRAME_LEN_FM - PCI_LEN) / 8)
+// bytes per L2 PDU in P1 frame (AM)
+#define P1_PDU_LEN_AM 466
 // number of programs (max)
 #define MAX_PROGRAMS 8
+// number of streams per program (max)
+#define MAX_STREAMS 4
+// number of subcarriers per AM partition
+#define PARTITION_WIDTH_AM 25
 
 #define U8_F(x) ( (((float)(x)) - 127) / 128 )
 #define U8_Q15(x) ( ((int16_t)(x) - 127) * 64 )
@@ -57,6 +81,11 @@ static inline cint16_t cf_to_cq15(float complex x)
     cq15.r = crealf(x) * 32767.0f;
     cq15.i = cimagf(x) * 32767.0f;
     return cq15;
+}
+
+static inline float complex cq15_to_cf(cint16_t cq15)
+{
+    return CMPLXF((float)cq15.r / 32767.0f, (float)cq15.i / 32767.0f);
 }
 
 static inline float complex cq15_to_cf_conj(cint16_t cq15)

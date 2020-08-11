@@ -31,6 +31,12 @@
 #define NRSC5_MIME_TTN_STM_TRAFFIC  0xFF8422D7
 #define NRSC5_MIME_TTN_STM_WEATHER  0xEF042E96
 
+enum
+{
+    NRSC5_MODE_FM,
+    NRSC5_MODE_AM
+};
+
 /*
  * Data types.
  */
@@ -267,6 +273,7 @@ int nrsc5_open_rtltcp(nrsc5_t **, int socket);
 void nrsc5_close(nrsc5_t *);
 void nrsc5_start(nrsc5_t *);
 void nrsc5_stop(nrsc5_t *);
+int nrsc5_set_mode(nrsc5_t *, int mode);
 int nrsc5_set_freq_correction(nrsc5_t *, int ppm_error);
 void nrsc5_get_frequency(nrsc5_t *, float *freq);
 int nrsc5_set_frequency(nrsc5_t *, float freq);

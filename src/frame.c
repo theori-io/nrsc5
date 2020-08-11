@@ -142,7 +142,8 @@ static uint16_t fcs16(const uint8_t *cp, int len)
 
 static int has_fixed(frame_t *st)
 {
-    return st->pci == PCI_AUDIO_FIXED || st->pci == PCI_AUDIO_FIXED_OPP;
+    return (st->pci & 0xFFFFFC) == (PCI_AUDIO_FIXED & 0xFFFFFC)
+           || (st->pci & 0xFFFFFC) == (PCI_AUDIO_FIXED & 0xFFFFFC);
 }
 
 static int fix_header(frame_t *st, uint8_t *buf)
@@ -483,7 +484,7 @@ void frame_process(frame_t *st, size_t length)
         if (!fix_header(st, st->buffer + offset))
         {
             // go back to coarse sync if we fail to decode any audio packets in a P1 frame
-            if (length == MAX_PDU_LEN && offset == 0)
+            if ((length == MAX_PDU_LEN || length == P1_PDU_LEN_AM) && offset == 0)
                 input_set_sync_state(st->input, SYNC_STATE_NONE);
             return;
         }
@@ -492,7 +493,7 @@ void frame_process(frame_t *st, size_t length)
         offset += 14;
         lc_bits = calc_lc_bits(&hdr);
         loc_bytes = ((lc_bits * hdr.nop) + 4) / 8;
-        if (start + hdr.la_location < offset + loc_bytes || start + hdr.la_location >= audio_end)
+        if (start + hdr.la_location + 1 < offset + loc_bytes || start + hdr.la_location >= audio_end)
             return;
 
         for (j = 0; j < hdr.nop; j++)
@@ -523,10 +524,11 @@ void frame_process(frame_t *st, size_t length)
 
             if (j == 0 && hdr.pfirst)
             {
-                if (st->pdu_idx[prog])
+                unsigned int idx = st->pdu_idx[prog][hdr.stream_id];
+                if (idx)
                 {
-                    memcpy(&st->pdu[prog][st->pdu_idx[prog]], st->buffer + offset, cnt);
-                    input_pdu_push(st->input, st->pdu[prog], cnt + st->pdu_idx[prog], prog);
+                    memcpy(&st->pdu[prog][hdr.stream_id][idx], st->buffer + offset, cnt);
+                    input_pdu_push(st->input, st->pdu[prog][hdr.stream_id], cnt + idx, prog, hdr.stream_id);
                 }
                 else
                 {
@@ -535,12 +537,12 @@ void frame_process(frame_t *st, size_t length)
             }
             else if (j == hdr.nop - 1 && hdr.plast)
             {
-                memcpy(st->pdu[prog], st->buffer + offset, cnt);
-                st->pdu_idx[prog] = cnt;
+                memcpy(st->pdu[prog][hdr.stream_id], st->buffer + offset, cnt);
+                st->pdu_idx[prog][hdr.stream_id] = cnt;
             }
             else
             {
-                input_pdu_push(st->input, st->buffer + offset, cnt, prog);
+                input_pdu_push(st->input, st->buffer + offset, cnt, prog, hdr.stream_id);
             }
 
             offset += cnt + 1;
@@ -551,19 +553,31 @@ void frame_process(frame_t *st, size_t length)
 
 void frame_push(frame_t *st, uint8_t *bits, size_t length)
 {
-    unsigned int start, offset;
+    unsigned int start, offset, pci_len;
     unsigned int i, j = 0, h = 0, header = 0, val = 0;
     uint8_t *ptr = st->buffer;
 
     switch (length)
     {
-    case P1_FRAME_LEN:
-        start = P1_FRAME_LEN - 30000;
+    case P1_FRAME_LEN_FM:
+        start = P1_FRAME_LEN_FM - 30000;
         offset = 1248;
+        pci_len = 24;
         break;
-    case P3_FRAME_LEN:
+    case P3_FRAME_LEN_FM:
         start = 120;
         offset = 184;
+        pci_len = 24;
+        break;
+    case P1_FRAME_LEN_AM:
+        start = 120;
+        offset = 160;
+        pci_len = 22;
+        break;
+    case P3_FRAME_LEN_AM:
+        start = 120;
+        offset = 992;
+        pci_len = 24;
         break;
     default:
         log_error("Unknown frame length: %d", length);
@@ -572,10 +586,13 @@ void frame_push(frame_t *st, uint8_t *bits, size_t length)
     for (i = 0; i < length; ++i)
     {
         // swap bit order
-        uint8_t bit = bits[((i>>3)<<3) + 7 - (i & 7)];
-        if (i >= start && ((i - start) % offset) == 0 && h < PCI_LEN)
+        unsigned int byte_start = (i>>3)<<3;
+        unsigned int byte_len = (length - byte_start < 8) ? length - byte_start : 8;
+        uint8_t bit = bits[byte_start + byte_len - 1 - (i & 7)];
+
+        if (i >= start && ((i - start) % offset) == 0 && h < pci_len)
         {
-            header = (header << 1) | bit;
+            header |= bit << (23 - h);
             ++h;
         }
         else
@@ -596,13 +613,14 @@ void frame_push(frame_t *st, uint8_t *bits, size_t length)
 
 void frame_reset(frame_t *st)
 {
-    unsigned int i;
-
     st->pci = 0;
-    for (i = 0; i < MAX_PROGRAMS; i++)
+    for (int prog = 0; prog < MAX_PROGRAMS; prog++)
     {
-        st->pdu_idx[i] = 0;
-        st->psd_idx[i] = -1;
+        for (int stream_id = 0; stream_id < MAX_STREAMS; stream_id++)
+        {
+            st->pdu_idx[prog][stream_id] = 0;
+        }
+        st->psd_idx[prog] = -1;
     }
 
     st->fixed_ready = 0;

@@ -203,6 +203,7 @@ static void nrsc5_init(nrsc5_t *st)
     st->auto_gain = 1;
     st->gain = -1;
     st->freq = NRSC5_SCAN_BEGIN;
+    st->mode = NRSC5_MODE_FM;
     st->callback = NULL;
 
     output_init(&st->output, st);
@@ -413,6 +414,17 @@ NRSC5_API void nrsc5_stop(nrsc5_t *st)
     while (st->stopped != st->worker_stopped)
         pthread_cond_wait(&st->worker_cond, &st->worker_mutex);
     pthread_mutex_unlock(&st->worker_mutex);
+}
+
+NRSC5_API int nrsc5_set_mode(nrsc5_t *st, int mode)
+{
+    if (mode == NRSC5_MODE_FM || mode == NRSC5_MODE_AM)
+    {
+        st->mode = mode;
+        input_set_mode(&st->input);
+        return 0;
+    }
+    return 1;
 }
 
 NRSC5_API int nrsc5_set_freq_correction(nrsc5_t *st, int ppm_error)

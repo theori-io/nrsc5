@@ -8,6 +8,7 @@ _nrsc5_open_rtltcp
 _nrsc5_close
 _nrsc5_start
 _nrsc5_stop
+_nrsc5_set_mode
 _nrsc5_set_freq_correction
 _nrsc5_get_frequency
 _nrsc5_set_frequency

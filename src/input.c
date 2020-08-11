@@ -57,9 +57,9 @@ static void input_push_to_acquire(input_t *st)
     st->used += acquire_push(&st->acq, &st->buffer[st->used], st->avail - st->used);
 }
 
-void input_pdu_push(input_t *st, uint8_t *pdu, unsigned int len, unsigned int program)
+void input_pdu_push(input_t *st, uint8_t *pdu, unsigned int len, unsigned int program, unsigned int stream_id)
 {
-    output_push(st->output, pdu, len, program);
+    output_push(st->output, pdu, len, program, stream_id);
 }
 
 void input_set_skip(input_t *st, unsigned int skip)
@@ -141,7 +141,7 @@ int input_shift(input_t *st, unsigned int cnt)
 
 void input_push(input_t *st)
 {
-    while (st->avail - st->used >= FFTCP)
+    while (st->avail - st->used >= (st->radio->mode == NRSC5_MODE_FM ? FFTCP_FM : FFTCP_AM))
     {
         input_push_to_acquire(st);
         acquire_process(&st->acq);
@@ -173,7 +173,32 @@ void input_push_cu8(input_t *st, uint8_t *buf, uint32_t len)
         x[1].r = U8_Q15(buf[i + 2]);
         x[1].i = U8_Q15(buf[i + 3]);
 
-        halfband_q15_execute(st->decim, x, &st->buffer[st->avail++]);
+        if (st->radio->mode == NRSC5_MODE_FM)
+        {
+            halfband_q15_execute(st->decim[0], x, &st->buffer[st->avail++]);
+        }
+        else
+        {
+            x[0].r >>= 4;
+            x[0].i >>= 4;
+            x[1].r >>= 4;
+            x[1].i >>= 4;
+
+            halfband_q15_execute(st->decim[0], x, &st->stages[0][st->offset & 1]);
+            if ((st->offset & 0x1) == 0x1) {
+                halfband_q15_execute(st->decim[1], st->stages[0], &st->stages[1][(st->offset >> 1) & 1]);
+            }
+            if ((st->offset & 0x3) == 0x3) {
+                halfband_q15_execute(st->decim[2], st->stages[1], &st->stages[2][(st->offset >> 2) & 1]);
+            }
+            if ((st->offset & 0x7) == 0x7) {
+                halfband_q15_execute(st->decim[3], st->stages[2], &st->stages[3][(st->offset >> 3) & 1]);
+            }
+            if ((st->offset & 0xf) == 0xf) {
+                halfband_q15_execute(st->decim[4], st->stages[3], &st->buffer[st->avail++]);
+            }
+            st->offset++;
+        }
     }
 
     input_push(st);
@@ -203,12 +228,14 @@ void input_reset(input_t *st)
     st->avail = 0;
     st->used = 0;
     st->skip = 0;
+    st->offset = 0;
     for (int i = 0; i < SNR_FFT_LEN; ++i)
         st->snr_power[i] = 0;
     st->snr_cnt = 0;
 
     input_set_sync_state(st, SYNC_STATE_NONE);
-    firdecim_q15_reset(st->decim);
+    for (int i = 0; i < AM_DECIM_STAGES; i++)
+        firdecim_q15_reset(st->decim[i]);
     acquire_reset(&st->acq);
     decode_reset(&st->decode);
     frame_reset(&st->frame);
@@ -223,7 +250,8 @@ void input_init(input_t *st, nrsc5_t *radio, output_t *output)
     st->snr_cb_arg = NULL;
     st->sync_state = SYNC_STATE_NONE;
 
-    st->decim = firdecim_q15_create(decim_taps, sizeof(decim_taps) / sizeof(decim_taps[0]));
+    for (int i = 0; i < AM_DECIM_STAGES; i++)
+        st->decim[i] = firdecim_q15_create(decim_taps, sizeof(decim_taps) / sizeof(decim_taps[0]));
     st->snr_fft = fftwf_plan_dft_1d(SNR_FFT_LEN, st->snr_fft_in, st->snr_fft_out, FFTW_FORWARD, 0);
 
     acquire_init(&st->acq, st);
@@ -234,12 +262,19 @@ void input_init(input_t *st, nrsc5_t *radio, output_t *output)
     input_reset(st);
 }
 
+void input_set_mode(input_t *st)
+{
+    acquire_set_mode(&st->acq, st->radio->mode);
+    input_reset(st);
+}
+
 void input_free(input_t *st)
 {
     acquire_free(&st->acq);
     frame_free(&st->frame);
 
-    firdecim_q15_free(st->decim);
+    for (int i = 0; i < AM_DECIM_STAGES; i++)
+        firdecim_q15_free(st->decim[i]);
     fftwf_destroy_plan(st->snr_fft);
     fftwf_cleanup();
 }

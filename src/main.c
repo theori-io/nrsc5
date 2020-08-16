@@ -55,6 +55,8 @@ typedef struct {
     int mode;
     float gain;
     unsigned int device_index;
+    int bias_tee;
+    int direct_sampling;
     int ppm_error;
     char *input_name;
     char *rtltcp_host;
@@ -506,7 +508,7 @@ static void *input_main(void *arg)
 
 static void help(const char *progname)
 {
-    fprintf(stderr, "Usage: %s [-v] [-q] [--am] [-l log-level] [-d device-index] [-H rtltcp-host] [-p ppm-error] [-g gain] [-r iq-input] [-w iq-output] [-o wav-output] [--dump-hdc hdc-output] [--dump-aas-files directory] frequency program\n", progname);
+    fprintf(stderr, "Usage: %s [-v] [-q] [--am] [-l log-level] [-d device-index] [-H rtltcp-host] [-p ppm-error] [-g gain] [-r iq-input] [-w iq-output] [-o wav-output] [-T] [-D direct-sampling-mode] [--dump-hdc hdc-output] [--dump-aas-files directory] frequency program\n", progname);
 }
 
 static int parse_args(state_t *st, int argc, char *argv[])
@@ -524,9 +526,11 @@ static int parse_args(state_t *st, int argc, char *argv[])
 
     st->mode = NRSC5_MODE_FM;
     st->gain = -1;
+    st->bias_tee = 0;
+    st->direct_sampling = 0;
     st->ppm_error = INT_MIN;
 
-    while ((opt = getopt_long(argc, argv, "r:w:o:d:p:g:ql:vH:", long_opts, NULL)) != -1)
+    while ((opt = getopt_long(argc, argv, "r:w:o:d:p:g:ql:vH:TD:", long_opts, NULL)) != -1)
     {
         switch (opt)
         {
@@ -574,6 +578,12 @@ static int parse_args(state_t *st, int argc, char *argv[])
             return 1;
         case 'H':
             st->rtltcp_host = strdup(optarg);
+            break;
+        case 'T':
+            st->bias_tee = 1;
+            break;
+        case 'D':
+            st->direct_sampling = atoi(optarg);
             break;
         default:
             help(argv[0]);
@@ -734,6 +744,16 @@ int main(int argc, char *argv[])
             log_fatal("Open device failed.");
             return 1;
         }
+    }
+    if (nrsc5_set_bias_tee(radio, st->bias_tee) != 0)
+    {
+        log_fatal("Set bias-T failed.");
+        return 1;
+    }
+    if (nrsc5_set_direct_sampling(radio, st->direct_sampling) != 0)
+    {
+        log_fatal("Set direct sampling failed.");
+        return 1;
     }
     if (st->ppm_error != INT_MIN && nrsc5_set_freq_correction(radio, st->ppm_error) != 0)
     {

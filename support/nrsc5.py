@@ -498,6 +498,16 @@ class NRSC5:
     def set_mode(self, mode):
         NRSC5.libnrsc5.nrsc5_set_mode(self.radio, mode.value)
 
+    def set_bias_tee(self, on):
+        result = NRSC5.libnrsc5.nrsc5_set_bias_tee(self.radio, on)
+        if result != 0:
+            raise NRSC5Error("Failed to set bias-T.")
+
+    def set_direct_sampling(self, on):
+        result = NRSC5.libnrsc5.nrsc5_set_direct_sampling(self.radio, on)
+        if result != 0:
+            raise NRSC5Error("Failed to set direct sampling.")
+
     def set_freq_correction(self, ppm_error):
         result = NRSC5.libnrsc5.nrsc5_set_freq_correction(self.radio, ppm_error)
         if result != 0:

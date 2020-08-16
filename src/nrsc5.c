@@ -427,6 +427,40 @@ NRSC5_API int nrsc5_set_mode(nrsc5_t *st, int mode)
     return 1;
 }
 
+NRSC5_API int nrsc5_set_bias_tee(nrsc5_t *st, int on)
+{
+    if (st->dev)
+    {
+        int err = rtlsdr_set_bias_tee(st->dev, on);
+        if (err)
+            return 1;
+    }
+    else if (st->rtltcp)
+    {
+        int err = rtltcp_set_bias_tee(st->rtltcp, on);
+        if (err)
+            return 1;
+    }
+    return 0;
+}
+
+NRSC5_API int nrsc5_set_direct_sampling(nrsc5_t *st, int on)
+{
+    if (st->dev)
+    {
+        int err = rtlsdr_set_direct_sampling(st->dev, on);
+        if (err)
+            return 1;
+    }
+    else if (st->rtltcp)
+    {
+        int err = rtltcp_set_direct_sampling(st->rtltcp, on);
+        if (err)
+            return 1;
+    }
+    return 0;
+}
+
 NRSC5_API int nrsc5_set_freq_correction(nrsc5_t *st, int ppm_error)
 {
     if (st->dev)

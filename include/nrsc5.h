@@ -274,6 +274,8 @@ void nrsc5_close(nrsc5_t *);
 void nrsc5_start(nrsc5_t *);
 void nrsc5_stop(nrsc5_t *);
 int nrsc5_set_mode(nrsc5_t *, int mode);
+int nrsc5_set_bias_tee(nrsc5_t *, int on);
+int nrsc5_set_direct_sampling(nrsc5_t *, int on);
 int nrsc5_set_freq_correction(nrsc5_t *, int ppm_error);
 void nrsc5_get_frequency(nrsc5_t *, float *freq);
 int nrsc5_set_frequency(nrsc5_t *, float freq);

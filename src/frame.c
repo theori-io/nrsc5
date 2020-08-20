@@ -580,7 +580,7 @@ void frame_push(frame_t *st, uint8_t *bits, size_t length)
         pci_len = 24;
         break;
     default:
-        log_error("Unknown frame length: %d", length);
+        log_error("Unknown frame length: %ld", length);
     }
 
     for (i = 0; i < length; ++i)

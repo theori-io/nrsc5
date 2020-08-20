@@ -10,7 +10,7 @@
 #endif
 
 #include <rtl-sdr.h>
-#include "log.h"
+#include "defines.h"
 #include "rtltcp.h"
 
 struct rtltcp_t

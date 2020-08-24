@@ -16,9 +16,10 @@ This program receives NRSC-5 digital radio stations using an RTL-SDR dongle. It 
 
 Available build options:
 
-    -DUSE_NEON=ON        Use NEON instructions. [ARM, default=OFF]
-    -DUSE_SSE=ON         Use SSSE3 instructions. [x86, default=OFF]
-    -DUSE_FAAD2=ON       AAC decoding with FAAD2. [default=ON]
+    -DUSE_NEON=ON            Use NEON instructions. [ARM, default=OFF]
+    -DUSE_SSE=ON             Use SSSE3 instructions. [x86, default=OFF]
+    -DUSE_FAAD2=ON           AAC decoding with FAAD2. [default=ON]
+    -DLIBRARY_DEBUG_LEVEL=1  Debug logging level for libnrsc5. [default=5]
 
 You can test the program using the included sample capture:
 

@@ -66,15 +66,14 @@
 // number of subcarriers per AM partition
 #define PARTITION_WIDTH_AM 25
 
-#define DEBUG_LEVEL 5
 #define log_debug(...) \
-            do { if (DEBUG_LEVEL <= 1) { fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\n"); } } while (0)
+            do { if (LIBRARY_DEBUG_LEVEL <= 1) { fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\n"); } } while (0)
 #define log_info(...) \
-            do { if (DEBUG_LEVEL <= 2) { fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\n"); } } while (0)
+            do { if (LIBRARY_DEBUG_LEVEL <= 2) { fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\n"); } } while (0)
 #define log_warn(...) \
-            do { if (DEBUG_LEVEL <= 3) { fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\n"); } } while (0)
+            do { if (LIBRARY_DEBUG_LEVEL <= 3) { fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\n"); } } while (0)
 #define log_error(...) \
-            do { if (DEBUG_LEVEL <= 4) { fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\n"); } } while (0)
+            do { if (LIBRARY_DEBUG_LEVEL <= 4) { fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\n"); } } while (0)
 
 #define U8_F(x) ( (((float)(x)) - 127) / 128 )
 #define U8_Q15(x) ( ((int16_t)(x) - 127) * 64 )

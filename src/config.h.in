@@ -18,7 +18,7 @@
 #endif
 #endif /* HAVE_CMPLXF */
 
-#cmakedefine LIBRARY_DEBUG_LEVEL "@LIBRARY_DEBUG_LEVEL@"
+#cmakedefine LIBRARY_DEBUG_LEVEL @LIBRARY_DEBUG_LEVEL@
 
 #ifndef HAVE_STRNDUP
 #include <stdlib.h>

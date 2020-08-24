@@ -809,6 +809,7 @@ int main(int argc, char *argv[])
     pthread_join(input_thread, NULL);
 
     nrsc5_stop(radio);
+    nrsc5_set_bias_tee(radio, 0);
     nrsc5_close(radio);
     cleanup(st);
     free(st);

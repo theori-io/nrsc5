@@ -120,6 +120,7 @@ class NRSC5CLI:
             logging.error(err)
 
         self.radio.stop()
+        self.radio.set_bias_tee(0)
         self.radio.close()
 
         if self.args.r:

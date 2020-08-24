@@ -18,6 +18,8 @@
 #endif
 #endif /* HAVE_CMPLXF */
 
+#cmakedefine LIBRARY_DEBUG_LEVEL "@LIBRARY_DEBUG_LEVEL@"
+
 #ifndef HAVE_STRNDUP
 #include <stdlib.h>
 char *strndup(char const *s, size_t n);

@@ -693,7 +693,7 @@ index 5f42e2c..ba0f9f1 100644
  #ifdef __cplusplus
  }
 diff --git a/libfaad/syntax.c b/libfaad/syntax.c
-index f8e808c..230fafa 100644
+index f8e808c..3e82b22 100644
 --- a/libfaad/syntax.c
 +++ b/libfaad/syntax.c
 @@ -64,6 +64,7 @@ static uint8_t single_lfe_channel_element(NeAACDecStruct *hDecoder, bitfile *ld,
@@ -722,7 +722,7 @@ index f8e808c..230fafa 100644
  #ifdef LTP_DEC
  static uint8_t ltp_data(NeAACDecStruct *hDecoder, ic_stream *ics, ltp_info *ltp, bitfile *ld);
  #endif
-@@ -415,6 +416,126 @@ static void decode_cpe(NeAACDecStruct *hDecoder, NeAACDecFrameInfo *hInfo, bitfi
+@@ -415,6 +416,132 @@ static void decode_cpe(NeAACDecStruct *hDecoder, NeAACDecFrameInfo *hInfo, bitfi
      hDecoder->fr_ch_ele++;
  }
  
@@ -799,7 +799,8 @@ index f8e808c..230fafa 100644
 +    case 6:
 +        if (enh)
 +            decode_enh_sce_cpe(hDecoder, hInfo, ld, enh);
-+        //decode_sce_lfe(hDecoder, hInfo, ld, ID_SCE);
++        else
++            decode_sce_lfe(hDecoder, hInfo, ld, ID_SCE);
 +        break;
 +    default:
 +        fprintf(stderr, "Unknown HDC block type: %d\n", n);
@@ -819,6 +820,11 @@ index f8e808c..230fafa 100644
 +        return 14;
 +    }
 +
++    if (hDecoder->sbr[0] && hDecoder->sbr[0]->id_aac != hDecoder->element_id[0])
++    {
++        sbrDecodeEnd(hDecoder->sbr[0]);
++        hDecoder->sbr[0] = NULL;
++    }
 +    if (!hDecoder->sbr[0])
 +    {
 +        hDecoder->sbr[0] = sbrDecodeInit(hDecoder->frameLength,
@@ -849,7 +855,7 @@ index f8e808c..230fafa 100644
  void raw_data_block(NeAACDecStruct *hDecoder, NeAACDecFrameInfo *hInfo,
                      bitfile *ld, program_config *pce, drc_info *drc)
  {
-@@ -597,13 +718,33 @@ static uint8_t single_lfe_channel_element(NeAACDecStruct *hDecoder, bitfile *ld,
+@@ -597,13 +724,33 @@ static uint8_t single_lfe_channel_element(NeAACDecStruct *hDecoder, bitfile *ld,
      ic_stream *ics = &(sce.ics1);
      ALIGN int16_t spec_data[1024] = {0};
  
@@ -883,7 +889,7 @@ index f8e808c..230fafa 100644
      retval = individual_channel_stream(hDecoder, &sce, ld, ics, 0, spec_data);
      if (retval > 0)
          return retval;
-@@ -612,6 +753,16 @@ static uint8_t single_lfe_channel_element(NeAACDecStruct *hDecoder, bitfile *ld,
+@@ -612,6 +759,16 @@ static uint8_t single_lfe_channel_element(NeAACDecStruct *hDecoder, bitfile *ld,
      if (ics->is_used)
          return 32;
  
@@ -900,7 +906,7 @@ index f8e808c..230fafa 100644
  #ifdef SBR_DEC
      /* check if next bitstream element is a fill element */
      /* if so, read it now so SBR decoding can be done in case of a file with SBR */
-@@ -649,15 +800,30 @@ static uint8_t channel_pair_element(NeAACDecStruct *hDecoder, bitfile *ld,
+@@ -649,15 +806,30 @@ static uint8_t channel_pair_element(NeAACDecStruct *hDecoder, bitfile *ld,
      cpe.channel        = channels;
      cpe.paired_channel = channels+1;
  
@@ -934,7 +940,7 @@ index f8e808c..230fafa 100644
              return result;
  
          ics1->ms_mask_present = (uint8_t)faad_getbits(ld, 2
-@@ -706,6 +872,18 @@ static uint8_t channel_pair_element(NeAACDecStruct *hDecoder, bitfile *ld,
+@@ -706,6 +878,18 @@ static uint8_t channel_pair_element(NeAACDecStruct *hDecoder, bitfile *ld,
          ics1->ms_mask_present = 0;
      }
  
@@ -953,7 +959,7 @@ index f8e808c..230fafa 100644
      if ((result = individual_channel_stream(hDecoder, &cpe, ld, ics1,
          0, spec_data1)) > 0)
      {
-@@ -740,13 +918,22 @@ static uint8_t channel_pair_element(NeAACDecStruct *hDecoder, bitfile *ld,
+@@ -740,13 +924,22 @@ static uint8_t channel_pair_element(NeAACDecStruct *hDecoder, bitfile *ld,
          return result;
      }
  
@@ -977,7 +983,7 @@ index f8e808c..230fafa 100644
          /* one sbr_info describes a channel_element not a channel! */
          if ((result = fill_element(hDecoder, ld, hDecoder->drc, hDecoder->fr_ch_ele)) > 0)
          {
-@@ -765,9 +952,127 @@ static uint8_t channel_pair_element(NeAACDecStruct *hDecoder, bitfile *ld,
+@@ -765,9 +958,127 @@ static uint8_t channel_pair_element(NeAACDecStruct *hDecoder, bitfile *ld,
      return 0;
  }
  
@@ -1106,7 +1112,7 @@ index f8e808c..230fafa 100644
  {
      uint8_t retval = 0;
      uint8_t ics_reserved_bit;
-@@ -776,10 +1081,24 @@ static uint8_t ics_info(NeAACDecStruct *hDecoder, ic_stream *ics, bitfile *ld,
+@@ -776,10 +1087,24 @@ static uint8_t ics_info(NeAACDecStruct *hDecoder, ic_stream *ics, bitfile *ld,
          DEBUGVAR(1,43,"ics_info(): ics_reserved_bit"));
      if (ics_reserved_bit != 0)
          return 32;
@@ -1131,7 +1137,7 @@ index f8e808c..230fafa 100644
  
  #ifdef LD_DEC
      /* No block switching in LD */
-@@ -791,8 +1110,11 @@ static uint8_t ics_info(NeAACDecStruct *hDecoder, ic_stream *ics, bitfile *ld,
+@@ -791,8 +1116,11 @@ static uint8_t ics_info(NeAACDecStruct *hDecoder, ic_stream *ics, bitfile *ld,
      {
          ics->max_sfb = (uint8_t)faad_getbits(ld, 4
              DEBUGVAR(1,46,"ics_info(): max_sfb (short)"));
@@ -1145,7 +1151,7 @@ index f8e808c..230fafa 100644
      } else {
          ics->max_sfb = (uint8_t)faad_getbits(ld, 6
              DEBUGVAR(1,48,"ics_info(): max_sfb (long)"));
-@@ -808,6 +1130,9 @@ static uint8_t ics_info(NeAACDecStruct *hDecoder, ic_stream *ics, bitfile *ld,
+@@ -808,6 +1136,9 @@ static uint8_t ics_info(NeAACDecStruct *hDecoder, ic_stream *ics, bitfile *ld,
      if (ics->max_sfb > ics->num_swb)
          return 16;
  
@@ -1155,7 +1161,7 @@ index f8e808c..230fafa 100644
      if (ics->window_sequence != EIGHT_SHORT_SEQUENCE)
      {
          if ((ics->predictor_data_present = faad_get1bit(ld
-@@ -1084,7 +1409,7 @@ static uint8_t fill_element(NeAACDecStruct *hDecoder, bitfile *ld, drc_info *drc
+@@ -1084,7 +1415,7 @@ static uint8_t fill_element(NeAACDecStruct *hDecoder, bitfile *ld, drc_info *drc
  
              /* parse the SBR data */
              hDecoder->sbr[sbr_ele]->ret = sbr_extension_data(ld, hDecoder->sbr[sbr_ele], count,
@@ -1164,7 +1170,7 @@ index f8e808c..230fafa 100644
  
  #if 0
              if (hDecoder->sbr[sbr_ele]->ret > 0)
-@@ -1102,6 +1427,14 @@ static uint8_t fill_element(NeAACDecStruct *hDecoder, bitfile *ld, drc_info *drc
+@@ -1102,6 +1433,14 @@ static uint8_t fill_element(NeAACDecStruct *hDecoder, bitfile *ld, drc_info *drc
                  hDecoder->ps_used_global = 1;
              }
  #endif
@@ -1179,7 +1185,7 @@ index f8e808c..230fafa 100644
          } else {
  #endif
  #ifndef DRM
-@@ -1286,12 +1619,12 @@ void DRM_aac_scalable_main_element(NeAACDecStruct *hDecoder, NeAACDecFrameInfo *
+@@ -1286,12 +1625,12 @@ void DRM_aac_scalable_main_element(NeAACDecStruct *hDecoder, NeAACDecFrameInfo *
      }
      /* Stereo4 / Mono2 */
      if (ics1->tns_data_present)
@@ -1194,7 +1200,7 @@ index f8e808c..230fafa 100644
      }
  
  #ifdef DRM
-@@ -1367,7 +1700,7 @@ void DRM_aac_scalable_main_element(NeAACDecStruct *hDecoder, NeAACDecFrameInfo *
+@@ -1367,7 +1706,7 @@ void DRM_aac_scalable_main_element(NeAACDecStruct *hDecoder, NeAACDecFrameInfo *
  
          faad_getbits(&ld_sbr, 8); /* Skip 8-bit CRC */
  
@@ -1203,7 +1209,7 @@ index f8e808c..230fafa 100644
  #if (defined(PS_DEC) || defined(DRM_PS))
          if (hDecoder->sbr[0]->ps_used)
          {
-@@ -1504,9 +1837,12 @@ static uint8_t side_info(NeAACDecStruct *hDecoder, element *ele,
+@@ -1504,9 +1843,12 @@ static uint8_t side_info(NeAACDecStruct *hDecoder, element *ele,
      ics->global_gain = (uint8_t)faad_getbits(ld, 8
          DEBUGVAR(1,67,"individual_channel_stream(): global_gain"));
  
@@ -1217,7 +1223,7 @@ index f8e808c..230fafa 100644
              return result;
      }
  
-@@ -1516,6 +1852,9 @@ static uint8_t side_info(NeAACDecStruct *hDecoder, element *ele,
+@@ -1516,6 +1858,9 @@ static uint8_t side_info(NeAACDecStruct *hDecoder, element *ele,
      if ((result = scale_factor_data(hDecoder, ics, ld)) > 0)
          return result;
  
@@ -1227,7 +1233,7 @@ index f8e808c..230fafa 100644
      if (!scal_flag)
      {
          /**
-@@ -1538,7 +1877,7 @@ static uint8_t side_info(NeAACDecStruct *hDecoder, element *ele,
+@@ -1538,7 +1883,7 @@ static uint8_t side_info(NeAACDecStruct *hDecoder, element *ele,
  #ifdef ERROR_RESILIENCE
              if (hDecoder->object_type < ER_OBJECT_START)
  #endif
@@ -1236,7 +1242,7 @@ index f8e808c..230fafa 100644
          }
  
          /* get gain control data */
-@@ -1599,10 +1938,13 @@ static uint8_t individual_channel_stream(NeAACDecStruct *hDecoder, element *ele,
+@@ -1599,10 +1944,13 @@ static uint8_t individual_channel_stream(NeAACDecStruct *hDecoder, element *ele,
      if (result > 0)
          return result;
  
@@ -1251,7 +1257,7 @@ index f8e808c..230fafa 100644
      }
  
  #ifdef DRM
-@@ -1927,7 +2269,7 @@ static uint8_t scale_factor_data(NeAACDecStruct *hDecoder, ic_stream *ics, bitfi
+@@ -1927,7 +2275,7 @@ static uint8_t scale_factor_data(NeAACDecStruct *hDecoder, ic_stream *ics, bitfi
  }
  
  /* Table 4.4.27 */
@@ -1260,7 +1266,7 @@ index f8e808c..230fafa 100644
  {
      uint8_t w, filt, i, start_coef_bits, coef_bits;
      uint8_t n_filt_bits = 2;
-@@ -1943,6 +2285,11 @@ static void tns_data(ic_stream *ics, tns_info *tns, bitfile *ld)
+@@ -1943,6 +2291,11 @@ static void tns_data(ic_stream *ics, tns_info *tns, bitfile *ld)
  
      for (w = 0; w < ics->num_windows; w++)
      {

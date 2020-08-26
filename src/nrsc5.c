@@ -745,3 +745,8 @@ void nrsc5_report_sis(nrsc5_t *st, const char *country_code, int fcc_facility_id
 
     nrsc5_report(st, &evt);
 }
+
+NRSC5_API void nrsc5_set_decode_enhanced_stream(nrsc5_t *st, int value)
+{
+    st->decode_enhanced_stream = value;
+}

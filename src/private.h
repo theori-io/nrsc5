@@ -36,6 +36,7 @@ struct nrsc5_t
 
     input_t input;
     output_t output;
+    int decode_enhanced_stream;
 };
 
 void nrsc5_report(nrsc5_t *, const nrsc5_event_t *evt);

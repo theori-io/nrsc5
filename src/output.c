@@ -66,8 +66,12 @@ void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int prog
     {
         st->enhanced[program] = enhanced->next;
         st->enhanced_count[program]--;
-        enh_data = enhanced->data;
-        enh_size = enhanced->size;
+
+        if (st->radio->decode_enhanced_stream)
+        {
+            enh_data = enhanced->data;
+            enh_size = enhanced->size;
+        }
     }
     else
     {

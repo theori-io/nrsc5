@@ -45,7 +45,7 @@ void nrsc5_report_sync(nrsc5_t *);
 void nrsc5_report_lost_sync(nrsc5_t *);
 void nrsc5_report_mer(nrsc5_t *, float lower, float upper);
 void nrsc5_report_ber(nrsc5_t *, float cber);
-void nrsc5_report_hdc(nrsc5_t *, unsigned int program, const uint8_t *data, size_t count);
+void nrsc5_report_hdc(nrsc5_t *, unsigned int program, const uint8_t *data, size_t count, const uint8_t *enh_data, size_t enh_count);
 void nrsc5_report_audio(nrsc5_t *, unsigned int program, const int16_t *data, size_t count);
 void nrsc5_report_lot(nrsc5_t *, uint16_t port, unsigned int lot, unsigned int size, uint32_t mime, const char *name, const uint8_t *data);
 void nrsc5_report_sig(nrsc5_t *, sig_service_t *services, unsigned int count);

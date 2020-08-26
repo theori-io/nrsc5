@@ -476,7 +476,7 @@ void frame_process(frame_t *st, size_t length)
     while (offset < audio_end - RS_CODEWORD_LEN)
     {
         unsigned int start = offset;
-        unsigned int j, lc_bits, loc_bytes, prog;
+        unsigned int j, lc_bits, loc_bytes, prog, seq;
         unsigned short locations[MAX_AUDIO_PACKETS];
         frame_header_t hdr = {0};
         hef_t hef = {0};
@@ -512,6 +512,7 @@ void frame_process(frame_t *st, size_t length)
         parse_hdlc(st, aas_push, st->psd_buf[prog], &st->psd_idx[prog], MAX_AAS_LEN, st->buffer + offset, start + hdr.la_location + 1 - offset);
         offset = start + hdr.la_location + 1;
 
+        seq = hdr.seq;
         for (j = 0; j < hdr.nop; ++j)
         {
             unsigned int cnt = start + locations[j] - offset;
@@ -528,7 +529,7 @@ void frame_process(frame_t *st, size_t length)
                 if (idx)
                 {
                     memcpy(&st->pdu[prog][hdr.stream_id][idx], st->buffer + offset, cnt);
-                    input_pdu_push(st->input, st->pdu[prog][hdr.stream_id], cnt + idx, prog, hdr.stream_id);
+                    input_pdu_push(st->input, st->pdu[prog][hdr.stream_id], cnt + idx, prog, hdr.stream_id, (seq - 1) & 0x3f);
                 }
                 else
                 {
@@ -542,7 +543,8 @@ void frame_process(frame_t *st, size_t length)
             }
             else
             {
-                input_pdu_push(st->input, st->buffer + offset, cnt, prog, hdr.stream_id);
+                input_pdu_push(st->input, st->buffer + offset, cnt, prog, hdr.stream_id, seq);
+                seq = (seq + 1) & 0x3f;
             }
 
             offset += cnt + 1;

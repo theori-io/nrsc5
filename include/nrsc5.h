@@ -203,6 +203,8 @@ struct nrsc5_event_t
             unsigned int program;
             const uint8_t *data;
             size_t count;
+            const uint8_t *enh_data;
+            size_t enh_count;
         } hdc;
         struct {
             unsigned int program;

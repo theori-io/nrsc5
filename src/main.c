@@ -304,7 +304,7 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
                 dump_hdc(st->hdc_file, evt->hdc.data, evt->hdc.count);
 
             st->audio_packets++;
-            st->audio_bytes += evt->hdc.count * sizeof(evt->hdc.data[0]);
+            st->audio_bytes += evt->hdc.count * sizeof(evt->hdc.data[0]) + evt->hdc.enh_count * sizeof(evt->hdc.enh_data[0]);
             if (st->audio_packets >= 32) {
                 log_info("Audio bit rate: %.1f kbps", (float)st->audio_bytes * 8 * 44100 / 2048 / st->audio_packets / 1000);
                 st->audio_packets = 0;

@@ -100,17 +100,27 @@ typedef struct
     sig_component_t component[MAX_SIG_COMPONENTS];
 } sig_service_t;
 
+typedef struct audio_packet_t
+{
+    struct audio_packet_t *next;
+    unsigned int seq;
+    unsigned int size;
+    uint8_t data[];
+} audio_packet_t;
+
 typedef struct
 {
     nrsc5_t *radio;
 #ifdef HAVE_FAAD2
     NeAACDecHandle aacdec[MAX_PROGRAMS];
 #endif
+    audio_packet_t *enhanced[MAX_PROGRAMS];
+    unsigned int enhanced_count[MAX_PROGRAMS];
     aas_port_t ports[MAX_PORTS];
     sig_service_t services[MAX_SIG_SERVICES];
 } output_t;
 
-void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int program, unsigned int stream_id);
+void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int program, unsigned int stream_id, unsigned int seq);
 void output_begin(output_t *st);
 void output_reset(output_t *st);
 void output_init(output_t *st, nrsc5_t *);

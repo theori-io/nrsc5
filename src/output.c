@@ -86,7 +86,7 @@ void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int prog
         NeAACDecInitHDC(&st->aacdec[program], &samprate);
     }
 
-    buffer = NeAACDecDecode(st->aacdec[program], &info, pkt, len);
+    buffer = NeAACDecDecodeHDC(st->aacdec[program], &info, pkt, len, enh_data, enh_size);
     if (info.error > 0)
         log_error("Decode error: %s", NeAACDecGetErrorMessage(info.error));
 

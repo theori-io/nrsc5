@@ -9,6 +9,8 @@ _nrsc5_close
 _nrsc5_start
 _nrsc5_stop
 _nrsc5_set_mode
+_nrsc5_set_bias_tee
+_nrsc5_set_direct_sampling
 _nrsc5_set_freq_correction
 _nrsc5_get_frequency
 _nrsc5_set_frequency

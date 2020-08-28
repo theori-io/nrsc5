@@ -103,6 +103,9 @@ Replace `32` with `64` if you want a 64-bit build. Once the build is complete, c
        -v                              print the version number and exit
        --am                            receive AM signals
                                          (default is FM)
+       -T                              enable bias-T
+       -D direct-sampling-mode         enable direct sampling
+                                         (1 = I-ADC input, 2 = Q-ADC input)
        --dump-aas-files dir-name       dump AAS files
                                          (WARNING: insecure)
        --dump-hdc file-name            dump HDC packets

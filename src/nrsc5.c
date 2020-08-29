@@ -599,7 +599,7 @@ void nrsc5_report_lost_sync(nrsc5_t *st)
     nrsc5_report(st, &evt);
 }
 
-void nrsc5_report_hdc(nrsc5_t *st, unsigned int program, const uint8_t *data, size_t count)
+void nrsc5_report_hdc(nrsc5_t *st, unsigned int program, const uint8_t *data, size_t count, const uint8_t *enh_data, size_t enh_count)
 {
     nrsc5_event_t evt;
 
@@ -607,6 +607,8 @@ void nrsc5_report_hdc(nrsc5_t *st, unsigned int program, const uint8_t *data, si
     evt.hdc.program = program;
     evt.hdc.data = data;
     evt.hdc.count = count;
+    evt.hdc.enh_data = enh_data;
+    evt.hdc.enh_count = enh_count;
     nrsc5_report(st, &evt);
 }
 
@@ -776,4 +778,9 @@ void nrsc5_report_sis(nrsc5_t *st, const char *country_code, int fcc_facility_id
     evt.sis.data_services = data_services;
 
     nrsc5_report(st, &evt);
+}
+
+NRSC5_API void nrsc5_set_decode_enhanced_stream(nrsc5_t *st, int value)
+{
+    st->decode_enhanced_stream = value;
 }

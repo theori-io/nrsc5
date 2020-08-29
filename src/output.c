@@ -26,12 +26,59 @@
 #include "private.h"
 #include "unicode.h"
 
-void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int program, unsigned int stream_id)
+void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int program, unsigned int stream_id, unsigned int seq)
 {
-    nrsc5_report_hdc(st->radio, program, pkt, len);
+    if (stream_id == 1)
+    {
+        // TODO: handle missing frames
+        audio_packet_t *enh = malloc(sizeof(*enh) + len);
+        enh->next = NULL;
+        enh->seq = seq;
+        enh->size = len;
+        memcpy(enh->data, pkt, len);
 
-    if (stream_id != 0)
-        return; // TODO: Process enhanced stream
+        if (st->enhanced[program])
+        {
+            audio_packet_t *tail;
+            unsigned int count = 0;
+            for (tail = st->enhanced[program]; tail->next != NULL; tail = tail->next)
+                count++;
+            tail->next = enh;
+            st->enhanced_count[program]++;
+        }
+        else
+        {
+            st->enhanced[program] = enh;
+        }
+        return;
+    }
+    else if (stream_id != 0)
+    {
+        log_error("Unknown stream id: %d\n", stream_id);
+        return;
+    }
+
+    audio_packet_t *enhanced = st->enhanced[program];
+    uint8_t *enh_data = NULL;
+    unsigned int enh_size = 0;
+    // HACK: delay the enhanced packets by 64 core packets then align seq numbers (which are in range 0-63)
+    if (st->enhanced_count[program] >= 64 && enhanced->seq == seq)
+    {
+        st->enhanced[program] = enhanced->next;
+        st->enhanced_count[program]--;
+
+        if (st->radio->decode_enhanced_stream)
+        {
+            enh_data = enhanced->data;
+            enh_size = enhanced->size;
+        }
+    }
+    else
+    {
+        enhanced = NULL;
+    }
+
+    nrsc5_report_hdc(st->radio, program, pkt, len, enh_data, enh_size);
 
 #ifdef USE_FAAD2
     void *buffer;
@@ -43,13 +90,16 @@ void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int prog
         NeAACDecInitHDC(&st->aacdec[program], &samprate);
     }
 
-    buffer = NeAACDecDecode(st->aacdec[program], &info, pkt, len);
+    buffer = NeAACDecDecodeHDC(st->aacdec[program], &info, pkt, len, enh_data, enh_size);
     if (info.error > 0)
         log_error("Decode error: %s", NeAACDecGetErrorMessage(info.error));
 
     if (info.error == 0 && info.samples > 0)
         nrsc5_report_audio(st->radio, program, buffer, info.samples);
 #endif
+
+    if (enhanced != NULL)
+        free(enhanced);
 }
 
 static void aas_free_lot(aas_file_t *file)
@@ -92,27 +142,44 @@ static void aas_reset(output_t *st)
     memset(st->services, 0, sizeof(st->services));
 }
 
+void audio_packets_free(audio_packet_t *list)
+{
+    while (list != NULL)
+    {
+        audio_packet_t *p = list;
+        list = p->next;
+        free(p);
+    }
+}
+
 void output_reset(output_t *st)
 {
     aas_reset(st);
 
-#ifdef USE_FAAD2
     for (int i = 0; i < MAX_PROGRAMS; i++)
     {
+        audio_packets_free(st->enhanced[i]);
+        st->enhanced[i] = NULL;
+        st->enhanced_count[i] = 0;
+
+#ifdef USE_FAAD2
         if (st->aacdec[i])
             NeAACDecClose(st->aacdec[i]);
         st->aacdec[i] = NULL;
-    }
 #endif
+    }
 }
 
 void output_init(output_t *st, nrsc5_t *radio)
 {
     st->radio = radio;
-#ifdef USE_FAAD2
     for (int i = 0; i < MAX_PROGRAMS; i++)
+    {
+        st->enhanced[i] = NULL;
+#ifdef USE_FAAD2
         st->aacdec[i] = NULL;
 #endif
+    }
 
     memset(st->ports, 0, sizeof(st->ports));
     memset(st->services, 0, sizeof(st->services));

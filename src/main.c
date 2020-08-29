@@ -64,6 +64,7 @@ typedef struct {
     FILE *hdc_file;
     FILE *iq_file;
     char *aas_files_path;
+    int decode_enhanced_stream;
 
     audio_buffer_t *head, *tail, *free;
     pthread_mutex_t mutex;
@@ -306,7 +307,7 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
                 dump_hdc(st->hdc_file, evt->hdc.data, evt->hdc.count);
 
             st->audio_packets++;
-            st->audio_bytes += evt->hdc.count * sizeof(evt->hdc.data[0]);
+            st->audio_bytes += evt->hdc.count * sizeof(evt->hdc.data[0]) + evt->hdc.enh_count * sizeof(evt->hdc.enh_data[0]);
             if (st->audio_packets >= 32) {
                 log_info("Audio bit rate: %.1f kbps", (float)st->audio_bytes * 8 * 44100 / 2048 / st->audio_packets / 1000);
                 st->audio_packets = 0;
@@ -517,6 +518,7 @@ static int parse_args(state_t *st, int argc, char *argv[])
         { "dump-aas-files", required_argument, NULL, 1 },
         { "dump-hdc", required_argument, NULL, 2 },
         { "am", no_argument, NULL, 3 },
+        { "enhanced", no_argument, NULL, 4 },
         { 0 }
     };
     const char *version = NULL;
@@ -542,6 +544,9 @@ static int parse_args(state_t *st, int argc, char *argv[])
             break;
         case 3:
             st->mode = NRSC5_MODE_AM;
+            break;
+        case 4:
+            st->decode_enhanced_stream = 1;
             break;
         case 'r':
             st->input_name = strdup(optarg);
@@ -766,6 +771,7 @@ int main(int argc, char *argv[])
         return 1;
     }
     nrsc5_set_mode(radio, st->mode);
+    nrsc5_set_decode_enhanced_stream(radio, st->decode_enhanced_stream);
     if (st->gain >= 0.0f)
         nrsc5_set_gain(radio, st->gain);
     nrsc5_set_callback(radio, callback, st);

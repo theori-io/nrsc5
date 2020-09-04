@@ -217,19 +217,19 @@ if (USE_FAAD2)
     ExternalProject_Add (
         faad2_external
         TIMEOUT 120
-        GIT_REPOSITORY "https://github.com/dsvensson/faad2.git"
-        GIT_TAG b7aa099fd3220b71180ed2b0bc19dc6209a1b418
+        GIT_REPOSITORY "https://github.com/knik0/faad2.git"
+        GIT_TAG f71b5e81f563d94fa284977a326520d269d8353e
         PREFIX ${FAAD2_PREFIX}
 
         UPDATE_COMMAND ""
         PATCH_COMMAND patch -p1 -Ni "${CMAKE_SOURCE_DIR}/support/faad2-hdc-support.patch" || exit 0
         COMMAND sh ./bootstrap
 
-        CONFIGURE_COMMAND ${FAAD2_PREFIX}/src/faad2_external/configure ${HOST_TRIPLE_ARG} ${FAAD2_CONFIGURE_ARGS} --prefix=${FAAD2_PREFIX} --with-hdc "CFLAGS=-O2 -fPIC ${CMAKE_C_FLAGS}"
+        CONFIGURE_COMMAND ${FAAD2_PREFIX}/src/faad2_external/configure ${HOST_TRIPLE_ARG} ${FAAD2_CONFIGURE_ARGS} --prefix=${FAAD2_PREFIX} "CFLAGS=-O2 -fPIC ${CMAKE_C_FLAGS}"
     )
 
     add_library (faad2 STATIC IMPORTED)
-    set_property (TARGET faad2 PROPERTY IMPORTED_LOCATION "${FAAD2_PREFIX}/lib/libfaad.a")
+    set_property (TARGET faad2 PROPERTY IMPORTED_LOCATION "${FAAD2_PREFIX}/lib/libfaad_hdc.a")
     add_dependencies (faad2 faad2_external)
 
     set (FAAD2_INCLUDE_DIRS "${FAAD2_PREFIX}/include")

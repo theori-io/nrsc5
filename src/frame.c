@@ -515,20 +515,22 @@ void frame_process(frame_t *st, size_t length)
         for (j = 0; j < hdr.nop; ++j)
         {
             unsigned int cnt = start + locations[j] - offset;
-            if (crc8(st->buffer + offset, cnt + 1) != 0)
-            {
+            uint8_t crc = crc8(st->buffer + offset, cnt + 1);
+
+            if (crc != 0)
                 log_warn("crc mismatch!");
-                offset += cnt + 1;
-                continue;
-            }
 
             if (j == 0 && hdr.pfirst)
             {
                 unsigned int idx = st->pdu_idx[prog][hdr.stream_id];
                 if (idx)
                 {
-                    memcpy(&st->pdu[prog][hdr.stream_id][idx], st->buffer + offset, cnt);
-                    input_pdu_push(st->input, st->pdu[prog][hdr.stream_id], cnt + idx, prog, hdr.stream_id);
+                    if (crc == 0)
+                    {
+                        memcpy(&st->pdu[prog][hdr.stream_id][idx], st->buffer + offset, cnt);
+                        input_pdu_push(st->input, st->pdu[prog][hdr.stream_id], cnt + idx, prog, hdr.stream_id);
+                    }
+                    st->pdu_idx[prog][hdr.stream_id] = 0;
                 }
                 else
                 {
@@ -537,12 +539,18 @@ void frame_process(frame_t *st, size_t length)
             }
             else if (j == hdr.nop - 1 && hdr.plast)
             {
-                memcpy(st->pdu[prog][hdr.stream_id], st->buffer + offset, cnt);
-                st->pdu_idx[prog][hdr.stream_id] = cnt;
+                if (crc == 0)
+                {
+                    memcpy(st->pdu[prog][hdr.stream_id], st->buffer + offset, cnt);
+                    st->pdu_idx[prog][hdr.stream_id] = cnt;
+                }
             }
             else
             {
-                input_pdu_push(st->input, st->buffer + offset, cnt, prog, hdr.stream_id);
+                if (crc == 0)
+                {
+                    input_pdu_push(st->input, st->buffer + offset, cnt, prog, hdr.stream_id);
+                }
             }
 
             offset += cnt + 1;

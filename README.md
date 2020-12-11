@@ -131,9 +131,9 @@ Tune to 90.5 MHz and convert audio program 0 to WAV format for playback in an ex
 
 ### Keyboard commands:
 
-To switch between audio programs at runtime, press `0`, `1`, `2`, or `3`.
+To switch between audio programs at runtime, press <kbd>0</kbd>, <kbd>1</kbd>, <kbd>2</kbd>, or <kbd>3</kbd>.
 
-To quit, press `Q`.
+To quit, press <kbd>Q</kbd>.
 
 ### RTL-SDR drivers on Windows
 

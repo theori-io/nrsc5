@@ -1,9 +1,21 @@
 #ifndef NRSC5_H_
 #define NRSC5_H_
 
-/*
- * External API for nrsc5.
+/** \file nrsc5.h
+ * External API for the nrsc5 library.
  */
+
+/*! \mainpage Quick API Reference
+ *
+ * The library API is documented in nrsc5.h -- see the *Functions* section.
+ *
+ * Useful information about the protocol is provided in standards
+ * documents available from https://www.nrscstandards.org/
+ *
+ * Note: this documentation was *not* written by the authors of **nrsc5**;
+ * its accuracy cannot be guaranteed.
+ */
+
 #include <stdint.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -142,6 +154,10 @@ enum
     NRSC5_PROGRAM_TYPE_SPECIAL_READING_SERVICES = 76
 };
 
+/**
+ * Audio service datagram. This is a linked list element that may point
+ * to further audio service elements.
+ */
 struct nrsc5_sis_asd_t
 {
     struct nrsc5_sis_asd_t *next;
@@ -174,17 +190,45 @@ enum
     NRSC5_SERVICE_DATA_TYPE_AUDIO_RELATED_DATA = 265
 };
 
+/**
+ * Data service datagram. This is a linked list element that may point
+ * to further data service elements via `next` member if not `NULL`.
+ * See nrsc5_service_data_type_name() for named types of data.
+ */
 struct nrsc5_sis_dsd_t
 {
-    struct nrsc5_sis_dsd_t *next;
-    unsigned int access;
-    unsigned int type;
-    uint32_t mime_type;
+    struct nrsc5_sis_dsd_t *next; /**< Pointer to next element or NULL */
+    unsigned int access;  /**< public or restricted */
+    unsigned int type;    /**< service data type */
+    uint32_t mime_type;   /**< MIME type. See e.g. `NRSC5_MIME_TEXT` */
 };
 typedef struct nrsc5_sis_dsd_t nrsc5_sis_dsd_t;
 
+/**  Incoming event from receiver.
+ *
+ * This event structure is passed to your application supplied
+ * callback function.  It is a union of various structs, keyed by
+ * member `event`.
+ */
 struct nrsc5_event_t
 {
+/*! Type of event.
+ * The member `event` determines which sort of event occurred:
+ * - `NRSC5_EVENT_LOST_DEVICE` : signal is over
+ * - `NRSC5_EVENT_BER` : Bit Error Ratio data, see the `ber` union member
+ * - `NRSC5_EVENT_MER` : modulation error ratio, see the `mer` union member,
+ *   and NRSC5 document SY_TN_2646s
+ * - `NRSC5_EVENT_IQ` : IQ data, see the `iq` union member
+ * - `NRSC5_EVENT_HD`C : HDC audio packet, see the `hdc` union member
+ * - `NRSC5_EVENT_AUDIO` : audio buffer, see the `audio` union member
+ * - `NRSC5_EVENT_SYNC` : indicates synchronization achieved
+ * - `NRSC5_EVENT_LOST_SYNC` : indicates synchronization lost
+ * - `NRSC5_EVENT_ID3` : ID3 information packet arrived, see `id3` member
+ *   and information in HD-Radio document SY_IDD_1028s.
+ * - `NRSC5_EVENT_SIG` : service information arrived, see `sig` member
+ * - `NRSC5_EVENT_LOT` : LOT file data available, see `lot` member
+ * - `NRSC5_EVENT_SIS` : station information, see `sis` member
+ */
     unsigned int event;
     union
     {
@@ -255,35 +299,249 @@ typedef struct nrsc5_event_t nrsc5_event_t;
 
 typedef void (*nrsc5_callback_t)(const nrsc5_event_t *evt, void *opaque);
 
-/*
- * Opaque data types.
+/**
+ * An opaque data type used by API functions to represent session information.
+ * Applications should acquire a pointer to one via the "open" functions like
+ * nrsc5_open(), nrsc5_open_file(), nrsc5_open_pipe(),  or nrsc5_open_rtltcp().
  */
 typedef struct nrsc5_t nrsc5_t;
 
 /*
  * Public functions. All functions return void or an error code (0 == success).
  */
+
+/**
+ * Retrieves the version string of the library.
+ * @param[out] version character pointer that will reference the version string.
+ * @return Nothing is returned
+ */
 void nrsc5_get_version(const char **version);
+
+/**
+ * Retrieves a string corresponding to a service data type.
+ * @param[in]  type  a service data type integer.
+ * @param[out] name  character pointer to a string naming the service type
+ * @return Nothing is returned
+ *
+ * This name will be quite short, e.g. "News" or "Weather". If the type is
+ * not recognized, it will the string "Unknown".
+ */
 void nrsc5_service_data_type_name(unsigned int type, const char **name);
+
+/**
+ * Retrieves a string corresponding to a program type.
+ * @param[in]  type  a protram data type integer.
+ * @param[out] name  character pointer to a string naming the service type
+ * @return Nothing is returned
+ *
+ * This name will be quite short, e.g. "News" or "Rock". If the type is
+ * not recognized, it will the string "Unknown".
+ */
 void nrsc5_program_type_name(unsigned int type, const char **name);
-int nrsc5_open(nrsc5_t **, int device_index);
-int nrsc5_open_file(nrsc5_t **, FILE *fp);
-int nrsc5_open_pipe(nrsc5_t **);
+
+/**
+ * Initializes a session for a particular RTLSDR radio dongle.
+ * @param[out] st  handle for an nrsc5_t
+ * @param[in]  device_index  the RTLSDR device index
+ * @return 0 on success, nonzero on error
+ *
+ * The `device_index` is commonly 0 on systems with a single radio dongle.
+ * This, or another `open_` command should be issued before using the other API
+ * functions that need an `nrsc5_t` session handle.
+ * This function will allocate and initialize an opaque `nsrc5_t` struct and set
+ * the pointer `result` to it on success. It uses librtlsdr to:
+ *
+ * - open the RTLSDR device indicated by `device_index`
+ * - set the sample rate to constant SAMPLE_RATE
+ * - set the tuner gain mode to 1 (auto)
+ * - set offset tuning to 1
+ *
+ * Other session options are initialized to defaults, e.g. mode to FM.
+ * It creates (but does not start) a worker thread with a mutex and condition variable.
+ */
+int nrsc5_open(nrsc5_t **st, int device_index);
+
+/**
+ * Initializes a session given an open `FILE` pointer.
+ * @param[out] st  handle for an `nrsc5_t`
+ * @param[in]  fp   FILE pointer handle with nrsc5 data
+ * @return 0 on success, nonzero on error
+ *
+ */
+int nrsc5_open_file(nrsc5_t **st, FILE *fp);
+
+/**
+ * Initializes a session for use with a pipe.
+ * @param[out] st  handle for an `nrsc5_t`
+ * @return 0 on success, nonzero on error
+ *
+ */
+int nrsc5_open_pipe(nrsc5_t **st );
+
+/**
+ * Initializes a session given a TCP socket file descriptor.
+ * @param[out] result  handle for an `nrsc5_t`
+ * @param[in]  socket  the TCP socket with nrsc5 data
+ * @return 0 on success, nonzero on error
+ *
+ */
 int nrsc5_open_rtltcp(nrsc5_t **, int socket);
+
+/**
+ * Closes an nrsc5 session.
+ * @param[in] st  pointer to an `nrsc5_t`
+ * @return Nothing is returned.
+ *
+ * Any worker thread is signalled to exit, files and sockets are closed,
+ * and I/O buffers are freed.
+ */
 void nrsc5_close(nrsc5_t *);
+
+/**
+ * Signals the worker to *start* demodulation.
+ * @param[in] st  pointer to an `nrsc5_t` session object
+ * @return Nothing is returned.
+ *
+ */
 void nrsc5_start(nrsc5_t *);
+
+/**
+ * Signals the worker to *stop* demodulation.
+ * @param[in] st  pointer to an `nrsc5_t` session object
+ * @return Nothing is returned.
+ *
+ * This function will block until the worker is stopped.
+ */
 void nrsc5_stop(nrsc5_t *);
+
+/**
+ * Set the session mode to AM or FM.
+ * @param[in] st  pointer to an `nrsc5_t` session object
+ * @param[in] mode  either `NRSC5_MODE_FM` or `NRSC5_MODE_AM`
+ * @return 0 on success or nonzero on error.
+ *
+ */
 int nrsc5_set_mode(nrsc5_t *, int mode);
+
+/**
+ * Enable or disble the bias-T for the radio.
+ * @param[in] st  pointer to an `nrsc5_t` session object
+ * @param[in] on  1 indicates enabled, and 0 indicates disabled
+ * @return Return 0 on success or nonzero on error.
+ *
+ * This works with both a local SDR and over a TCP connection.
+ * A Bias-T is used to power a low noise amplifier by injecting
+ * DC on the antenna cable. Do not enable this unless you have a
+ * compatible antenna.
+ */
 int nrsc5_set_bias_tee(nrsc5_t *, int on);
+
+/**
+ * Enable or disble direct sampling.
+ * @param[in] st  pointer to an `nrsc5_t` session object
+ * @param[in] on  1 indicates enabled, and 0 indicates disabled
+ * @return 0 on success or nonzero on error.
+ *
+ * This works with both a local SDR and over a TCP connection.
+ */
 int nrsc5_set_direct_sampling(nrsc5_t *, int on);
-int nrsc5_set_freq_correction(nrsc5_t *, int ppm_error);
-void nrsc5_get_frequency(nrsc5_t *, float *freq);
-int nrsc5_set_frequency(nrsc5_t *, float freq);
-void nrsc5_get_gain(nrsc5_t *, float *gain);
-int nrsc5_set_gain(nrsc5_t *, float gain);
-void nrsc5_set_auto_gain(nrsc5_t *, int enabled);
-void nrsc5_set_callback(nrsc5_t *, nrsc5_callback_t callback, void *opaque);
-int nrsc5_pipe_samples_cu8(nrsc5_t *, uint8_t *samples, unsigned int length);
-int nrsc5_pipe_samples_cs16(nrsc5_t *, int16_t *samples, unsigned int length);
+
+/**
+ * Adjust the radio frequency correction.
+ * @param[in] st  pointer to an `nrsc5_t` session object
+ * @param[in] ppm_error correction offset in parts-per-million
+ * @return Return 0 on success or nonzero on error.
+ *
+ * This works with both a local SDR and over a TCP connection.
+ */
+int nrsc5_set_freq_correction(nrsc5_t *st, int ppm_error);
+
+/**
+ * Retrieve the frequency to which the device is currently tuned
+ * if initialized to a local dongle, otherwise the cached frequency.
+ *
+ * @param[in] st  pointer to an `nrsc5_t` session object
+ * @param[out] freq  frequency in Hz
+ * @return Nothing is returned.
+ */
+void nrsc5_get_frequency(nrsc5_t *st, float *freq);
+
+/**
+ * Sets the frequency to which the receiver is tuned.
+ *
+ * @param[in]  st  pointer to an `nrsc5_t` session object
+ * @param[out] freq  frequency in Hz
+ * @return 0 on success or nonzero on error
+ *
+ * This function may only be called when the device is **stopped**.
+ * Input, output are reset. Gain is reset if auto-gain is enabled.
+ * Works with both a local SDR and over a TCP connection.
+ */
+int nrsc5_set_frequency(nrsc5_t *st, float freq);
+
+/**
+ * Retrieve the actual receiver gain.
+ *
+ * @param[in] st  pointer to an `nrsc5_t` session object
+ * @param[out] gain in dB
+ * @return 0 on success or nonzero on error
+ *
+ */
+void nrsc5_get_gain(nrsc5_t *st, float *gain);
+
+/**
+ * Set the receiver gain.
+ *
+ * @param[in] st  pointer to an `nrsc5_t` session object
+ * @param[in] gain in dB
+ * @return 0 on success or nonzero on error
+ *
+ */
+int nrsc5_set_gain(nrsc5_t *st, float gain);
+
+/**
+ * Enable or disable receiver auto-gain control.
+ *
+ * @param[in] st  pointer to an `nrsc5_t` session object
+ * @param[in] enabled  set to 1 to enable auto gain, 0 to disable
+ * @return Nothing is returned.
+ *
+ */
+void nrsc5_set_auto_gain(nrsc5_t *st, int enabled);
+
+/**
+ * Establish a callback function.
+ *
+ * @param[in] st  pointer to an `nrsc5_t` session object
+ * @param[in] callback  set to an event handling function of two argument
+ * @param[in] opaque    set to a pointer to the function's 2nd argument
+ * @return Nothing is returned.
+ *
+ */
+void nrsc5_set_callback(nrsc5_t *st, nrsc5_callback_t callback, void *opaque);
+
+
+/**
+ * Push an IQ array of 8-bit unsigned samples into the demodulator.
+ *
+ * @param[in] st  pointer to an `nrsc5_t` session object
+ * @param[in] samples  pointer to an array 8-bit unsigned samples
+ * @param[in] length   the number of samples in the array
+ * @return 0 on success, nonzero on error
+ *
+ */
+int nrsc5_pipe_samples_cu8(nrsc5_t *st, uint8_t *samples, unsigned int length);
+
+
+/**
+ * Push an IQ input array of 16-bit signed samples into the demodulator.
+ *
+ * @param[in] st  pointer to an `nrsc5_t` session object
+ * @param[in] samples  pointer to an array 16-bit signed samples
+ * @param[in] length   the number of samples in the array
+ * @return 0 on success, nonzero on error
+ *
+ */
+int nrsc5_pipe_samples_cs16(nrsc5_t *st, int16_t *samples, unsigned int length);
 
 #endif /* NRSC5_H_ */

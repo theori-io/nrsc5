@@ -155,8 +155,8 @@ enum
 };
 
 /**
- * Audio service datagram. This is a linked list element that may point
- * to further audio service elements.
+ * Station Information Service datagram. This is a linked list element
+ * that may point to further audio service elements.
  */
 struct nrsc5_sis_asd_t
 {
@@ -191,7 +191,7 @@ enum
 };
 
 /**
- * Data service datagram. This is a linked list element that may point
+ * Station Information Service. This is a linked list element that may point
  * to further data service elements via `next` member if not `NULL`.
  * See nrsc5_service_data_type_name() for named types of data.
  */
@@ -224,7 +224,7 @@ struct nrsc5_event_t
  * - `NRSC5_EVENT_SYNC` : indicates synchronization achieved
  * - `NRSC5_EVENT_LOST_SYNC` : indicates synchronization lost
  * - `NRSC5_EVENT_ID3` : ID3 information packet arrived, see `id3` member
- *   and information in HD-Radio document SY_IDD_1028s.
+ *    and information in HD-Radio document SY_IDD_1028s.
  * - `NRSC5_EVENT_SIG` : service information arrived, see `sig` member
  * - `NRSC5_EVENT_LOT` : LOT file data available, see `lot` member
  * - `NRSC5_EVENT_SIS` : station information, see `sis` member

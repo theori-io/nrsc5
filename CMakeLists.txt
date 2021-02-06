@@ -262,22 +262,22 @@ add_definitions("-DGIT_COMMIT_HASH=\"${GIT_COMMIT_HASH}\"")
 add_subdirectory (src)
 
 # optionally generate documentation via Doxygen
-find_package(Doxygen)
-execute_process (COMMAND git describe --tags OUTPUT_VARIABLE DVERSION OUTPUT_STRIP_TRAILING_WHITESPACE)
-
-if (DOXYGEN_FOUND AND BUILD_DOC)
+if (BUILD_DOC)
+  find_package(Doxygen)
+  if (NOT DOXYGEN_FOUND) 
+    message("** Install the Doxygen application to generate API documentation")
+  else ()
+    message("-- Build of Doxygen API documentation enabled")
     set(DOXYGEN_IN ${CMAKE_CURRENT_BINARY_DIR}/../doc/Doxyfile.in)
     set(DOXYGEN_OUT ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile)
     configure_file(${DOXYGEN_IN} ${DOXYGEN_OUT} @ONLY)
-    message("-- Build of Doxygen API documentation enabled")
     # 'ALL' below enables building docs together with the application
     add_custom_target( doc_doxygen ALL
-        COMMAND ${DOXYGEN_EXECUTABLE} ${DOXYGEN_OUT}
-        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-        COMMENT "Generating API documentation with Doxygen"
-        VERBATIM )
-elseif (BUILD_DOC)
-  message("** Install the Doxygen application to generate API documentation")
+      COMMAND ${DOXYGEN_EXECUTABLE} ${DOXYGEN_OUT}
+      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+      COMMENT "Generating API documentation with Doxygen"
+      VERBATIM )
+  endif ()
 else ()
-  message("-- Build of Doxygen API documentation disabled; use -DBUILD_DOC=ON to enable")
+    message("-- Build of Doxygen API documentation disabled; use -DBUILD_DOC=ON to enable")
 endif ()

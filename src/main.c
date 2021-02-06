@@ -74,7 +74,6 @@ typedef struct {
     unsigned int audio_packets;
     unsigned int audio_bytes;
     int done;
-    int mute;  /**< if true, continue but do not play audio*/
 } state_t;
 
 static ao_sample_format sample_format = {
@@ -496,15 +495,6 @@ static void *input_main(void *arg)
         case '3':
             change_program(st, ch - '0');
             break;
-        case 'M':
-            st->mute = 1;       /* mute */
-            break;
-        case 'U':
-            st->mute = 0;       /* unmute */
-            break;
-        case 'm':               /* toggle mute/unmute audio */
-            st->mute = ! st->mute;
-            break;
         }
     }
 
@@ -804,9 +794,9 @@ int main(int argc, char *argv[])
         if (st->head == NULL)
             st->tail = NULL;
         pthread_mutex_unlock(&st->mutex);
-        if (0 == st->mute) {
-            ao_play(st->dev, b->data, sizeof(b->data));
-        }
+
+        ao_play(st->dev, b->data, sizeof(b->data));
+
         pthread_mutex_lock(&st->mutex);
         // add to free list
         b->next = st->free;

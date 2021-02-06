@@ -357,7 +357,7 @@ void nrsc5_program_type_name(unsigned int type, const char **name);
  * - set offset tuning to 1
  *
  * Other session options are initialized to defaults, e.g. mode to FM.
- * It creates (but does not start) a worker thread with a mutex and condition variable.
+ * It creates (but does not start) a worker thread.
  */
 int nrsc5_open(nrsc5_t **st, int device_index);
 
@@ -424,20 +424,20 @@ void nrsc5_stop(nrsc5_t *);
 int nrsc5_set_mode(nrsc5_t *, int mode);
 
 /**
- * Enable or disble the bias-T for the radio.
+ * Enable or disable the bias-T for the radio.
  * @param[in] st  pointer to an `nrsc5_t` session object
  * @param[in] on  1 indicates enabled, and 0 indicates disabled
  * @return Return 0 on success or nonzero on error.
  *
  * This works with both a local SDR and over a TCP connection.
- * A Bias-T is used to power a low noise amplifier by injecting
- * DC on the antenna cable. Do not enable this unless you have a
- * compatible antenna.
+ * A Bias-T is often used to power a low noise amplifier by injecting
+ * DC on the antenna cable. Do not enable this unless you know you
+ * have an LNA and compatible antenna.
  */
 int nrsc5_set_bias_tee(nrsc5_t *, int on);
 
 /**
- * Enable or disble direct sampling.
+ * Enable or disable direct sampling.
  * @param[in] st  pointer to an `nrsc5_t` session object
  * @param[in] on  1 indicates enabled, and 0 indicates disabled
  * @return 0 on success or nonzero on error.

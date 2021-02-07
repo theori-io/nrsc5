@@ -20,6 +20,7 @@ Available build options:
     -DUSE_SSE=ON             Use SSSE3 instructions. [x86, default=OFF]
     -DUSE_FAAD2=ON           AAC decoding with FAAD2. [default=ON]
     -DLIBRARY_DEBUG_LEVEL=1  Debug logging level for libnrsc5. [default=5]
+    -DBUILD_DOC=ON           Generate html API documentation [default=OFF]
 
 You can test the program using the included sample capture:
 

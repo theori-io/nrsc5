@@ -15,6 +15,8 @@ option (USE_SYSTEM_FFTW "Use system provided fftw" ON)
 option (USE_SYSTEM_RTLSDR "Use system provided rtl-sdr" ON)
 option (USE_SYSTEM_LIBUSB "Use system provided libusb" ON)
 option (USE_SYSTEM_LIBAO "Use system provided libao" ON)
+option (BUILD_DOC "Build API documentation" OFF)
+
 set (FAAD2_CONFIGURE_ARGS "" CACHE STRING "Extra arguments for FAAD2 configure command")
 set (LIBRARY_DEBUG_LEVEL "5" CACHE STRING "Debug logging level for libnrsc5: 1=debug, 2=info, 3=warn, 4=error, 5=none")
 set (HOST_TRIPLE "${HOST_TRIPLE_DEFAULT}" CACHE STRING "Override default host triple")
@@ -258,3 +260,24 @@ endif()
 add_definitions("-DGIT_COMMIT_HASH=\"${GIT_COMMIT_HASH}\"")
 
 add_subdirectory (src)
+
+# optionally generate documentation via Doxygen
+if (BUILD_DOC)
+  find_package(Doxygen)
+  if (NOT DOXYGEN_FOUND) 
+    message("** Install the Doxygen application to generate API documentation")
+  else ()
+    message("-- Build of Doxygen API documentation enabled")
+    set(DOXYGEN_IN ${CMAKE_CURRENT_BINARY_DIR}/../doc/Doxyfile.in)
+    set(DOXYGEN_OUT ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile)
+    configure_file(${DOXYGEN_IN} ${DOXYGEN_OUT} @ONLY)
+    # 'ALL' below enables building docs together with the application
+    add_custom_target( doc_doxygen ALL
+      COMMAND ${DOXYGEN_EXECUTABLE} ${DOXYGEN_OUT}
+      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+      COMMENT "Generating API documentation with Doxygen"
+      VERBATIM )
+  endif ()
+else ()
+    message("-- Build of Doxygen API documentation disabled; use -DBUILD_DOC=ON to enable")
+endif ()

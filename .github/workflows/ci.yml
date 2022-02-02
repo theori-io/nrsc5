@@ -75,7 +75,7 @@ jobs:
           cat sample | support/cli.py -r - 0
       - name: Windows cross-compile
         run: |
-          brew cask install xquartz wine-stable
+          brew install --cask xquartz wine-stable
           brew install mingw-w64
           support/win-cross-compile 32
           support/win-cross-compile 64

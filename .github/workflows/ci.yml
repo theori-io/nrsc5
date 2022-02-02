@@ -49,7 +49,7 @@ jobs:
       - name: Install dependencies
         run: |
           brew install autoconf automake libao fftw librtlsdr portaudio
-          pip3 install pyaudio
+          pip3 install --global-option=build_ext --global-option="-I/usr/local/include/" --global-option="-L/usr/local/lib" pyaudio
       - name: Checkout code
         uses: actions/checkout@v2
       - name: Configure

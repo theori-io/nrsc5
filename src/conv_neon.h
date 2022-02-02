@@ -78,8 +78,8 @@
     M6 = vqsubq_s16(M6, M8); \
     M7 = vqsubq_s16(M7, M8); \
 }
-__always_inline static void _neon_metrics_k7_n4(const int16_t *val, const int16_t *out,
-					int16_t *sums, int16_t *paths, int norm)
+inline static __attribute__((always_inline)) void _neon_metrics_k7_n4(const int16_t *val, const int16_t *out,
+					int16_t *sums, int16_t *paths, int norm) 
 {
     int16x8_t m0, m1, m2, m3, m4, m5, m6, m7;
     int16x8_t m8, m9, m10, m11, m12, m13, m14, m15;

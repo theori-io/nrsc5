@@ -527,7 +527,7 @@ static int parse_args(state_t *st, int argc, char *argv[])
     st->mode = NRSC5_MODE_FM;
     st->gain = -1;
     st->bias_tee = 0;
-    st->direct_sampling = 0;
+    st->direct_sampling = -1;
     st->ppm_error = INT_MIN;
 
     while ((opt = getopt_long(argc, argv, "r:w:o:d:p:g:ql:vH:TD:", long_opts, NULL)) != -1)
@@ -750,10 +750,13 @@ int main(int argc, char *argv[])
         log_fatal("Set bias-T failed.");
         return 1;
     }
-    if (nrsc5_set_direct_sampling(radio, st->direct_sampling) != 0)
+    if (st->direct_sampling != -1)
     {
-        log_fatal("Set direct sampling failed.");
-        return 1;
+        if (nrsc5_set_direct_sampling(radio, st->direct_sampling) != 0)
+        {
+            log_fatal("Set direct sampling failed.");
+            return 1;
+        }
     }
     if (st->ppm_error != INT_MIN && nrsc5_set_freq_correction(radio, st->ppm_error) != 0)
     {

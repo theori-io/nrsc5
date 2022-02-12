@@ -40,7 +40,7 @@ class NRSC5CLI:
         parser.add_argument("-o", metavar="wav-output")
         parser.add_argument("-H", metavar="rtltcp-host")
         parser.add_argument("-T", action="store_true")
-        parser.add_argument("-D", metavar="direct-sampling-mode", type=int, default=0)
+        parser.add_argument("-D", metavar="direct-sampling-mode", type=int, default=-1)
         parser.add_argument("--dump-hdc", metavar="hdc-output")
         parser.add_argument("--dump-aas-files", metavar="directory")
         input_group.add_argument("frequency", nargs="?", type=float)
@@ -79,7 +79,8 @@ class NRSC5CLI:
             self.radio.set_mode(nrsc5.Mode.AM)
 
         self.radio.set_bias_tee(self.args.T)
-        self.radio.set_direct_sampling(self.args.D)
+        if self.args.D != -1:
+            self.radio.set_direct_sampling(self.args.D)
 
         if self.args.p is not None:
             self.radio.set_freq_correction(self.args.p)

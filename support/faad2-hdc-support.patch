@@ -130,7 +130,7 @@ index cacd1c4..d3b6781 100644
 +/* Allow decoding of HDC */
 +#ifdef HDC_SUPPORT
 +#define DRM
-+#define DRM_PS
++/* #define DRM_PS */
 +#define HDC
 +#endif
  

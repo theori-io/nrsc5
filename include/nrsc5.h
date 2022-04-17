@@ -575,7 +575,7 @@ void nrsc5_set_callback(nrsc5_t *st, nrsc5_callback_t callback, void *opaque);
  * @return 0 on success, nonzero on error
  *
  */
-int nrsc5_pipe_samples_cu8(nrsc5_t *st, uint8_t *samples, unsigned int length);
+int nrsc5_pipe_samples_cu8(nrsc5_t *st, const uint8_t *samples, unsigned int length);
 
 
 /**
@@ -587,6 +587,6 @@ int nrsc5_pipe_samples_cu8(nrsc5_t *st, uint8_t *samples, unsigned int length);
  * @return 0 on success, nonzero on error
  *
  */
-int nrsc5_pipe_samples_cs16(nrsc5_t *st, int16_t *samples, unsigned int length);
+int nrsc5_pipe_samples_cs16(nrsc5_t *st, const int16_t *samples, unsigned int length);
 
 #endif /* NRSC5_H_ */

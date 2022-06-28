@@ -251,7 +251,7 @@ static inline void _sse_metrics_k7_n4(const int16_t *val, const int16_t *out,
 			    m8, m9, m10, m11, m12, m13, m14, m15)
 
 	/* (BMU) Load and expand 8-bit input out to 16-bits */
-	m7 = _mm_castpd_si128(_mm_loaddup_pd((double const *) val));
+	m7 = _mm_loadu_si128((__m128i *) val);
 
 	/* (BMU) Load and compute branch metrics */
 	m0 = _mm_load_si128((__m128i *) &out[0]);
@@ -317,7 +317,7 @@ static inline void _sse_metrics_k7_n4(const int16_t *val, const int16_t *out,
 static void gen_metrics_k7_n3(const int8_t *val, const int16_t *out,
 		       int16_t *sums, int16_t *paths, int norm)
 {
-	const int16_t _val[4] = { val[0], val[1], val[2], 0 };
+	const int16_t _val[8] = { val[0], val[1], val[2], 0, val[0], val[1], val[2], 0 };
 
 	_sse_metrics_k7_n4(_val, out, sums, paths, norm);
 }

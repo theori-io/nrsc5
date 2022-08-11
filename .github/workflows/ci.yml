@@ -44,7 +44,10 @@ jobs:
           support/win-cross-compile 64
   macos-build:
     name: MacOS CI
-    runs-on: macos-11
+    strategy:
+      matrix:
+        os: [macos-11, macos-12]
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Install dependencies
         run: |

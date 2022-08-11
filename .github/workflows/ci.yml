@@ -44,7 +44,7 @@ jobs:
           support/win-cross-compile 64
   macos-build:
     name: MacOS CI
-    runs-on: macos-10.15
+    runs-on: macos-11
     steps:
       - name: Install dependencies
         run: |

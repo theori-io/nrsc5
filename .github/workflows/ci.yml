@@ -74,8 +74,8 @@ jobs:
           grep -q "You're Listening to Q" sample.log
           cat sample | nrsc5 -r - -o sample.wav 0 2> sample.log
           grep -q "You're Listening to Q" sample.log
-          support/cli.py -r sample 0
-          cat sample | support/cli.py -r - 0
+          # support/cli.py -r sample 0
+          # cat sample | support/cli.py -r - 0
       - name: Windows cross-compile
         run: |
           brew install --cask xquartz wine-stable

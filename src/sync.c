@@ -29,6 +29,14 @@
 #define PARTITION_WIDTH 19
 #define MIDDLE_REF_SC 30 // midpoint of Table 11-3 in 1011s.pdf
 
+// Table 6-4 in 1011s.pdf
+static const int compatibility_mode[64] = {
+    0, 1, 2, 3, 1, 5, 6, 5, 6, 1, 2, 11, 1, 5, 6, 5,
+    6, 1, 2, 3, 1, 5, 6, 5, 6, 1, 2, 11, 1, 5, 6, 5,
+    6, 1, 2, 3, 1, 5, 6, 5, 6, 1, 2, 11, 1, 5, 6, 5,
+    6, 1, 2, 3, 1, 5, 6, 5, 6, 1, 2, 11, 1, 5, 6, 5
+};
+
 static uint8_t gray4(float f)
 {
     if (f < -1)
@@ -308,7 +316,7 @@ void sync_process_fm(sync_t *st)
 {
     int i, partitions_per_band;
 
-    switch (st->psmi) {
+    switch (compatibility_mode[st->psmi]) {
         case 2:
             partitions_per_band = 11;
             break;
@@ -464,7 +472,7 @@ void sync_process_fm(sync_t *st)
                     decode_push_pm(&st->input->decode, DEMOD(cimagf(c)) * mult_ub);
                 }
             }
-            if (st->psmi == 3) {
+            if ((compatibility_mode[st->psmi] == 3) || (compatibility_mode[st->psmi] == 11)) {
                 for (i = LB_START + (PM_PARTITIONS * PARTITION_WIDTH); i < LB_START + (PM_PARTITIONS + 2) * PARTITION_WIDTH; i += PARTITION_WIDTH)
                 {
                     unsigned int j;

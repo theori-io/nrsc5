@@ -493,6 +493,10 @@ static void *input_main(void *arg)
         case '1':
         case '2':
         case '3':
+        case '4':
+        case '5':
+        case '6':
+        case '7':
             change_program(st, ch - '0');
             break;
         }

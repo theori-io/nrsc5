@@ -132,7 +132,7 @@ Tune to 90.5 MHz and convert audio program 0 to WAV format for playback in an ex
 
 ### Keyboard commands:
 
-To switch between audio programs at runtime, press <kbd>0</kbd>, <kbd>1</kbd>, <kbd>2</kbd>, or <kbd>3</kbd>.
+To switch between audio programs at runtime, press <kbd>0</kbd> through <kbd>7</kbd>.
 
 To quit, press <kbd>Q</kbd>.
 

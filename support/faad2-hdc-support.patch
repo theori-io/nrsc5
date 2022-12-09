@@ -12,18 +12,20 @@ Subject: [PATCH] Support for HDC variant
  libfaad/common.c     |   5 +
  libfaad/common.h     |   6 ++
  libfaad/decoder.c    |  42 ++++++++
- libfaad/sbr_dec.c    |   4 +
+ libfaad/drm_dec.c    | 108 ++++++++++++++++-----
+ libfaad/drm_dec.h    |   5 +-
+ libfaad/sbr_dec.c    |  10 +-
  libfaad/sbr_dec.h    |   4 +
  libfaad/sbr_syntax.c |  16 +++-
  libfaad/syntax.c     | 223 +++++++++++++++++++++++++++++++++++++++++--
  libfaad/syntax.h     |   1 +
- 13 files changed, 305 insertions(+), 14 deletions(-)
+ 15 files changed, 396 insertions(+), 42 deletions(-)
 
 diff --git a/frontend/main.c b/frontend/main.c
 index efaaccc..0430be5 100644
 --- a/frontend/main.c
 +++ b/frontend/main.c
-@@ -1170,7 +1170,8 @@ static int faad_main(int argc, char *argv[])
+@@ -1176,7 +1176,8 @@ static int faad_main(int argc, char *argv[])
                      if ((object_type != LC) &&
                          (object_type != MAIN) &&
                          (object_type != LTP) &&
@@ -130,7 +132,7 @@ index cacd1c4..d3b6781 100644
 +/* Allow decoding of HDC */
 +#ifdef HDC_SUPPORT
 +#define DRM
-+/* #define DRM_PS */
++#define DRM_PS
 +#define HDC
 +#endif
  
@@ -140,7 +142,7 @@ diff --git a/libfaad/decoder.c b/libfaad/decoder.c
 index c66c81f..060931a 100644
 --- a/libfaad/decoder.c
 +++ b/libfaad/decoder.c
-@@ -349,6 +349,13 @@ long NeAACDecInit(NeAACDecHandle hpDecoder,
+@@ -350,6 +350,13 @@ long NeAACDecInit(NeAACDecHandle hpDecoder,
      if (!*samplerate)
          return -1;
  
@@ -154,7 +156,7 @@ index c66c81f..060931a 100644
  #if (defined(PS_DEC) || defined(DRM_PS))
      /* check if we have a mono file */
      if (*channels == 1)
-@@ -528,6 +535,41 @@ char NeAACDecInitDRM(NeAACDecHandle *hpDecoder,
+@@ -529,6 +536,41 @@ char NeAACDecInitDRM(NeAACDecHandle *hpDecoder,
  }
  #endif
  
@@ -196,11 +198,276 @@ index c66c81f..060931a 100644
  void NeAACDecClose(NeAACDecHandle hpDecoder)
  {
      uint8_t i;
+diff --git a/libfaad/drm_dec.c b/libfaad/drm_dec.c
+index fb44a64..95f6e76 100644
+--- a/libfaad/drm_dec.c
++++ b/libfaad/drm_dec.c
+@@ -44,6 +44,9 @@
+ #define DECAY_CUTOFF         3
+ #define DECAY_SLOPE          0.05f
+ 
++/* macros */
++#define IS_HDC(num_subsamples) ((num_subsamples) == 32)
++
+ /* type definitaions */
+ typedef const int8_t (*drm_ps_huff_tab)[2];
+ 
+@@ -225,6 +228,30 @@ static const real_t pan_pow_2_30_neg[8][5] = {
+     { COEF_CONST(0.969764715), COEF_CONST(0.947691892), COEF_CONST(0.922571949), COEF_CONST(0.898117847), COEF_CONST(0.874311936) }
+ };
+ 
++/* 2^(pan_quant[x][y]/32) */
++static const real_t pan_pow_2_32_pos[8][5] = {
++    { COEF_CONST(1),           COEF_CONST(1),           COEF_CONST(1),           COEF_CONST(1),           COEF_CONST(1)           },
++    { COEF_CONST(1.003604347), COEF_CONST(1.003604347), COEF_CONST(1.007221686), COEF_CONST(1.007221686), COEF_CONST(1.007221686) },
++    { COEF_CONST(1.007221686), COEF_CONST(1.007221686), COEF_CONST(1.014495524), COEF_CONST(1.018152118), COEF_CONST(1.018152118) },
++    { COEF_CONST(1.010852062), COEF_CONST(1.014495524), COEF_CONST(1.021821892), COEF_CONST(1.032910767), COEF_CONST(1.036633736) },
++    { COEF_CONST(1.014495524), COEF_CONST(1.021821892), COEF_CONST(1.032910767), COEF_CONST(1.04788335),  COEF_CONST(1.055448548) },
++    { COEF_CONST(1.018152118), COEF_CONST(1.029201168), COEF_CONST(1.04788335),  COEF_CONST(1.066902341), COEF_CONST(1.078480432) },
++    { COEF_CONST(1.021821892), COEF_CONST(1.040370124), COEF_CONST(1.063070665), COEF_CONST(1.086268878), COEF_CONST(1.105986959) },
++    { COEF_CONST(1.029201168), COEF_CONST(1.051658007), COEF_CONST(1.078480432), COEF_CONST(1.105986959), COEF_CONST(1.134195038) }
++};
++
++/* 2^(-pan_quant[x][y]/32) */
++static const real_t pan_pow_2_32_neg[8][5] = {
++    { COEF_CONST(1),           COEF_CONST(1),           COEF_CONST(1),           COEF_CONST(1),           COEF_CONST(1)           },
++    { COEF_CONST(0.996408597), COEF_CONST(0.996408597), COEF_CONST(0.992830093), COEF_CONST(0.992830093), COEF_CONST(0.992830093) },
++    { COEF_CONST(0.992830093), COEF_CONST(0.992830093), COEF_CONST(0.985711594), COEF_CONST(0.982171507), COEF_CONST(0.982171507) },
++    { COEF_CONST(0.989264441), COEF_CONST(0.985711594), COEF_CONST(0.978644134), COEF_CONST(0.968137841), COEF_CONST(0.964660869) },
++    { COEF_CONST(0.985711594), COEF_CONST(0.978644134), COEF_CONST(0.968137841), COEF_CONST(0.954304695), COEF_CONST(0.947464471) },
++    { COEF_CONST(0.982171507), COEF_CONST(0.971627346), COEF_CONST(0.954304695), COEF_CONST(0.93729291),  COEF_CONST(0.927230546) },
++    { COEF_CONST(0.978644134), COEF_CONST(0.961196383), COEF_CONST(0.940671239), COEF_CONST(0.92058239),  COEF_CONST(0.904169793) },
++    { COEF_CONST(0.971627346), COEF_CONST(0.950879462), COEF_CONST(0.927230546), COEF_CONST(0.904169793), COEF_CONST(0.881682573) }
++};
++
+ static const real_t g_decayslope[MAX_SA_BAND] = {
+     FRAC_CONST(1),   FRAC_CONST(1),   FRAC_CONST(1),   FRAC_CONST(0.95),FRAC_CONST(0.9), FRAC_CONST(0.85), FRAC_CONST(0.8),
+     FRAC_CONST(0.75),FRAC_CONST(0.7), FRAC_CONST(0.65),FRAC_CONST(0.6), FRAC_CONST(0.55),FRAC_CONST(0.5),  FRAC_CONST(0.45),
+@@ -635,7 +662,7 @@ static void drm_ps_delta_decode(drm_ps_info *ps)
+     }
+ }
+ 
+-static void drm_calc_sa_side_signal(drm_ps_info *ps, qmf_t X[38][64])
++static void drm_calc_sa_side_signal(drm_ps_info *ps, qmf_t X[38][64], int num_subsamples)
+ {
+     uint8_t s, b, k;
+     complex_t qfrac, tmp0, tmp, in, R0;
+@@ -659,7 +686,7 @@ static void drm_calc_sa_side_signal(drm_ps_info *ps, qmf_t X[38][64])
+         RE(Phi_Fract) = RE(Phi_Fract_Qmf[b]);
+         IM(Phi_Fract) = IM(Phi_Fract_Qmf[b]);
+ 
+-        for (s = 0; s < NUM_OF_SUBSAMPLES; s++)
++        for (s = 0; s < num_subsamples; s++)
+         {
+             const real_t gamma = REAL_CONST(1.5);
+             const real_t sigma = REAL_CONST(1.5625);
+@@ -750,19 +777,21 @@ static void drm_calc_sa_side_signal(drm_ps_info *ps, qmf_t X[38][64])
+         ps->delay_buf_index_ser[k] = temp_delay_ser[k];
+ }
+ 
+-static void drm_add_ambiance(drm_ps_info *ps, qmf_t X_left[38][64], qmf_t X_right[38][64])
++static void drm_add_ambiance(drm_ps_info *ps, qmf_t X_left[38][64], qmf_t X_right[38][64], int num_subsamples)
+ {
+-    uint8_t s, b, ifreq, qclass;
++    uint8_t s, b, ifreq, qclass, is_hdc;
+     real_t sa_map[MAX_SA_BAND], sa_dir_map[MAX_SA_BAND], k_sa_map[MAX_SA_BAND], k_sa_dir_map[MAX_SA_BAND];
+     real_t new_dir_map, new_sa_map;
+ 
++    is_hdc = IS_HDC(num_subsamples);
++
+     if (ps->bs_enable_sa)
+     {
+         /* Instead of dequantization and mapping, we use an inverse mapping
+            to look up all the values we need */
+         for (b = 0; b < sa_freq_scale[DRM_NUM_SA_BANDS]; b++)
+         {
+-            const real_t inv_f_num_of_subsamples = FRAC_CONST(0.03333333333);
++            const real_t inv_f_num_of_subsamples = is_hdc ? FRAC_CONST(0.03125) : FRAC_CONST(0.03333333333);
+ 
+             ifreq = sa_inv_freq[b];
+             qclass = (b != 0);
+@@ -779,7 +808,7 @@ static void drm_add_ambiance(drm_ps_info *ps, qmf_t X_left[38][64], qmf_t X_righ
+ 
+         }
+ 
+-        for (s = 0; s < NUM_OF_SUBSAMPLES; s++)
++        for (s = 0; s < num_subsamples; s++)
+         {
+             for (b = 0; b < sa_freq_scale[DRM_NUM_SA_BANDS]; b++)
+             {
+@@ -799,7 +828,7 @@ static void drm_add_ambiance(drm_ps_info *ps, qmf_t X_left[38][64], qmf_t X_righ
+         }
+     }
+     else {
+-        for (s = 0; s < NUM_OF_SUBSAMPLES; s++)
++        for (s = 0; s < num_subsamples; s++)
+         {
+             for (b = 0; b < NUM_OF_QMF_CHANNELS; b++)
+             {
+@@ -810,14 +839,16 @@ static void drm_add_ambiance(drm_ps_info *ps, qmf_t X_left[38][64], qmf_t X_righ
+     }
+ }
+ 
+-static void drm_add_pan(drm_ps_info *ps, qmf_t X_left[38][64], qmf_t X_right[38][64])
++static void drm_add_pan(drm_ps_info *ps, qmf_t X_left[38][64], qmf_t X_right[38][64], int num_subsamples)
+ {
+-    uint8_t s, b, qclass, ifreq;
++    uint8_t s, b, qclass, ifreq, is_hdc;
+     real_t tmp, coeff1, coeff2;
+     real_t pan_base[MAX_PAN_BAND];
+     real_t pan_delta[MAX_PAN_BAND];
+     qmf_t temp_l, temp_r;
+ 
++    is_hdc = IS_HDC(num_subsamples);
++
+     if (ps->bs_enable_pan)
+     {
+         for (b = 0; b < NUM_OF_QMF_CHANNELS; b++)
+@@ -834,31 +865,56 @@ static void drm_add_pan(drm_ps_info *ps, qmf_t X_left[38][64], qmf_t X_right[38]
+                 pan_base[b] = pan_pow_2_neg[-ps->g_prev_pan_index[ifreq]][qclass];
+             }
+ 
+-            /* 2^((a-b)/30) = 2^(a/30) * 1/(2^(b/30)) */
++            /* 2^((a-b)/32) = 2^(a/32) * 1/(2^(b/32)) if HDC */
++            /* 2^((a-b)/30) = 2^(a/30) * 1/(2^(b/30)) if regular DRM */
+             /* a en b can be negative so we may need to inverse parts */
+             if (ps->g_pan_index[ifreq] >= 0)
+             {
+                 if (ps->g_prev_pan_index[ifreq] >= 0)
+                 {
+-                    pan_delta[b] = MUL_C(pan_pow_2_30_pos[ps->g_pan_index[ifreq]][qclass],
+-                                         pan_pow_2_30_neg[ps->g_prev_pan_index[ifreq]][qclass]);
++                    if (is_hdc)
++                    {
++                        pan_delta[b] = MUL_C(pan_pow_2_32_pos[ps->g_pan_index[ifreq]][qclass],
++                                             pan_pow_2_32_neg[ps->g_prev_pan_index[ifreq]][qclass]);
++                    } else {
++                        pan_delta[b] = MUL_C(pan_pow_2_30_pos[ps->g_pan_index[ifreq]][qclass],
++                                             pan_pow_2_30_neg[ps->g_prev_pan_index[ifreq]][qclass]);
++                    }
+                 } else {
+-                    pan_delta[b] = MUL_C(pan_pow_2_30_pos[ps->g_pan_index[ifreq]][qclass],
+-                                         pan_pow_2_30_pos[-ps->g_prev_pan_index[ifreq]][qclass]);
++                    if (is_hdc)
++                    {
++                        pan_delta[b] = MUL_C(pan_pow_2_32_pos[ps->g_pan_index[ifreq]][qclass],
++                                             pan_pow_2_32_pos[-ps->g_prev_pan_index[ifreq]][qclass]);
++                    } else {
++                        pan_delta[b] = MUL_C(pan_pow_2_30_pos[ps->g_pan_index[ifreq]][qclass],
++                                             pan_pow_2_30_pos[-ps->g_prev_pan_index[ifreq]][qclass]);
++                    }
+                 }
+             } else {
+                 if (ps->g_prev_pan_index[ifreq] >= 0)
+                 {
+-                    pan_delta[b] = MUL_C(pan_pow_2_30_neg[-ps->g_pan_index[ifreq]][qclass],
+-                                         pan_pow_2_30_neg[ps->g_prev_pan_index[ifreq]][qclass]);
++                    if (is_hdc)
++                    {
++                        pan_delta[b] = MUL_C(pan_pow_2_32_neg[-ps->g_pan_index[ifreq]][qclass],
++                                             pan_pow_2_32_neg[ps->g_prev_pan_index[ifreq]][qclass]);
++                    } else {
++                        pan_delta[b] = MUL_C(pan_pow_2_30_neg[-ps->g_pan_index[ifreq]][qclass],
++                                             pan_pow_2_30_neg[ps->g_prev_pan_index[ifreq]][qclass]);
++                    }
+                 } else {
+-                    pan_delta[b] = MUL_C(pan_pow_2_30_neg[-ps->g_pan_index[ifreq]][qclass],
+-                                         pan_pow_2_30_pos[-ps->g_prev_pan_index[ifreq]][qclass]);
++                    if (is_hdc)
++                    {
++                        pan_delta[b] = MUL_C(pan_pow_2_32_neg[-ps->g_pan_index[ifreq]][qclass],
++                                             pan_pow_2_32_pos[-ps->g_prev_pan_index[ifreq]][qclass]);
++                    } else {
++                        pan_delta[b] = MUL_C(pan_pow_2_30_neg[-ps->g_pan_index[ifreq]][qclass],
++                                             pan_pow_2_30_pos[-ps->g_prev_pan_index[ifreq]][qclass]);
++                    }
+                 }
+             }
+         }
+ 
+-        for (s = 0; s < NUM_OF_SUBSAMPLES; s++)
++        for (s = 0; s < num_subsamples; s++)
+         {
+             /* PAN always uses all 64 channels */
+             for (b = 0; b < NUM_OF_QMF_CHANNELS; b++)
+@@ -901,17 +957,19 @@ void drm_ps_free(drm_ps_info *ps)
+ }
+ 
+ /* main DRM PS decoding function */
+-uint8_t drm_ps_decode(drm_ps_info *ps, uint8_t guess, qmf_t X_left[38][64], qmf_t X_right[38][64])
++uint8_t drm_ps_decode(drm_ps_info *ps, uint8_t guess, qmf_t X_left[38][64], qmf_t X_right[38][64], uint8_t hdc_sbr)
+ {
++    int num_subsamples = hdc_sbr ? NUM_OF_HDC_SUBSAMPLES : NUM_OF_SUBSAMPLES;
++
+     if (ps == NULL)
+     {
+-        memcpy(X_right, X_left, sizeof(qmf_t)*30*64);
++        memcpy(X_right, X_left, sizeof(qmf_t)*num_subsamples*64);
+         return 0;
+     }
+ 
+     if (!ps->drm_ps_data_available && !guess)
+     {
+-        memcpy(X_right, X_left, sizeof(qmf_t)*30*64);
++        memcpy(X_right, X_left, sizeof(qmf_t)*num_subsamples*64);
+         memset(ps->g_prev_sa_index, 0, sizeof(ps->g_prev_sa_index));
+         memset(ps->g_prev_pan_index, 0, sizeof(ps->g_prev_pan_index));
+         return 0;
+@@ -933,8 +991,8 @@ uint8_t drm_ps_decode(drm_ps_info *ps, uint8_t guess, qmf_t X_left[38][64], qmf_
+ 
+     ps->drm_ps_data_available = 0;
+ 
+-    drm_calc_sa_side_signal(ps, X_left);
+-    drm_add_ambiance(ps, X_left, X_right);
++    drm_calc_sa_side_signal(ps, X_left, num_subsamples);
++    drm_add_ambiance(ps, X_left, X_right, num_subsamples);
+ 
+     if (ps->bs_enable_sa)
+     {
+@@ -948,7 +1006,7 @@ uint8_t drm_ps_decode(drm_ps_info *ps, uint8_t guess, qmf_t X_left[38][64], qmf_
+ 
+     if (ps->bs_enable_pan)
+     {
+-        drm_add_pan(ps, X_left, X_right);
++        drm_add_pan(ps, X_left, X_right, num_subsamples);
+ 
+         ps->g_last_had_pan = 1;
+ 
+diff --git a/libfaad/drm_dec.h b/libfaad/drm_dec.h
+index f644116..9974088 100644
+--- a/libfaad/drm_dec.h
++++ b/libfaad/drm_dec.h
+@@ -43,6 +43,7 @@ extern "C" {
+ #define NUM_OF_LINKS             3
+ #define NUM_OF_QMF_CHANNELS     64
+ #define NUM_OF_SUBSAMPLES       30
++#define NUM_OF_HDC_SUBSAMPLES   32
+ #define MAX_SA_BAND             46
+ #define MAX_PAN_BAND            64
+ #define MAX_DELAY                5
+@@ -73,7 +74,7 @@ typedef struct
+     int8_t g_last_good_sa_index[DRM_NUM_SA_BANDS];
+     int8_t g_last_good_pan_index[DRM_NUM_PAN_BANDS];
+ 
+-    qmf_t SA[NUM_OF_SUBSAMPLES][MAX_SA_BAND];
++    qmf_t SA[NUM_OF_HDC_SUBSAMPLES][MAX_SA_BAND];
+ 
+     complex_t d_buff[2][MAX_SA_BAND];
+     complex_t d2_buff[NUM_OF_LINKS][MAX_DELAY][MAX_SA_BAND];
+@@ -91,7 +92,7 @@ uint16_t drm_ps_data(drm_ps_info *ps, bitfile *ld);
+ drm_ps_info *drm_ps_init(void);
+ void drm_ps_free(drm_ps_info *ps);
+ 
+-uint8_t drm_ps_decode(drm_ps_info *ps, uint8_t guess, qmf_t X_left[38][64], qmf_t X_right[38][64]);
++uint8_t drm_ps_decode(drm_ps_info *ps, uint8_t guess, qmf_t X_left[38][64], qmf_t X_right[38][64], uint8_t hdc_sbr);
+ 
+ #ifdef __cplusplus
+ }
 diff --git a/libfaad/sbr_dec.c b/libfaad/sbr_dec.c
 index 2641c7b..e1a14ea 100644
 --- a/libfaad/sbr_dec.c
 +++ b/libfaad/sbr_dec.c
-@@ -648,7 +648,11 @@ uint8_t sbrDecodeSingleFramePS(sbr_info *sbr, real_t *left_channel, real_t *righ
+@@ -655,9 +655,17 @@ uint8_t sbrDecodeSingleFramePS(sbr_info *sbr, real_t *left_channel, real_t *righ
  
      /* perform parametric stereo */
  #ifdef DRM_PS
@@ -210,8 +477,15 @@ index 2641c7b..e1a14ea 100644
      if (sbr->Is_DRM_SBR)
 +#endif
      {
-         drm_ps_decode(sbr->drm_ps, (sbr->ret > 0), X_left, X_right);
+-        drm_ps_decode(sbr->drm_ps, (sbr->ret > 0), X_left, X_right);
++#ifdef HDC
++        drm_ps_decode(sbr->drm_ps, (sbr->ret > 0), X_left, X_right, sbr->Is_HDC_SBR);
++#else
++        drm_ps_decode(sbr->drm_ps, (sbr->ret > 0), X_left, X_right, 0);
++#endif
      } else {
+ #endif
+ #ifdef PS_DEC
 diff --git a/libfaad/sbr_dec.h b/libfaad/sbr_dec.h
 index cb8e3b9..74565f6 100644
 --- a/libfaad/sbr_dec.h
@@ -289,7 +563,7 @@ index 5df254f..060b799 100644
  #ifdef LTP_DEC
  static uint8_t ltp_data(NeAACDecStruct *hDecoder, ic_stream *ics, ltp_info *ltp, bitfile *ld);
  #endif
-@@ -427,6 +427,102 @@ static void decode_cpe(NeAACDecStruct *hDecoder, NeAACDecFrameInfo *hInfo, bitfi
+@@ -431,6 +431,102 @@ static void decode_cpe(NeAACDecStruct *hDecoder, NeAACDecFrameInfo *hInfo, bitfi
      hDecoder->fr_ch_ele++;
  }
  
@@ -392,7 +666,7 @@ index 5df254f..060b799 100644
  void raw_data_block(NeAACDecStruct *hDecoder, NeAACDecFrameInfo *hInfo,
                      bitfile *ld, program_config *pce, drc_info *drc)
  {
-@@ -438,6 +534,14 @@ void raw_data_block(NeAACDecStruct *hDecoder, NeAACDecFrameInfo *hInfo,
+@@ -442,6 +538,14 @@ void raw_data_block(NeAACDecStruct *hDecoder, NeAACDecFrameInfo *hInfo,
      hDecoder->first_syn_ele = 25;
      hDecoder->has_lfe = 0;
  
@@ -407,7 +681,7 @@ index 5df254f..060b799 100644
  #ifdef ERROR_RESILIENCE
      if (hDecoder->object_type < ER_OBJECT_START)
      {
-@@ -609,13 +713,33 @@ static uint8_t single_lfe_channel_element(NeAACDecStruct *hDecoder, bitfile *ld,
+@@ -637,13 +741,33 @@ static uint8_t single_lfe_channel_element(NeAACDecStruct *hDecoder, bitfile *ld,
      ic_stream *ics = &(sce.ics1);
      ALIGN int16_t spec_data[1024] = {0};
  
@@ -441,7 +715,7 @@ index 5df254f..060b799 100644
      retval = individual_channel_stream(hDecoder, &sce, ld, ics, 0, spec_data);
      if (retval > 0)
          return retval;
-@@ -631,6 +755,16 @@ static uint8_t single_lfe_channel_element(NeAACDecStruct *hDecoder, bitfile *ld,
+@@ -659,6 +783,16 @@ static uint8_t single_lfe_channel_element(NeAACDecStruct *hDecoder, bitfile *ld,
      {
          faad_flushbits(ld, LEN_SE_ID);
  
@@ -458,7 +732,7 @@ index 5df254f..060b799 100644
          /* one sbr_info describes a channel_element not a channel! */
          if ((retval = fill_element(hDecoder, ld, hDecoder->drc, hDecoder->fr_ch_ele)) > 0)
          {
-@@ -661,12 +795,27 @@ static uint8_t channel_pair_element(NeAACDecStruct *hDecoder, bitfile *ld,
+@@ -689,12 +823,27 @@ static uint8_t channel_pair_element(NeAACDecStruct *hDecoder, bitfile *ld,
      cpe.channel        = channels;
      cpe.paired_channel = channels+1;
  
@@ -488,7 +762,7 @@ index 5df254f..060b799 100644
      {
          /* both channels have common ics information */
          if ((result = ics_info(hDecoder, ics1, ld, cpe.common_window)) > 0)
-@@ -718,6 +867,18 @@ static uint8_t channel_pair_element(NeAACDecStruct *hDecoder, bitfile *ld,
+@@ -746,6 +895,18 @@ static uint8_t channel_pair_element(NeAACDecStruct *hDecoder, bitfile *ld,
          ics1->ms_mask_present = 0;
      }
  
@@ -507,7 +781,7 @@ index 5df254f..060b799 100644
      if ((result = individual_channel_stream(hDecoder, &cpe, ld, ics1,
          0, spec_data1)) > 0)
      {
-@@ -759,6 +920,16 @@ static uint8_t channel_pair_element(NeAACDecStruct *hDecoder, bitfile *ld,
+@@ -787,6 +948,16 @@ static uint8_t channel_pair_element(NeAACDecStruct *hDecoder, bitfile *ld,
      {
          faad_flushbits(ld, LEN_SE_ID);
  
@@ -524,7 +798,7 @@ index 5df254f..060b799 100644
          /* one sbr_info describes a channel_element not a channel! */
          if ((result = fill_element(hDecoder, ld, hDecoder->drc, hDecoder->fr_ch_ele)) > 0)
          {
-@@ -788,10 +959,21 @@ static uint8_t ics_info(NeAACDecStruct *hDecoder, ic_stream *ics, bitfile *ld,
+@@ -816,10 +987,21 @@ static uint8_t ics_info(NeAACDecStruct *hDecoder, ic_stream *ics, bitfile *ld,
          DEBUGVAR(1,43,"ics_info(): ics_reserved_bit"));
      if (ics_reserved_bit != 0)
          return 32;
@@ -546,7 +820,7 @@ index 5df254f..060b799 100644
  
  #ifdef LD_DEC
      /* No block switching in LD */
-@@ -820,6 +1002,9 @@ static uint8_t ics_info(NeAACDecStruct *hDecoder, ic_stream *ics, bitfile *ld,
+@@ -848,6 +1030,9 @@ static uint8_t ics_info(NeAACDecStruct *hDecoder, ic_stream *ics, bitfile *ld,
      if (ics->max_sfb > ics->num_swb)
          return 16;
  
@@ -556,7 +830,7 @@ index 5df254f..060b799 100644
      if (ics->window_sequence != EIGHT_SHORT_SEQUENCE)
      {
          if ((ics->predictor_data_present = faad_get1bit(ld
-@@ -1114,6 +1299,14 @@ static uint8_t fill_element(NeAACDecStruct *hDecoder, bitfile *ld, drc_info *drc
+@@ -1147,6 +1332,14 @@ static uint8_t fill_element(NeAACDecStruct *hDecoder, bitfile *ld, drc_info *drc
                  hDecoder->ps_used_global = 1;
              }
  #endif
@@ -571,7 +845,7 @@ index 5df254f..060b799 100644
          } else {
  #endif
  #ifndef DRM
-@@ -1298,12 +1491,12 @@ void DRM_aac_scalable_main_element(NeAACDecStruct *hDecoder, NeAACDecFrameInfo *
+@@ -1331,12 +1524,12 @@ void DRM_aac_scalable_main_element(NeAACDecStruct *hDecoder, NeAACDecFrameInfo *
      }
      /* Stereo4 / Mono2 */
      if (ics1->tns_data_present)
@@ -586,7 +860,7 @@ index 5df254f..060b799 100644
      }
  
  #ifdef DRM
-@@ -1516,6 +1709,9 @@ static uint8_t side_info(NeAACDecStruct *hDecoder, element *ele,
+@@ -1554,6 +1747,9 @@ static uint8_t side_info(NeAACDecStruct *hDecoder, element *ele,
      ics->global_gain = (uint8_t)faad_getbits(ld, 8
          DEBUGVAR(1,67,"individual_channel_stream(): global_gain"));
  
@@ -596,7 +870,7 @@ index 5df254f..060b799 100644
      if (!ele->common_window && !scal_flag)
      {
          if ((result = ics_info(hDecoder, ics, ld, ele->common_window)) > 0)
-@@ -1528,6 +1724,9 @@ static uint8_t side_info(NeAACDecStruct *hDecoder, element *ele,
+@@ -1566,6 +1762,9 @@ static uint8_t side_info(NeAACDecStruct *hDecoder, element *ele,
      if ((result = scale_factor_data(hDecoder, ics, ld)) > 0)
          return result;
  
@@ -606,7 +880,7 @@ index 5df254f..060b799 100644
      if (!scal_flag)
      {
          /**
-@@ -1550,7 +1749,7 @@ static uint8_t side_info(NeAACDecStruct *hDecoder, element *ele,
+@@ -1588,7 +1787,7 @@ static uint8_t side_info(NeAACDecStruct *hDecoder, element *ele,
  #ifdef ERROR_RESILIENCE
              if (hDecoder->object_type < ER_OBJECT_START)
  #endif
@@ -615,7 +889,7 @@ index 5df254f..060b799 100644
          }
  
          /* get gain control data */
-@@ -1611,10 +1810,13 @@ static uint8_t individual_channel_stream(NeAACDecStruct *hDecoder, element *ele,
+@@ -1649,10 +1848,13 @@ static uint8_t individual_channel_stream(NeAACDecStruct *hDecoder, element *ele,
      if (result > 0)
          return result;
  
@@ -630,7 +904,7 @@ index 5df254f..060b799 100644
      }
  
  #ifdef DRM
-@@ -1939,7 +2141,7 @@ static uint8_t scale_factor_data(NeAACDecStruct *hDecoder, ic_stream *ics, bitfi
+@@ -1977,7 +2179,7 @@ static uint8_t scale_factor_data(NeAACDecStruct *hDecoder, ic_stream *ics, bitfi
  }
  
  /* Table 4.4.27 */
@@ -639,7 +913,7 @@ index 5df254f..060b799 100644
  {
      uint8_t w, filt, i, start_coef_bits, coef_bits;
      uint8_t n_filt_bits = 2;
-@@ -1955,6 +2157,11 @@ static void tns_data(ic_stream *ics, tns_info *tns, bitfile *ld)
+@@ -1993,6 +2195,11 @@ static void tns_data(ic_stream *ics, tns_info *tns, bitfile *ld)
  
      for (w = 0; w < ics->num_windows; w++)
      {

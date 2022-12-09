@@ -276,6 +276,7 @@ void decode_process_p3(decode_t *st)
     if (st->i_p3 == N)
     {
         st->i_p3 = 0;
+        memset(st->pt_p3, 0, sizeof(unsigned int) * 4);
         st->ready_p3 = 1;
     }
 }

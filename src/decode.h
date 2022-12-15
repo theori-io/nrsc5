@@ -8,7 +8,9 @@
 
 typedef struct
 {
-  int8_t buffer[144 * BLKSZ * 2];
+  int8_t buffer[8][144 * BLKSZ * 2];
+  int buffer_number;
+  int buffer_ready;
   unsigned int idx;
   int8_t internal[P3_FRAME_LEN_FM * 32];
   unsigned int i;
@@ -82,10 +84,20 @@ static inline void decode_push_pm(decode_t *st, int8_t sbit)
 }
 static inline void decode_push_px1_px2(decode_t *st, interleaver_iv_t *interleaver, int8_t *viterbi, uint8_t *scrambler, int8_t sbit)
 {
-    interleaver->buffer[interleaver->idx++] = sbit;
+    unsigned int delay = ((interleaver == &st->interleaver_px2) && (interleaver->idx < 144 * BLKSZ)) ? 7 : 0;
+    interleaver->buffer[(interleaver->buffer_number + delay) % 8][interleaver->idx++] = sbit;
     if (interleaver->idx % (144 * BLKSZ * 2) == 0)
     {
-        decode_process_p3_p4(st, interleaver, viterbi, scrambler);
+        if (interleaver->buffer_ready)
+        {
+            decode_process_p3_p4(st, interleaver, viterbi, scrambler);
+        }
+        interleaver->buffer_number++;
+        if (interleaver->buffer_number == 8)
+        {
+            interleaver->buffer_number = 0;
+            interleaver->buffer_ready = 1;
+        }
         interleaver->idx = 0;
     }
 }

@@ -264,7 +264,7 @@ void decode_process_p3_p4(decode_t *st, interleaver_iv_t *interleaver, int8_t *v
         if ((out % 6) == 1 || (out % 6) == 4) // depuncture, [1, 0, 1, 1, 0, 1]
             viterbi[out++] = 0;
 
-        interleaver->internal[interleaver->i] = interleaver->buffer[i];
+        interleaver->internal[interleaver->i] = interleaver->buffer[interleaver->buffer_number][i];
         interleaver->i++;
     }
     if (interleaver->ready)
@@ -342,6 +342,8 @@ void decode_process_p1_p3_am(decode_t *st)
 
 static void interleaver_iv_reset(interleaver_iv_t *interleaver)
 {
+    interleaver->buffer_number = 0;
+    interleaver->buffer_ready = 0;
     interleaver->idx = 0;
     interleaver->i = 0;
     memset(interleaver->pt, 0, sizeof(unsigned int) * 4);

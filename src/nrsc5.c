@@ -545,14 +545,14 @@ NRSC5_API void nrsc5_set_callback(nrsc5_t *st, nrsc5_callback_t callback, void *
     pthread_mutex_unlock(&st->worker_mutex);
 }
 
-NRSC5_API int nrsc5_pipe_samples_cu8(nrsc5_t *st, uint8_t *samples, unsigned int length)
+NRSC5_API int nrsc5_pipe_samples_cu8(nrsc5_t *st, const uint8_t *samples, unsigned int length)
 {
     input_push_cu8(&st->input, samples, length);
 
     return 0;
 }
 
-NRSC5_API int nrsc5_pipe_samples_cs16(nrsc5_t *st, int16_t *samples, unsigned int length)
+NRSC5_API int nrsc5_pipe_samples_cs16(nrsc5_t *st, const int16_t *samples, unsigned int length)
 {
     input_push_cs16(&st->input, samples, length);
 

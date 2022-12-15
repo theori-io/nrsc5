@@ -67,7 +67,7 @@ void input_set_skip(input_t *st, unsigned int skip)
     st->skip += skip;
 }
 
-static void measure_snr(input_t *st, uint8_t *buf, uint32_t len)
+static void measure_snr(input_t *st, const uint8_t *buf, uint32_t len)
 {
     unsigned int i, j;
 
@@ -148,7 +148,7 @@ void input_push(input_t *st)
     }
 }
 
-void input_push_cu8(input_t *st, uint8_t *buf, uint32_t len)
+void input_push_cu8(input_t *st, const uint8_t *buf, uint32_t len)
 {
     unsigned int i;
     assert(len % 4 == 0);
@@ -204,7 +204,7 @@ void input_push_cu8(input_t *st, uint8_t *buf, uint32_t len)
     input_push(st);
 }
 
-void input_push_cs16(input_t *st, int16_t *buf, uint32_t len)
+void input_push_cs16(input_t *st, const int16_t *buf, uint32_t len)
 {
     assert(len % 2 == 0);
 

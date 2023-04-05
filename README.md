@@ -98,7 +98,9 @@ Replace `32` with `64` if you want a 64-bit build. Once the build is complete, c
                                       (example: localhost:1234)
     -r iq-input                     read IQ samples from input file
     -w iq-output                    write IQ samples to output file
-    -o audio-output                 write audio to output WAV file
+    -o audio-output                 write audio to output file
+    -t audio-type                   type of audio output (wav or raw)
+                                      (default is wav. used in conjunction with -o)
     -q                              disable log output
     -l log-level                    set log level
                                       (1 = DEBUG, 2 = INFO, 3 = WARN)

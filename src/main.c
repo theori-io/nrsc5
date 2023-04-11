@@ -89,9 +89,9 @@ static ao_device *open_ao_live()
     return ao_open_live(ao_default_driver_id(), &sample_format, NULL);
 }
 
-static ao_device *open_ao_wav(const char *name)
+static ao_device *open_ao_file(const char *name, const char *type)
 {
-    return ao_open_file(ao_driver_id("wav"), name, 1, &sample_format, NULL);
+    return ao_open_file(ao_driver_id(type), name, 1, &sample_format, NULL);
 }
 
 static void reset_audio_buffers(state_t *st)
@@ -512,7 +512,7 @@ static void *input_main(void *arg)
 
 static void help(const char *progname)
 {
-    fprintf(stderr, "Usage: %s [-v] [-q] [--am] [-l log-level] [-d device-index] [-H rtltcp-host] [-p ppm-error] [-g gain] [-r iq-input] [-w iq-output] [-o wav-output] [-T] [-D direct-sampling-mode] [--dump-hdc hdc-output] [--dump-aas-files directory] frequency program\n", progname);
+    fprintf(stderr, "Usage: %s [-v] [-q] [--am] [-l log-level] [-d device-index] [-H rtltcp-host] [-p ppm-error] [-g gain] [-r iq-input] [-w iq-output] [-o audio-output] [-t audio-type] [-T] [-D direct-sampling-mode] [--dump-hdc hdc-output] [--dump-aas-files directory] frequency program\n", progname);
 }
 
 static int parse_args(state_t *st, int argc, char *argv[])
@@ -525,6 +525,7 @@ static int parse_args(state_t *st, int argc, char *argv[])
     };
     const char *version = NULL;
     char *output_name = NULL, *audio_name = NULL, *hdc_name = NULL;
+    char *audio_type = "wav";
     char *endptr;
     int opt;
 
@@ -534,7 +535,7 @@ static int parse_args(state_t *st, int argc, char *argv[])
     st->direct_sampling = -1;
     st->ppm_error = INT_MIN;
 
-    while ((opt = getopt_long(argc, argv, "r:w:o:d:p:g:ql:vH:TD:", long_opts, NULL)) != -1)
+    while ((opt = getopt_long(argc, argv, "r:w:o:t:d:p:g:ql:vH:TD:", long_opts, NULL)) != -1)
     {
         switch (opt)
         {
@@ -555,6 +556,14 @@ static int parse_args(state_t *st, int argc, char *argv[])
             break;
         case 'o':
             audio_name = optarg;
+            break;
+        case 't':
+            if ((strcmp(optarg, "wav") != 0) && (strcmp(optarg, "raw") != 0))
+            {
+                log_fatal("Audio type must be either wav or raw.");
+                return -1;
+            }
+            audio_type = optarg;
             break;
         case 'd':
             st->device_index = strtoul(optarg, NULL, 10);
@@ -623,7 +632,7 @@ static int parse_args(state_t *st, int argc, char *argv[])
     }
 
     if (audio_name)
-        st->dev = open_ao_wav(audio_name);
+        st->dev = open_ao_file(audio_name, audio_type);
     else
         st->dev = open_ao_live();
 

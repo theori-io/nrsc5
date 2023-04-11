@@ -34,8 +34,8 @@ Follow the Ubuntu instructions above, but replace the first command with the fol
 
 ## Building on macOS using [Homebrew](https://brew.sh)
 
-    $ curl https://raw.githubusercontent.com/theori-io/nrsc5/master/nrsc5.rb > /tmp/nrsc5
-    $ brew install --HEAD -s /tmp/nrsc5
+    $ curl https://raw.githubusercontent.com/theori-io/nrsc5/master/nrsc5.rb > /tmp/nrsc5.rb
+    $ brew install --HEAD -s /tmp/nrsc5.rb
 
 ## Building for Windows
 

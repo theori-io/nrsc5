@@ -473,11 +473,11 @@ static void *input_main(void *arg)
 
     while (!st->done)
     {
-        int ch;
-
 #ifdef __MINGW32__
+        int ch;
         ch = _getch();
 #else
+        char ch;
         if (read(STDIN_FILENO, &ch, 1) != 1)
             break;
 #endif

@@ -494,6 +494,28 @@ void sync_process_fm(sync_t *st)
                     }
                 }
             }
+            if (compatibility_mode[st->psmi] == 11) {
+                for (i = LB_START + (PM_PARTITIONS + 2) * PARTITION_WIDTH; i < LB_START + (PM_PARTITIONS + 4) * PARTITION_WIDTH; i += PARTITION_WIDTH)
+                {
+                    unsigned int j;
+                    for (j = 1; j < PARTITION_WIDTH; j++)
+                    {
+                        c = st->buffer[i + j][n];
+                        decode_push_px2(&st->input->decode, DEMOD(crealf(c)) * mult_lb);
+                        decode_push_px2(&st->input->decode, DEMOD(cimagf(c)) * mult_lb);
+                    }
+                }
+                for (i = UB_END - (PM_PARTITIONS + 4) * PARTITION_WIDTH; i < UB_END - (PM_PARTITIONS + 2) * PARTITION_WIDTH; i += PARTITION_WIDTH)
+                {
+                    unsigned int j;
+                    for (j = 1; j < PARTITION_WIDTH; j++)
+                    {
+                        c = st->buffer[i + j][n];
+                        decode_push_px2(&st->input->decode, DEMOD(crealf(c)) * mult_ub);
+                        decode_push_px2(&st->input->decode, DEMOD(cimagf(c)) * mult_ub);
+                    }
+                }
+            }
         }
     }
 }

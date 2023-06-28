@@ -9,6 +9,8 @@
 #define MAX_AUDIO_SERVICES 8
 #define MAX_DATA_SERVICES 16
 #define NUM_PARAMETERS 12
+#define MAX_UNIVERSAL_SHORT_NAME_LEN 12
+#define MAX_UNIVERSAL_SHORT_NAME_FRAMES 2
 #define MAX_SLOGAN_LEN 95
 #define MAX_SLOGAN_FRAMES 16
 #define MAX_ALERT_LEN 381
@@ -58,6 +60,14 @@ typedef struct
     dsd_t data_services[MAX_DATA_SERVICES];
 
     int parameters[NUM_PARAMETERS];
+
+    char universal_short_name[MAX_UNIVERSAL_SHORT_NAME_LEN + 1];
+    char universal_short_name_final[MAX_UNIVERSAL_SHORT_NAME_LEN + 4];
+    uint8_t universal_short_name_have_frame[MAX_UNIVERSAL_SHORT_NAME_FRAMES];
+    int universal_short_name_encoding;
+    int universal_short_name_append;
+    int universal_short_name_len;
+    int universal_short_name_displayed;
 
     char slogan[MAX_SLOGAN_LEN + 1];
     uint8_t slogan_have_frame[MAX_SLOGAN_FRAMES];

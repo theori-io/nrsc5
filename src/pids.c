@@ -114,7 +114,11 @@ static void report(pids_t *st)
     if (st->country_code[0] != 0)
         country_code = st->country_code;
 
-    if (st->short_name[0] != 0)
+    if (st->universal_short_name_displayed)
+        name = utf8_encode(st->universal_short_name_encoding,
+                           st->universal_short_name_final,
+                           strlen(st->universal_short_name_final));
+    else if (st->short_name[0] != 0)
         name = st->short_name;
 
     if (st->slogan_displayed)
@@ -473,8 +477,44 @@ static void decode_sis(pids_t *st, uint8_t *bits)
             current_frame = decode_int(bits, &off, 4);
             if (bits[off++] == 0)
             {
-                // Fixme: implement Universal Short Station Name
-                off += 53;
+                if (current_frame >= MAX_UNIVERSAL_SHORT_NAME_FRAMES)
+                {
+                    log_error("unexpected frame number in Universal Short Station Name: %d", current_frame);
+                    off += 53;
+                    break;
+                }
+
+                if (current_frame == 0)
+                {
+                    st->universal_short_name_encoding = decode_int(bits, &off, 3);
+                    st->universal_short_name_append = bits[off++];
+                    st->universal_short_name_len = bits[off++] + 1;
+                    for (j = 0; j < 6; j++)
+                        st->universal_short_name[j] = decode_int(bits, &off, 8);
+                }
+                else
+                {
+                    off += 5; // reserved
+                    for (j = 0; j < 6; j++)
+                        st->universal_short_name[current_frame * 6 + j] = decode_int(bits, &off, 8);
+                }
+                st->universal_short_name_have_frame[current_frame] = 1;
+
+                if (st->universal_short_name_len >= 0 && !st->universal_short_name_displayed)
+                {
+                    int complete = 1;
+                    for (j = 0; j < st->universal_short_name_len; j++)
+                        complete &= st->universal_short_name_have_frame[j];
+
+                    if (complete)
+                    {
+                        strcpy(st->universal_short_name_final, st->universal_short_name);
+                        if (st->universal_short_name_append)
+                            strcat(st->universal_short_name_final, "-FM");
+                        st->universal_short_name_displayed = 1;
+                        updated = 1;
+                    }
+                }
             }
             else
             {
@@ -606,6 +646,13 @@ void pids_init(pids_t *st, input_t *input)
 
     for (i = 0; i < NUM_PARAMETERS; i++)
         st->parameters[i] = -1;
+
+    memset(st->universal_short_name, 0, sizeof(st->universal_short_name));
+    memset(st->universal_short_name_final, 0, sizeof(st->universal_short_name_final));
+    memset(st->universal_short_name_have_frame, 0, sizeof(st->universal_short_name_have_frame));
+    st->universal_short_name_append = -1;
+    st->universal_short_name_len = -1;
+    st->universal_short_name_displayed = 0;
 
     memset(st->slogan, 0, sizeof(st->slogan));
     memset(st->slogan_have_frame, 0, sizeof(st->slogan_have_frame));

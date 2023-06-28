@@ -21,6 +21,10 @@
 #include "unicode.h"
 
 static char *chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ ?-*$ ";
+static int payload_sizes[] = {
+    32, 22, 58, 32, 27, 58, 27, 22,
+    58, 58, 27, -1, -1, -1, -1, -1
+};
 
 static uint16_t crc12(uint8_t *bits)
 {
@@ -202,7 +206,7 @@ static void decode_sis(pids_t *st, uint8_t *bits)
 
     for (i = 0; i < payloads; i++)
     {
-        int msg_id, j;
+        int msg_id, payload_size, j;
         char country_code[3] = {0};
         int fcc_facility_id;
         char short_name[8] = {0};
@@ -210,6 +214,7 @@ static void decode_sis(pids_t *st, uint8_t *bits)
         int current_frame;
         int last_frame;
         float latitude, longitude;
+        int altitude_high, altitude_low;
         int category, prog_num;
         asd_t audio_service;
         dsd_t data_service;
@@ -217,11 +222,23 @@ static void decode_sis(pids_t *st, uint8_t *bits)
 
         if (off > 60) break;
         msg_id = decode_int(bits, &off, 4);
+        payload_size = payload_sizes[msg_id];
+
+        if (payload_size == -1)
+        {
+            log_error("unexpected msg_id: %d", msg_id);
+            break;
+        }
+
+        if (off > 64 - payload_size)
+        {
+            log_error("not enough room for SIS payload, msg_id: %d", msg_id);
+            break;
+        }
 
         switch (msg_id)
         {
         case 0:
-            if (off > 64 - 32) break;
             for (j = 0; j < 2; j++)
             {
                 country_code[j] = decode_char5(bits, &off);
@@ -237,7 +254,6 @@ static void decode_sis(pids_t *st, uint8_t *bits)
             }
             break;
         case 1:
-            if (off > 64 - 22) break;
             for (j = 0; j < 4; j++)
             {
                 short_name[j] = decode_char5(bits, &off);
@@ -253,7 +269,6 @@ static void decode_sis(pids_t *st, uint8_t *bits)
             }
             break;
         case 2:
-            if (off > 64 - 58) break;
             off += 55;
             seq = decode_int(bits, &off, 3);
             off -= 58;
@@ -292,14 +307,14 @@ static void decode_sis(pids_t *st, uint8_t *bits)
             off += 32;
             break;
         case 4:
-            if (off > 64 - 27) break;
             if (bits[off++])
             {
                 latitude = decode_signed_int(bits, &off, 22) / 8192.0;
-                st->altitude = (st->altitude & 0x0f0) | (decode_int(bits, &off, 4) << 8);
-                if (latitude != st->latitude)
+                altitude_high = decode_int(bits, &off, 4) << 8;
+                if ((latitude != st->latitude) || (altitude_high != (st->altitude & 0xf00)))
                 {
                     st->latitude = latitude;
+                    st->altitude = (st->altitude & 0x0f0) | altitude_high;
                     if (!isnan(st->longitude))
                         updated = 1;
                 }
@@ -307,17 +322,17 @@ static void decode_sis(pids_t *st, uint8_t *bits)
             else
             {
                 longitude = decode_signed_int(bits, &off, 22) / 8192.0;
-                st->altitude = (st->altitude & 0xf00) | (decode_int(bits, &off, 4) << 4);
-                if (longitude != st->longitude)
+                altitude_low = decode_int(bits, &off, 4) << 4;
+                if ((longitude != st->longitude) || (altitude_low != (st->altitude & 0x0f0)))
                 {
                     st->longitude = longitude;
+                    st->altitude = (st->altitude & 0xf00) | altitude_low;
                     if (!isnan(st->latitude))
                         updated = 1;
                 }
             }
             break;
         case 5:
-            if (off > 64 - 58) break;
             current_frame = decode_int(bits, &off, 5);
             seq = decode_int(bits, &off, 2);
 
@@ -359,7 +374,7 @@ static void decode_sis(pids_t *st, uint8_t *bits)
             }
             break;
         case 6:
-            if (off > 64 - 27) break;
+        case 10:
             category = decode_int(bits, &off, 2);
             switch (category)
             {
@@ -411,7 +426,6 @@ static void decode_sis(pids_t *st, uint8_t *bits)
             }
             break;
         case 7:
-            if (off > 64 - 22) break;
             index = decode_int(bits, &off, 6);
             parameter = decode_int(bits, &off, 16);
             if (index >= NUM_PARAMETERS)
@@ -473,7 +487,6 @@ static void decode_sis(pids_t *st, uint8_t *bits)
             }
             break;
         case 8:
-            if (off > 64 - 58) break;
             current_frame = decode_int(bits, &off, 4);
             if (bits[off++] == 0)
             {
@@ -549,7 +562,6 @@ static void decode_sis(pids_t *st, uint8_t *bits)
             }
             break;
         case 9:
-            if (off > 64 - 58) break;
             current_frame = decode_int(bits, &off, 6);
             seq = decode_int(bits, &off, 2);
             off += 2; // reserved
@@ -590,8 +602,6 @@ static void decode_sis(pids_t *st, uint8_t *bits)
                 }
             }
             break;
-        default:
-            log_error("unexpected msg_id: %d", msg_id);
         }
     }
 
@@ -617,7 +627,7 @@ void pids_init(pids_t *st, input_t *input)
     int i;
 
     memset(st->country_code, 0, sizeof(st->country_code));
-    st->fcc_facility_id = 0;
+    st->fcc_facility_id = -1;
 
     memset(st->short_name, 0, sizeof(st->short_name));
 

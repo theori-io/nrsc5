@@ -287,7 +287,10 @@ void input_set_sync_state(input_t *st, unsigned int new_state)
     if (st->sync_state == SYNC_STATE_FINE)
         nrsc5_report_lost_sync(st->radio);
     if (new_state == SYNC_STATE_FINE)
+    {
         nrsc5_report_sync(st->radio);
+        log_debug("Primary service mode: %d", st->sync.psmi);
+    }
 
     st->sync_state = new_state;
 }

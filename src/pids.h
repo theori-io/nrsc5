@@ -54,6 +54,7 @@ typedef struct
     int message_priority;
     int message_encoding;
     int message_len;
+    unsigned int message_checksum;
     int message_displayed;
 
     asd_t audio_services[MAX_AUDIO_SERVICES];

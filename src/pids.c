@@ -348,7 +348,7 @@ static void decode_sis(pids_t *st, uint8_t *bits)
                 st->message_priority = bits[off++];
                 st->message_encoding = decode_int(bits, &off, 3);
                 st->message_len = decode_int(bits, &off, 8);
-                off += 7; // checksum
+                st->message_checksum = decode_int(bits, &off, 7);
                 for (j = 0; j < 4; j++)
                     st->message[j] = decode_int(bits, &off, 8);
             }
@@ -368,8 +368,20 @@ static void decode_sis(pids_t *st, uint8_t *bits)
 
                 if (complete)
                 {
-                    st->message_displayed = 1;
-                    updated = 1;
+                    unsigned int checksum = 0;
+                    for (j = 0; j < st->message_len; j++)
+                        checksum += (unsigned char) st->message[j];
+                    checksum = (((checksum >> 8) & 0x7f) + (checksum & 0xff)) & 0x7f;
+
+                    if (checksum == st->message_checksum)
+                    {
+                        st->message_displayed = 1;
+                        updated = 1;
+                    }
+                    else
+                    {
+                        log_warn("Invalid message checksum: %d != %d", st->message_checksum, checksum);
+                    }
                 }
             }
             break;

@@ -495,6 +495,9 @@ static void decode_sis(pids_t *st, uint8_t *bits)
                         );
                     }
                     break;
+                case 12:
+                    log_debug("Importer configuration number: %d", parameter);
+                    break;
                 }
             }
             break;

@@ -123,7 +123,7 @@ static void report(pids_t *st)
                            st->universal_short_name_final,
                            strlen(st->universal_short_name_final));
     else if (st->short_name[0] != 0)
-        name = st->short_name;
+        name = strdup(st->short_name);
 
     if (st->slogan_displayed)
         slogan = utf8_encode(st->slogan_encoding, st->slogan, st->slogan_len);
@@ -176,6 +176,7 @@ static void report(pids_t *st)
     nrsc5_report_sis(st->input->radio, country_code, st->fcc_facility_id, name, slogan, message, alert,
                      latitude, longitude, altitude, audio_services, data_services);
 
+    free(name);
     free(slogan);
     free(message);
     free(alert);

@@ -105,7 +105,7 @@ static void report(pids_t *st)
 {
     int i;
     const char *country_code = NULL;
-    const char *name = NULL;
+    char *name = NULL;
     char *slogan = NULL;
     char *message = NULL;
     char *alert = NULL;

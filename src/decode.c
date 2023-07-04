@@ -219,7 +219,7 @@ void decode_process_p1(decode_t *st)
     nrsc5_conv_decode_p1(st->viterbi_p1, st->scrambler_p1);
     nrsc5_report_ber(st->input->radio, (float) bit_errors_p1_fm(st->viterbi_p1, st->scrambler_p1) / P1_FRAME_LEN_ENCODED_FM);
     descramble(st->scrambler_p1, P1_FRAME_LEN_FM);
-    frame_push(&st->input->frame, st->scrambler_p1, P1_FRAME_LEN_FM);
+    frame_push(&st->input->frame, st->scrambler_p1, P1_FRAME_LEN_FM, P1_LOGICAL_CHANNEL);
 }
 
 void decode_process_pids(decode_t *st)
@@ -247,20 +247,24 @@ void decode_process_pids(decode_t *st)
     pids_frame_push(&st->pids, st->scrambler_pids);
 }
 
-void decode_process_p3_p4(decode_t *st, interleaver_iv_t *interleaver, int8_t *viterbi, uint8_t *scrambler)
+void decode_process_p3_p4(decode_t *st, interleaver_iv_t *interleaver, int8_t *viterbi, uint8_t *scrambler, int frame_len, logical_channel_t lc)
 {
-    const unsigned int J = 4, B = 32, C = 36, M = 2, N = 147456;
+    const unsigned int J = (frame_len == P3_FRAME_LEN_FM) ? 4 : 2;
+    const unsigned int B = 32;
+    const unsigned int C = 36;
+    const unsigned int M = (frame_len == P3_FRAME_LEN_FM) ? 2 : 4;
+    const unsigned int N = (frame_len == P3_FRAME_LEN_FM) ? 147456 : 73728;
     const unsigned int bk_bits = 32 * C;
     const unsigned int bk_adj = 32 * C - 1;
     unsigned int i, out = 0;
-    for (i = 0; i < P3_FRAME_LEN_ENCODED_FM; i++)
+    for (i = 0; i < frame_len * 2; i++)
     {
         int partition = ((interleaver->i + 2 * (M / 4)) / M) % J;
         unsigned int pti = interleaver->pt[partition]++;
         int block = (pti + (partition * 7) - (bk_adj * (pti / bk_bits))) % B;
         int row = ((11 * pti) % bk_bits) / C;
         int column = (pti * 11) % C;
-        viterbi[out++] = interleaver->internal[(block * 32 + row) * 144 + partition * C + column];
+        viterbi[out++] = interleaver->internal[(block * 32 + row) * (J * C) + partition * C + column];
         if ((out % 6) == 1 || (out % 6) == 4) // depuncture, [1, 0, 1, 1, 0, 1]
             viterbi[out++] = 0;
 
@@ -269,9 +273,9 @@ void decode_process_p3_p4(decode_t *st, interleaver_iv_t *interleaver, int8_t *v
     }
     if (interleaver->ready)
     {
-        nrsc5_conv_decode_p3_p4(viterbi, scrambler);
-        descramble(scrambler, P3_FRAME_LEN_FM);
-        frame_push(&st->input->frame, scrambler, P3_FRAME_LEN_FM);
+        nrsc5_conv_decode_p3_p4(viterbi, scrambler, frame_len);
+        descramble(scrambler, frame_len);
+        frame_push(&st->input->frame, scrambler, frame_len, lc);
     }
     if (interleaver->i == N)
     {
@@ -330,12 +334,12 @@ void decode_process_p1_p3_am(decode_t *st)
         nrsc5_conv_decode_e1(st->viterbi_p1_am + (block * P1_FRAME_LEN_AM * 3), st->scrambler_p1_am, P1_FRAME_LEN_AM);
         total_errors += bit_errors_p1_am(st->viterbi_p1_am + (block * P1_FRAME_LEN_AM * 3), st->scrambler_p1_am);
         descramble(st->scrambler_p1_am, P1_FRAME_LEN_AM);
-        frame_push(&st->input->frame, st->scrambler_p1_am, P1_FRAME_LEN_AM);
+        frame_push(&st->input->frame, st->scrambler_p1_am, P1_FRAME_LEN_AM, P1_LOGICAL_CHANNEL);
     }
     nrsc5_conv_decode_e2(st->viterbi_p3_am, st->scrambler_p3_am, P3_FRAME_LEN_AM);
     total_errors += bit_errors_p3_am(st->viterbi_p3_am, st->scrambler_p3_am);
     descramble(st->scrambler_p3_am, P3_FRAME_LEN_AM);
-    frame_push(&st->input->frame, st->scrambler_p3_am, P3_FRAME_LEN_AM);
+    frame_push(&st->input->frame, st->scrambler_p3_am, P3_FRAME_LEN_AM, P3_LOGICAL_CHANNEL);
 
     nrsc5_report_ber(st->input->radio, (float) total_errors / (8 * P1_FRAME_LEN_ENCODED_AM + P3_FRAME_LEN_ENCODED_AM));
 }

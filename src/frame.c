@@ -21,8 +21,10 @@
 #include "rs_char.h"
 
 #define PCI_AUDIO 0x38D8D3
+#define PCI_AUDIO_OPP 0xCE3634
 #define PCI_AUDIO_FIXED 0xE3634C
 #define PCI_AUDIO_FIXED_OPP 0x8D8D33
+#define PCI_FIXED 0x3634CE
 
 #define MAX_AUDIO_PACKETS 64
 
@@ -143,7 +145,8 @@ static uint16_t fcs16(const uint8_t *cp, int len)
 static int has_fixed(frame_t *st)
 {
     return (st->pci & 0xFFFFFC) == (PCI_AUDIO_FIXED & 0xFFFFFC)
-           || (st->pci & 0xFFFFFC) == (PCI_AUDIO_FIXED & 0xFFFFFC);
+           || (st->pci & 0xFFFFFC) == (PCI_AUDIO_FIXED_OPP & 0xFFFFFC)
+           || (st->pci & 0xFFFFFC) == (PCI_FIXED & 0xFFFFFC);
 }
 
 static int fix_header(frame_t *st, uint8_t *buf)
@@ -308,7 +311,7 @@ static int unescape_hdlc(uint8_t *data, int length)
     return p - data;
 }
 
-static void aas_push(frame_t *st, uint8_t* psd, unsigned int length)
+static void aas_push(frame_t *st, uint8_t* psd, unsigned int length, logical_channel_t lc)
 {
     length = unescape_hdlc(psd, length);
 
@@ -331,7 +334,7 @@ static void aas_push(frame_t *st, uint8_t* psd, unsigned int length)
     }
 }
 
-static void parse_hdlc(frame_t *st, void (*process)(frame_t *, uint8_t *, unsigned int), uint8_t *buffer, int *bufidx, int bufsz, uint8_t *input, size_t inlen)
+static void parse_hdlc(frame_t *st, void (*process)(frame_t *, uint8_t *, unsigned int, logical_channel_t), uint8_t *buffer, int *bufidx, int bufsz, uint8_t *input, size_t inlen, logical_channel_t lc)
 {
     for (size_t i = 0; i < inlen; i++)
     {
@@ -339,7 +342,7 @@ static void parse_hdlc(frame_t *st, void (*process)(frame_t *, uint8_t *, unsign
         if (byte == 0x7E)
         {
             if (*bufidx >= 0)
-                process(st, buffer, *bufidx);
+                process(st, buffer, *bufidx, lc);
             *bufidx = 0;
         }
         else if (*bufidx >= 0)
@@ -355,8 +358,9 @@ static void parse_hdlc(frame_t *st, void (*process)(frame_t *, uint8_t *, unsign
     }
 }
 
-static void process_fixed_ccc(frame_t *st, uint8_t *buf, unsigned int buflen)
+static void process_fixed_ccc(frame_t *st, uint8_t *buf, unsigned int buflen, logical_channel_t lc)
 {
+    ccc_data_t *ccc_data = &st->ccc_data[lc];
     buflen = unescape_hdlc(buf, buflen);
 
     // padding
@@ -364,7 +368,7 @@ static void process_fixed_ccc(frame_t *st, uint8_t *buf, unsigned int buflen)
         return;
 
     // ignore new CCC packets (XXX they shouldn't change)
-    if (st->fixed_ready)
+    if (ccc_data->fixed_ready)
         return;
 
     if (fcs16(buf, buflen) != VALIDFCS16)
@@ -375,7 +379,7 @@ static void process_fixed_ccc(frame_t *st, uint8_t *buf, unsigned int buflen)
 
     for (unsigned int i = 0; i < 4; i++)
     {
-        fixed_subchannel_t *subch = &st->subchannel[i];
+        fixed_subchannel_t *subch = &ccc_data->subchannel[i];
         subch->mode = 0;
         subch->length = 0;
 
@@ -383,7 +387,7 @@ static void process_fixed_ccc(frame_t *st, uint8_t *buf, unsigned int buflen)
         {
             uint16_t mode = buf[1 + i * 4] | (buf[2 + i * 4] << 8);
             uint16_t length = buf[3 + i * 4] | (buf[4 + i * 4] << 8);
-            log_info("Subchannel %d: mode=%d, length=%d", i, mode, length);
+            log_info("Logical channel %d, Subchannel %d: mode=%d, length=%d", lc, i, mode, length);
 
             if (mode == 0)
             {
@@ -399,44 +403,47 @@ static void process_fixed_ccc(frame_t *st, uint8_t *buf, unsigned int buflen)
         }
     }
 
-    st->fixed_ready = 1;
+    ccc_data->fixed_ready = 1;
 }
 
 /* FIXME: We only support mode=0 (no FEC, no interleaving) */
-static void process_fixed_block(frame_t *st, int i)
+static void process_fixed_block(frame_t *st, int i, logical_channel_t lc)
 {
-    fixed_subchannel_t *subch = &st->subchannel[i];
-    parse_hdlc(st, aas_push, subch->data, &subch->idx, MAX_AAS_LEN, &subch->blocks[4], 255);
+    ccc_data_t *ccc_data = &st->ccc_data[lc];
+    fixed_subchannel_t *subch = &ccc_data->subchannel[i];
+    parse_hdlc(st, aas_push, subch->data, &subch->idx, MAX_AAS_LEN, &subch->blocks[4], 255, lc);
 }
 
-static size_t process_fixed_data(frame_t *st, size_t length)
+static size_t process_fixed_data(frame_t *st, size_t length, logical_channel_t lc)
 {
+    ccc_data_t *ccc_data = &st->ccc_data[lc];
+
     static const uint8_t bbm[] = { 0x7D, 0x3A, 0xE2, 0x42 };
     uint8_t *p = &st->buffer[length - 1];
 
-    if (st->sync_count < 2)
+    if (ccc_data->sync_count < 2)
     {
         unsigned int width = (*p & 0xF) * 2;
-        if (st->sync_width == width)
-            st->sync_count++;
+        if (ccc_data->sync_width == width)
+            ccc_data->sync_count++;
         else
-            st->sync_count = 0;
-        st->sync_width = width;
+            ccc_data->sync_count = 0;
+        ccc_data->sync_width = width;
 
-        if (st->sync_count < 2)
+        if (ccc_data->sync_count < 2)
             return p - st->buffer;
     }
 
-    p -= st->sync_width;
-    parse_hdlc(st, process_fixed_ccc, st->ccc_buf, &st->ccc_idx, sizeof(st->ccc_buf), p, st->sync_width);
+    p -= ccc_data->sync_width;
+    parse_hdlc(st, process_fixed_ccc, ccc_data->ccc_buf, &ccc_data->ccc_idx, sizeof(ccc_data->ccc_buf), p, ccc_data->sync_width, lc);
 
     // wait until we have subchannel information
-    if (!st->fixed_ready)
+    if (!ccc_data->fixed_ready)
         return p - st->buffer;
 
     for (int i = 3; i >= 0; i--)
     {
-        fixed_subchannel_t *subch = &st->subchannel[i];
+        fixed_subchannel_t *subch = &ccc_data->subchannel[i];
         int length = subch->length;
 
         if (length == 0)
@@ -456,7 +463,7 @@ static size_t process_fixed_data(frame_t *st, size_t length)
             if (subch->block_idx == 255 + 4)
             {
                 // we have a complete block, deinterleave and process
-                process_fixed_block(st, i);
+                process_fixed_block(st, i, lc);
                 subch->block_idx = 0;
             }
         }
@@ -465,13 +472,13 @@ static size_t process_fixed_data(frame_t *st, size_t length)
     return p - st->buffer;
 }
 
-void frame_process(frame_t *st, size_t length)
+void frame_process(frame_t *st, size_t length, logical_channel_t lc)
 {
     unsigned int offset = 0;
     unsigned int audio_end = length;
 
     if (has_fixed(st))
-        audio_end = process_fixed_data(st, length);
+        audio_end = process_fixed_data(st, length, lc);
 
     while (offset < audio_end - RS_CODEWORD_LEN)
     {
@@ -509,7 +516,7 @@ void frame_process(frame_t *st, size_t length)
             offset += parse_hef(st->buffer + offset, audio_end - offset, &hef);
         prog = hef.prog_num;
 
-        parse_hdlc(st, aas_push, st->psd_buf[prog], &st->psd_idx[prog], MAX_AAS_LEN, st->buffer + offset, start + hdr.la_location + 1 - offset);
+        parse_hdlc(st, aas_push, st->psd_buf[prog], &st->psd_idx[prog], MAX_AAS_LEN, st->buffer + offset, start + hdr.la_location + 1 - offset, lc);
         offset = start + hdr.la_location + 1;
 
         for (j = 0; j < hdr.nop; ++j)
@@ -559,7 +566,7 @@ void frame_process(frame_t *st, size_t length)
 
 }
 
-void frame_push(frame_t *st, uint8_t *bits, size_t length)
+void frame_push(frame_t *st, uint8_t *bits, size_t length, logical_channel_t lc)
 {
     unsigned int start, offset, pci_len;
     unsigned int i, j = 0, h = 0, header = 0, val = 0;
@@ -575,6 +582,11 @@ void frame_push(frame_t *st, uint8_t *bits, size_t length)
     case P3_FRAME_LEN_FM:
         start = 120;
         offset = 184;
+        pci_len = 24;
+        break;
+    case P3_FRAME_LEN_FM / 2:
+        start = 120;
+        offset = 88;
         pci_len = 24;
         break;
     case P1_FRAME_LEN_AM:
@@ -616,7 +628,7 @@ void frame_push(frame_t *st, uint8_t *bits, size_t length)
     }
 
     st->pci = header;
-    frame_process(st, ptr - st->buffer);
+    frame_process(st, ptr - st->buffer, lc);
 }
 
 void frame_reset(frame_t *st)
@@ -631,10 +643,13 @@ void frame_reset(frame_t *st)
         st->psd_idx[prog] = -1;
     }
 
-    st->fixed_ready = 0;
-    st->sync_width = 0;
-    st->sync_count = 0;
-    st->ccc_idx = -1;
+    for (int channel = 0; channel < NUM_LOGICAL_CHANNELS; channel++)
+    {
+        st->ccc_data[channel].fixed_ready = 0;
+        st->ccc_data[channel].sync_width = 0;
+        st->ccc_data[channel].sync_count = 0;
+        st->ccc_data[channel].ccc_idx = -1;
+    }
 }
 
 void frame_init(frame_t *st, input_t *input)

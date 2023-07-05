@@ -82,6 +82,13 @@ typedef struct {
     int16_t r, i;
 } cint16_t;
 
+typedef enum {
+    P1_LOGICAL_CHANNEL,
+    P3_LOGICAL_CHANNEL,
+    P4_LOGICAL_CHANNEL,
+    NUM_LOGICAL_CHANNELS
+} logical_channel_t;
+
 static inline cint16_t cf_to_cq15(float complex x)
 {
     cint16_t cq15;

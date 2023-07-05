@@ -89,11 +89,11 @@ static char decode_char7(uint8_t *bits, int *off)
     return (char) decode_int(bits, off, 7);
 }
 
-static char *utf8_encode(int encoding, char *buf, int len)
+static char *utf8_encode(encoding_t encoding, char *buf, int len)
 {
-    if (encoding == 0)
+    if (encoding == ENCODING_ISO_8859_1)
         return iso_8859_1_to_utf_8((uint8_t *) buf, len);
-    else if (encoding == 4)
+    else if (encoding == ENCODING_UCS_2)
         return ucs_2_to_utf_8((uint8_t *) buf, len);
     else
         log_warn("Invalid encoding: %d", encoding);
@@ -128,7 +128,7 @@ static void report(pids_t *st)
     if (st->slogan_displayed)
         slogan = utf8_encode(st->slogan_encoding, st->slogan, st->slogan_len);
     else if (st->long_name_displayed)
-        slogan = strdup(st->long_name);
+        slogan = utf8_encode(ENCODING_ISO_8859_1, st->long_name, strlen(st->long_name));
 
     if (st->message_displayed)
         message = utf8_encode(st->message_encoding, st->message, st->message_len);

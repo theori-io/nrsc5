@@ -30,6 +30,12 @@ typedef struct
     int mime_type;
 } dsd_t;
 
+typedef enum
+{
+    ENCODING_ISO_8859_1 = 0,
+    ENCODING_UCS_2 = 4
+} encoding_t;
+
 typedef struct
 {
     struct input_t *input;
@@ -52,7 +58,7 @@ typedef struct
     uint8_t message_have_frame[MAX_MESSAGE_FRAMES];
     int message_seq;
     int message_priority;
-    int message_encoding;
+    encoding_t message_encoding;
     int message_len;
     unsigned int message_checksum;
     int message_displayed;
@@ -65,21 +71,21 @@ typedef struct
     char universal_short_name[MAX_UNIVERSAL_SHORT_NAME_LEN + 1];
     char universal_short_name_final[MAX_UNIVERSAL_SHORT_NAME_LEN + 4];
     uint8_t universal_short_name_have_frame[MAX_UNIVERSAL_SHORT_NAME_FRAMES];
-    int universal_short_name_encoding;
+    encoding_t universal_short_name_encoding;
     int universal_short_name_append;
     int universal_short_name_len;
     int universal_short_name_displayed;
 
     char slogan[MAX_SLOGAN_LEN + 1];
     uint8_t slogan_have_frame[MAX_SLOGAN_FRAMES];
-    int slogan_encoding;
+    encoding_t slogan_encoding;
     int slogan_len;
     int slogan_displayed;
 
     char alert[MAX_ALERT_LEN + 1];
     uint8_t alert_have_frame[MAX_ALERT_FRAMES];
     int alert_seq;
-    int alert_encoding;
+    encoding_t alert_encoding;
     int alert_len;
     int alert_cnt_len;
     int alert_displayed;

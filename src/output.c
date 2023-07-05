@@ -348,10 +348,7 @@ static void parse_sig(output_t *st, uint8_t *buf, unsigned int len)
             }
             else if (type == 0x69)
             {
-                char *name = malloc(l - 1);
-                memcpy(name, p + 1, l - 2);
-                name[l - 2] = 0;
-                service->name = name;
+                service->name = iso_8859_1_to_utf_8(p + 1, l - 2);
             }
             else if (type == 0x67)
             {

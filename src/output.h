@@ -16,7 +16,6 @@
 #define LOT_FRAGMENT_SIZE 256
 #define MAX_FILE_BYTES 65536
 #define MAX_LOT_FRAGMENTS (MAX_FILE_BYTES / LOT_FRAGMENT_SIZE)
-#define MAX_STREAM_BYTES 65543
 
 #define AAS_TYPE_STREAM 0
 #define AAS_TYPE_PACKET 1
@@ -52,22 +51,7 @@ typedef struct
     uint8_t type;
     unsigned int service_number;
     uint32_t mime;
-
-    union
-    {
-        struct
-        {
-            uint8_t prev[3];
-            uint8_t type;
-            uint16_t size;
-            uint8_t *data;
-            unsigned int idx;
-        } stream;
-        struct
-        {
-            aas_file_t files[MAX_LOT_FILES];
-        } lot;
-    };
+    aas_file_t lot_files[MAX_LOT_FILES];
 } aas_port_t;
 
 typedef struct

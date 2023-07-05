@@ -77,14 +77,14 @@ struct nrsc5_sig_component_t
             uint16_t port;  /**< distinguishes packets for this service */
             /** e.g. NRSC5_SERVICE_DATA_TYPE_AUDIO_RELATED_DATA */
             uint16_t service_data_type;
-            uint8_t type;   /**< 0 for stream,  1 for packet, 3 for LOT */
+            uint8_t type;   /**< 0 for stream, 1 for packet, 3 for LOT */
             uint32_t mime;  /**< content, e.g. NRSC5_MIME_STATION_LOGO */
         } data;
         /*! Audio service information
          */
         struct {
             uint8_t port;   /**< distinguishes packets for this service */
-            uint8_t type;   /**< 0 for stream,  1 for packet, 3 for LOT */
+            uint8_t type;   /**< 0 for stream, 1 for packet, 3 for LOT */
             uint32_t mime;  /**< content, e.g. NRSC5_MIME_HDC */
         } audio;
     };
@@ -135,7 +135,9 @@ enum
     NRSC5_EVENT_ID3,
     NRSC5_EVENT_SIG,
     NRSC5_EVENT_LOT,
-    NRSC5_EVENT_SIS
+    NRSC5_EVENT_SIS,
+    NRSC5_EVENT_STREAM,
+    NRSC5_EVENT_PACKET
 };
 
 enum
@@ -261,6 +263,8 @@ struct nrsc5_event_t
  * - `NRSC5_EVENT_ID3` : ID3 information packet arrived, see `id3` member
  *    and information in HD-Radio document SY_IDD_1028s.
  * - `NRSC5_EVENT_SIG` : service information arrived, see `sig` member
+ * - `NRSC5_EVENT_STREAM` : stream data available, see `stream` member
+ * - `NRSC5_EVENT_PACKET` : packet data available, see `packet` member
  * - `NRSC5_EVENT_LOT` : LOT file data available, see `lot` member
  * - `NRSC5_EVENT_SIS` : station information, see `sis` member
  */
@@ -304,6 +308,18 @@ struct nrsc5_event_t
                 int lot;
             } xhdr;
         } id3;
+        struct {
+            uint16_t port;
+            unsigned int size;
+            uint32_t mime;
+            const uint8_t *data;
+        } stream;
+        struct {
+            uint16_t port;
+            unsigned int size;
+            uint32_t mime;
+            const uint8_t *data;
+        } packet;
         struct {
             uint16_t port;
             unsigned int lot;

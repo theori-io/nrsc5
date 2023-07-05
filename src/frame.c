@@ -414,6 +414,16 @@ static void process_fixed_block(frame_t *st, int i, logical_channel_t lc)
     parse_hdlc(st, aas_push, subch->data, &subch->idx, MAX_AAS_LEN, &subch->blocks[4], 255, lc);
 }
 
+static unsigned int sync_width(uint8_t byte)
+{
+    if (byte == 0x00)
+        return 1;
+    else if ((byte >> 4) == (byte & 0xf))
+        return (byte & 0xf) * 2;
+    else
+        return 0; // invalid
+}
+
 static size_t process_fixed_data(frame_t *st, size_t length, logical_channel_t lc)
 {
     ccc_data_t *ccc_data = &st->ccc_data[lc];
@@ -423,8 +433,8 @@ static size_t process_fixed_data(frame_t *st, size_t length, logical_channel_t l
 
     if (ccc_data->sync_count < 2)
     {
-        unsigned int width = (*p & 0xF) * 2;
-        if (ccc_data->sync_width == width)
+        unsigned int width = sync_width(*p);
+        if ((width > 0) && (ccc_data->sync_width == width))
             ccc_data->sync_count++;
         else
             ccc_data->sync_count = 0;

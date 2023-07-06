@@ -71,15 +71,10 @@ static void aas_reset(output_t *st)
         aas_port_t *port = &st->ports[i];
         if (port->port == 0)
             continue;
-        switch (port->type)
+        if (port->type == AAS_TYPE_LOT)
         {
-        case AAS_TYPE_STREAM:
-            free(port->stream.data);
-            break;
-        case AAS_TYPE_LOT:
             for (int j = 0; j < MAX_LOT_FILES; j++)
-                aas_free_lot(&port->lot.files[j]);
-            break;
+                aas_free_lot(&port->lot_files[j]);
         }
     }
 
@@ -425,10 +420,10 @@ static aas_file_t *find_lot(aas_port_t *port, unsigned int lot)
 {
     for (int i = 0; i < MAX_LOT_FILES; i++)
     {
-        if (port->lot.files[i].timestamp == 0)
+        if (port->lot_files[i].timestamp == 0)
             continue;
-        if (port->lot.files[i].lot == lot)
-            return &port->lot.files[i];
+        if (port->lot_files[i].lot == lot)
+            return &port->lot_files[i];
     }
     return NULL;
 }
@@ -441,9 +436,9 @@ static aas_file_t *find_free_lot(aas_port_t *port)
 
     for (int i = 0; i < MAX_LOT_FILES; i++)
     {
-        unsigned int timestamp = port->lot.files[i].timestamp;
+        unsigned int timestamp = port->lot_files[i].timestamp;
         if (timestamp == 0)
-            return &port->lot.files[i];
+            return &port->lot_files[i];
         if (timestamp < min_timestamp)
         {
             min_timestamp = timestamp;
@@ -451,7 +446,7 @@ static aas_file_t *find_free_lot(aas_port_t *port)
         }
     }
 
-    file = &port->lot.files[min_idx];
+    file = &port->lot_files[min_idx];
     aas_free_lot(file);
     return file;
 }
@@ -478,63 +473,12 @@ static void process_port(output_t *st, uint16_t port_id, uint8_t *buf, unsigned 
     {
     case AAS_TYPE_STREAM:
     {
-        uint8_t frame_type;
-
-        if (port->stream.data == NULL)
-            port->stream.data = malloc(MAX_STREAM_BYTES);
-
-        if (port->mime == NRSC5_MIME_HERE_IMAGE)
-            frame_type = 0xF7;
-        else
-            frame_type = 0x0F;
-
-        while (len)
-        {
-            uint8_t x = *buf++;
-            len--;
-
-            // Wait until we find start of a packet. This is either:
-            //   - FF 0F
-            //   - FF F7 FF F7
-            if (port->stream.prev[0] == 0xFF && x == frame_type &&
-                    (frame_type != 0xF7 || (port->stream.prev[1] == frame_type && port->stream.prev[2] == 0xFF)))
-            {
-                if (port->stream.type != 0 && port->stream.idx > 0)
-                {
-                    port->stream.idx--;
-                    log_debug("Stream data: port=%04X type=%d size=%d size2=%d", port_id, port->stream.type, port->stream.idx, (port->stream.data[0] << 8) | port->stream.data[1]);
-                }
-                port->stream.idx = 0;
-                port->stream.prev[0] = 0;
-                port->stream.prev[1] = 0;
-                port->stream.prev[2] = 0;
-                port->stream.type = x;
-            }
-            else
-            {
-                if (port->stream.type != 0)
-                    port->stream.data[port->stream.idx++] = x;
-                port->stream.prev[2] = port->stream.prev[1];
-                port->stream.prev[1] = port->stream.prev[0];
-                port->stream.prev[0] = x;
-            }
-
-            if (port->stream.idx == MAX_STREAM_BYTES)
-            {
-                log_info("stream packet overflow (%04X)", port_id);
-                port->stream.type = 0;
-            }
-        }
+        nrsc5_report_stream(st->radio, port_id, len, port->mime, buf);
         break;
     }
     case AAS_TYPE_PACKET:
     {
-        if (len < 4)
-        {
-            log_warn("bad packet (port %04X, len %d)", port_id, len);
-            break;
-        }
-        log_debug("Packet data: port=%04X size=%d", port_id, len);
+        nrsc5_report_packet(st->radio, port_id, len, port->mime, buf);
         break;
     }
     case AAS_TYPE_LOT:

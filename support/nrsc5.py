@@ -24,6 +24,8 @@ class EventType(enum.Enum):
     SIG = 9
     LOT = 10
     SIS = 11
+    STREAM = 12
+    PACKET = 13
 
 
 class ServiceType(enum.Enum):
@@ -128,6 +130,8 @@ SIGDataComponent = collections.namedtuple("SIGDataComponent", ["port", "service_
 SIGComponent = collections.namedtuple("SIGComponent", ["type", "id", "audio", "data"])
 SIGService = collections.namedtuple("SIGService", ["type", "number", "name", "components"])
 SIG = collections.namedtuple("SIG", ["services"])
+STREAM = collections.namedtuple("STREAM", ["port", "mime", "data"])
+PACKET = collections.namedtuple("PACKET", ["port", "mime", "data"])
 LOT = collections.namedtuple("LOT", ["port", "lot", "mime", "name", "data"])
 SISAudioService = collections.namedtuple("SISAudioService", ["program", "access", "type", "sound_exp"])
 SISDataService = collections.namedtuple("SISDataService", ["access", "type", "mime_type"])
@@ -253,6 +257,24 @@ class _SIG(ctypes.Structure):
     ]
 
 
+class _STREAM(ctypes.Structure):
+    _fields_ = [
+        ("port", ctypes.c_uint16),
+        ("size", ctypes.c_uint),
+        ("mime", ctypes.c_uint32),
+        ("data", ctypes.POINTER(ctypes.c_char)),
+    ]
+
+
+class _PACKET(ctypes.Structure):
+    _fields_ = [
+        ("port", ctypes.c_uint16),
+        ("size", ctypes.c_uint),
+        ("mime", ctypes.c_uint32),
+        ("data", ctypes.POINTER(ctypes.c_char)),
+    ]
+
+
 class _LOT(ctypes.Structure):
     _fields_ = [
         ("port", ctypes.c_uint16),
@@ -314,6 +336,8 @@ class _EventUnion(ctypes.Union):
         ("audio", _Audio),
         ("id3", _ID3),
         ("sig", _SIG),
+        ("stream", _STREAM),
+        ("packet", _PACKET),
         ("lot", _LOT),
         ("sis", _SIS),
     ]
@@ -414,6 +438,12 @@ class NRSC5:
                 evt.append(SIGService(ServiceType(service.type), service.number,
                                       self._decode(service.name), components))
                 service_ptr = service.next
+        elif evt_type == EventType.STREAM:
+            stream = c_evt.u.stream
+            evt = STREAM(stream.port, MIMEType(stream.mime), stream.data[:stream.size])
+        elif evt_type == EventType.PACKET:
+            packet = c_evt.u.packet
+            evt = PACKET(packet.port, MIMEType(packet.mime), packet.data[:packet.size])
         elif evt_type == EventType.LOT:
             lot = c_evt.u.lot
             evt = LOT(lot.port, lot.lot, MIMEType(lot.mime), self._decode(lot.name), lot.data[:lot.size])

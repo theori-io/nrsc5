@@ -142,6 +142,14 @@ static uint16_t fcs16(const uint8_t *cp, int len)
     return (crc);
 }
 
+static int has_audio(frame_t *st)
+{
+    return (st->pci & 0xFFFFFC) == (PCI_AUDIO & 0xFFFFFC)
+           || (st->pci & 0xFFFFFC) == (PCI_AUDIO_OPP & 0xFFFFFC)
+           || (st->pci & 0xFFFFFC) == (PCI_AUDIO_FIXED & 0xFFFFFC)
+           || (st->pci & 0xFFFFFC) == (PCI_AUDIO_FIXED_OPP & 0xFFFFFC);
+}
+
 static int has_fixed(frame_t *st)
 {
     return (st->pci & 0xFFFFFC) == (PCI_AUDIO_FIXED & 0xFFFFFC)
@@ -489,6 +497,9 @@ void frame_process(frame_t *st, size_t length, logical_channel_t lc)
 
     if (has_fixed(st))
         audio_end = process_fixed_data(st, length, lc);
+    
+    if (!has_audio(st))
+        return;
 
     while (offset < audio_end - RS_CODEWORD_LEN)
     {

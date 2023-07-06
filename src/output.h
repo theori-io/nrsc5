@@ -40,6 +40,7 @@ typedef struct
     unsigned int timestamp;
     char *name;
     uint32_t mime;
+    struct tm expiry_utc;
     uint16_t lot;
     uint32_t size;
     uint8_t **fragments;

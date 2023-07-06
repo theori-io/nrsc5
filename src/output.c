@@ -19,6 +19,7 @@
 #include <errno.h>
 #include <limits.h>
 #include <string.h>
+#include <time.h>
 #include <sys/time.h>
 
 #include "defines.h"
@@ -489,6 +490,7 @@ static void process_port(output_t *st, uint16_t port_id, uint8_t *buf, unsigned 
             return;
         }
         uint8_t hdrlen = buf[0];
+        // uint8_t repeat = buf[1];
         uint16_t lot = buf[2] | (buf[3] << 8);
         uint32_t seq = buf[4] | (buf[5] << 8) | (buf[6] << 16) | ((uint32_t)buf[7] << 24);
         if (hdrlen < 8 || hdrlen > len)
@@ -523,10 +525,16 @@ static void process_port(output_t *st, uint16_t port_id, uint8_t *buf, unsigned 
                 return;
             }
 
-            // uint32_t == 1
-            // uint32_t xxx
-            // uint32_t size
-            // uint32_t mimeHash
+            uint32_t version = buf[0] | (buf[1] << 8) | (buf[2] << 16) | ((uint32_t)buf[3] << 24);
+            if (version != 1)
+                log_warn("unknown LOT version: %d", version);
+
+            file->expiry_utc.tm_year = ((buf[7] << 4) | (buf[6] >> 4)) - 1900;
+            file->expiry_utc.tm_mon = (buf[6] & 0xf) - 1;
+            file->expiry_utc.tm_mday = (buf[5] >> 3);
+            file->expiry_utc.tm_hour = ((buf[5] & 0x7) << 2) | (buf[4] >> 6);
+            file->expiry_utc.tm_min = (buf[4] & 0x3f);
+
             file->size = buf[8] | (buf[9] << 8) | (buf[10] << 16) | ((uint32_t)buf[11] << 24);
             file->mime = buf[12] | (buf[13] << 8) | (buf[14] << 16) | ((uint32_t)buf[15] << 24);
             buf += 16;
@@ -578,7 +586,7 @@ static void process_port(output_t *st, uint16_t port_id, uint8_t *buf, unsigned 
                 uint8_t *data = malloc(num_fragments * LOT_FRAGMENT_SIZE);
                 for (int i = 0; i < num_fragments; i++)
                     memcpy(data + i * LOT_FRAGMENT_SIZE, file->fragments[i], LOT_FRAGMENT_SIZE);
-                nrsc5_report_lot(st->radio, port->port, file->lot, file->size, file->mime, file->name, data);
+                nrsc5_report_lot(st->radio, port->port, file->lot, file->size, file->mime, &file->expiry_utc, file->name, data);
                 free(data);
                 aas_free_lot(file);
             }

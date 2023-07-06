@@ -1,5 +1,6 @@
 import collections
 import ctypes
+import datetime
 import enum
 import math
 import platform
@@ -132,7 +133,7 @@ SIGService = collections.namedtuple("SIGService", ["type", "number", "name", "co
 SIG = collections.namedtuple("SIG", ["services"])
 STREAM = collections.namedtuple("STREAM", ["port", "mime", "data"])
 PACKET = collections.namedtuple("PACKET", ["port", "mime", "data"])
-LOT = collections.namedtuple("LOT", ["port", "lot", "mime", "name", "data"])
+LOT = collections.namedtuple("LOT", ["port", "lot", "mime", "expiry_utc", "name", "data"])
 SISAudioService = collections.namedtuple("SISAudioService", ["program", "access", "type", "sound_exp"])
 SISDataService = collections.namedtuple("SISDataService", ["access", "type", "mime_type"])
 SIS = collections.namedtuple("SIS", ["country_code", "fcc_facility_id", "name", "slogan", "message", "alert",
@@ -275,12 +276,27 @@ class _PACKET(ctypes.Structure):
     ]
 
 
+class _TimeStruct(ctypes.Structure):
+    _fields_ = [
+        ("tm_sec", ctypes.c_int),
+        ("tm_min", ctypes.c_int),
+        ("tm_hour", ctypes.c_int),
+        ("tm_mday", ctypes.c_int),
+        ("tm_mon", ctypes.c_int),
+        ("tm_year", ctypes.c_int),
+        ("tm_wday", ctypes.c_int),
+        ("tm_yday", ctypes.c_int),
+        ("tm_isdst", ctypes.c_int),
+    ]
+
+
 class _LOT(ctypes.Structure):
     _fields_ = [
         ("port", ctypes.c_uint16),
         ("lot", ctypes.c_uint),
         ("size", ctypes.c_uint),
         ("mime", ctypes.c_uint32),
+        ("expiry_utc", ctypes.POINTER(_TimeStruct)),
         ("name", ctypes.c_char_p),
         ("data", ctypes.POINTER(ctypes.c_char)),
     ]
@@ -446,7 +462,17 @@ class NRSC5:
             evt = PACKET(packet.port, MIMEType(packet.mime), packet.data[:packet.size])
         elif evt_type == EventType.LOT:
             lot = c_evt.u.lot
-            evt = LOT(lot.port, lot.lot, MIMEType(lot.mime), self._decode(lot.name), lot.data[:lot.size])
+            expiry_struct = lot.expiry_utc.contents
+            expiry_time = datetime.datetime(
+                expiry_struct.tm_year + 1900,
+                expiry_struct.tm_mon + 1,
+                expiry_struct.tm_mday,
+                expiry_struct.tm_hour,
+                expiry_struct.tm_min,
+                expiry_struct.tm_sec,
+                tzinfo=datetime.timezone.utc
+            )
+            evt = LOT(lot.port, lot.lot, MIMEType(lot.mime), expiry_time, self._decode(lot.name), lot.data[:lot.size])
         elif evt_type == EventType.SIS:
             sis = c_evt.u.sis
 

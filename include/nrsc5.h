@@ -311,12 +311,14 @@ struct nrsc5_event_t
         } id3;
         struct {
             uint16_t port;
+            uint16_t seq;
             unsigned int size;
             uint32_t mime;
             const uint8_t *data;
         } stream;
         struct {
             uint16_t port;
+            uint16_t seq;
             unsigned int size;
             uint32_t mime;
             const uint8_t *data;

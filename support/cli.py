@@ -234,11 +234,11 @@ class NRSC5CLI:
                                      component.data.service_data_type,
                                      component.data.type, component.data.mime)
         elif evt_type == nrsc5.EventType.STREAM:
-            logging.info("Stream data: port=%04X mime=%s size=%s",
-                         evt.port, evt.mime, len(evt.data))
+            logging.info("Stream data: port=%04X seq=%04X mime=%s size=%s",
+                         evt.port, evt.seq, evt.mime, len(evt.data))
         elif evt_type == nrsc5.EventType.PACKET:
-            logging.info("Packet data: port=%04X mime=%s size=%s",
-                         evt.port, evt.mime, len(evt.data))
+            logging.info("Packet data: port=%04X seq=%04X mime=%s size=%s",
+                         evt.port, evt.seq, evt.mime, len(evt.data))
         elif evt_type == nrsc5.EventType.LOT:
             time_str = evt.expiry_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
             logging.info("LOT file: port=%04X lot=%s name=%s size=%s mime=%s expiry=%s",

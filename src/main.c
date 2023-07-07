@@ -365,10 +365,10 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
         }
         break;
     case NRSC5_EVENT_STREAM:
-        log_info("Stream data: port=%04X mime=%08X size=%d", evt->stream.port, evt->stream.mime, evt->stream.size);
+        log_info("Stream data: port=%04X seq=%04X mime=%08X size=%d", evt->stream.port, evt->stream.seq, evt->stream.mime, evt->stream.size);
         break;
     case NRSC5_EVENT_PACKET:
-        log_info("Packet data: port=%04X mime=%08X size=%d", evt->packet.port, evt->packet.mime, evt->packet.size);
+        log_info("Packet data: port=%04X seq=%04X mime=%08X size=%d", evt->packet.port, evt->packet.seq, evt->packet.mime, evt->packet.size);
         break;
     case NRSC5_EVENT_LOT:
         if (st->aas_files_path)

@@ -640,24 +640,26 @@ void nrsc5_report_ber(nrsc5_t *st, float cber)
     nrsc5_report(st, &evt);
 }
 
-void nrsc5_report_stream(nrsc5_t *st, uint16_t port, unsigned int size, uint32_t mime, const uint8_t *data)
+void nrsc5_report_stream(nrsc5_t *st, uint16_t port, uint16_t seq, unsigned int size, uint32_t mime, const uint8_t *data)
 {
     nrsc5_event_t evt;
 
     evt.event = NRSC5_EVENT_STREAM;
     evt.stream.port = port;
+    evt.stream.seq = seq;
     evt.stream.size = size;
     evt.stream.mime = mime;
     evt.stream.data = data;
     nrsc5_report(st, &evt);
 }
 
-void nrsc5_report_packet(nrsc5_t *st, uint16_t port, unsigned int size, uint32_t mime, const uint8_t *data)
+void nrsc5_report_packet(nrsc5_t *st, uint16_t port, uint16_t seq, unsigned int size, uint32_t mime, const uint8_t *data)
 {
     nrsc5_event_t evt;
 
     evt.event = NRSC5_EVENT_PACKET;
     evt.packet.port = port;
+    evt.packet.seq = seq;
     evt.packet.size = size;
     evt.packet.mime = mime;
     evt.packet.data = data;

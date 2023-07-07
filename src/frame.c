@@ -144,10 +144,7 @@ static uint16_t fcs16(const uint8_t *cp, int len)
 
 static int has_audio(frame_t *st)
 {
-    return (st->pci & 0xFFFFFC) == (PCI_AUDIO & 0xFFFFFC)
-           || (st->pci & 0xFFFFFC) == (PCI_AUDIO_OPP & 0xFFFFFC)
-           || (st->pci & 0xFFFFFC) == (PCI_AUDIO_FIXED & 0xFFFFFC)
-           || (st->pci & 0xFFFFFC) == (PCI_AUDIO_FIXED_OPP & 0xFFFFFC);
+    return (st->pci & 0xFFFFFC) != (PCI_FIXED & 0xFFFFFC);
 }
 
 static int has_fixed(frame_t *st)

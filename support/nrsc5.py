@@ -131,8 +131,8 @@ SIGDataComponent = collections.namedtuple("SIGDataComponent", ["port", "service_
 SIGComponent = collections.namedtuple("SIGComponent", ["type", "id", "audio", "data"])
 SIGService = collections.namedtuple("SIGService", ["type", "number", "name", "components"])
 SIG = collections.namedtuple("SIG", ["services"])
-STREAM = collections.namedtuple("STREAM", ["port", "mime", "data"])
-PACKET = collections.namedtuple("PACKET", ["port", "mime", "data"])
+STREAM = collections.namedtuple("STREAM", ["port", "seq", "mime", "data"])
+PACKET = collections.namedtuple("PACKET", ["port", "seq", "mime", "data"])
 LOT = collections.namedtuple("LOT", ["port", "lot", "mime", "expiry_utc", "name", "data"])
 SISAudioService = collections.namedtuple("SISAudioService", ["program", "access", "type", "sound_exp"])
 SISDataService = collections.namedtuple("SISDataService", ["access", "type", "mime_type"])
@@ -261,6 +261,7 @@ class _SIG(ctypes.Structure):
 class _STREAM(ctypes.Structure):
     _fields_ = [
         ("port", ctypes.c_uint16),
+        ("seq", ctypes.c_uint16),
         ("size", ctypes.c_uint),
         ("mime", ctypes.c_uint32),
         ("data", ctypes.POINTER(ctypes.c_char)),
@@ -270,6 +271,7 @@ class _STREAM(ctypes.Structure):
 class _PACKET(ctypes.Structure):
     _fields_ = [
         ("port", ctypes.c_uint16),
+        ("seq", ctypes.c_uint16),
         ("size", ctypes.c_uint),
         ("mime", ctypes.c_uint32),
         ("data", ctypes.POINTER(ctypes.c_char)),
@@ -456,10 +458,10 @@ class NRSC5:
                 service_ptr = service.next
         elif evt_type == EventType.STREAM:
             stream = c_evt.u.stream
-            evt = STREAM(stream.port, MIMEType(stream.mime), stream.data[:stream.size])
+            evt = STREAM(stream.port, stream.seq, MIMEType(stream.mime), stream.data[:stream.size])
         elif evt_type == EventType.PACKET:
             packet = c_evt.u.packet
-            evt = PACKET(packet.port, MIMEType(packet.mime), packet.data[:packet.size])
+            evt = PACKET(packet.port, packet.seq, MIMEType(packet.mime), packet.data[:packet.size])
         elif evt_type == EventType.LOT:
             lot = c_evt.u.lot
             expiry_struct = lot.expiry_utc.contents

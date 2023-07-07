@@ -452,7 +452,7 @@ static aas_file_t *find_free_lot(aas_port_t *port)
     return file;
 }
 
-static void process_port(output_t *st, uint16_t port_id, uint8_t *buf, unsigned int len)
+static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *buf, unsigned int len)
 {
     static unsigned int counter = 1;
     aas_port_t *port;
@@ -474,12 +474,12 @@ static void process_port(output_t *st, uint16_t port_id, uint8_t *buf, unsigned 
     {
     case AAS_TYPE_STREAM:
     {
-        nrsc5_report_stream(st->radio, port_id, len, port->mime, buf);
+        nrsc5_report_stream(st->radio, port_id, seq, len, port->mime, buf);
         break;
     }
     case AAS_TYPE_PACKET:
     {
-        nrsc5_report_packet(st->radio, port_id, len, port->mime, buf);
+        nrsc5_report_packet(st->radio, port_id, seq, len, port->mime, buf);
         break;
     }
     case AAS_TYPE_LOT:
@@ -615,7 +615,7 @@ void output_aas_push(output_t *st, uint8_t *buf, unsigned int len)
     }
     else if (port >= 0x401 && port <= 0x50FF)
     {
-        process_port(st, port, buf + 4, len - 4);
+        process_port(st, port, seq, buf + 4, len - 4);
     }
     else
     {

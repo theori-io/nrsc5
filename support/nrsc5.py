@@ -81,6 +81,7 @@ class ServiceDataType(enum.Enum):
     SERVICE_MAINTENANCE = 263
     HD_RADIO_SYSTEM_SERVICES = 264
     AUDIO_RELATED_DATA = 265
+    RESERVED_FOR_SPECIAL_TESTS = 511
 
 
 class ProgramType(enum.Enum):

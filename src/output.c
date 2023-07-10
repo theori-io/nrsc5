@@ -586,7 +586,7 @@ static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *
                 uint8_t *data = malloc(num_fragments * LOT_FRAGMENT_SIZE);
                 for (int i = 0; i < num_fragments; i++)
                     memcpy(data + i * LOT_FRAGMENT_SIZE, file->fragments[i], LOT_FRAGMENT_SIZE);
-                nrsc5_report_lot(st->radio, port->port, file->lot, file->size, file->mime, &file->expiry_utc, file->name, data);
+                nrsc5_report_lot(st->radio, port->port, file->lot, file->size, file->mime, file->name, data, &file->expiry_utc);
                 free(data);
                 aas_free_lot(file);
             }

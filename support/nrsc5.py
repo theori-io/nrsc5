@@ -134,7 +134,7 @@ SIGService = collections.namedtuple("SIGService", ["type", "number", "name", "co
 SIG = collections.namedtuple("SIG", ["services"])
 STREAM = collections.namedtuple("STREAM", ["port", "seq", "mime", "data"])
 PACKET = collections.namedtuple("PACKET", ["port", "seq", "mime", "data"])
-LOT = collections.namedtuple("LOT", ["port", "lot", "mime", "expiry_utc", "name", "data"])
+LOT = collections.namedtuple("LOT", ["port", "lot", "mime", "name", "data", "expiry_utc"])
 SISAudioService = collections.namedtuple("SISAudioService", ["program", "access", "type", "sound_exp"])
 SISDataService = collections.namedtuple("SISDataService", ["access", "type", "mime_type"])
 SIS = collections.namedtuple("SIS", ["country_code", "fcc_facility_id", "name", "slogan", "message", "alert",
@@ -299,9 +299,9 @@ class _LOT(ctypes.Structure):
         ("lot", ctypes.c_uint),
         ("size", ctypes.c_uint),
         ("mime", ctypes.c_uint32),
-        ("expiry_utc", ctypes.POINTER(_TimeStruct)),
         ("name", ctypes.c_char_p),
         ("data", ctypes.POINTER(ctypes.c_char)),
+        ("expiry_utc", ctypes.POINTER(_TimeStruct)),
     ]
 
 

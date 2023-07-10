@@ -329,9 +329,9 @@ struct nrsc5_event_t
             unsigned int lot;
             unsigned int size;
             uint32_t mime;
-            struct tm *expiry_utc;
             const char *name;
             const uint8_t *data;
+            struct tm *expiry_utc;
         } lot;
         struct {
             nrsc5_sig_service_t *services;

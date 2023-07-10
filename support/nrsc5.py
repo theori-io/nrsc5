@@ -475,7 +475,7 @@ class NRSC5:
                 expiry_struct.tm_sec,
                 tzinfo=datetime.timezone.utc
             )
-            evt = LOT(lot.port, lot.lot, MIMEType(lot.mime), expiry_time, self._decode(lot.name), lot.data[:lot.size])
+            evt = LOT(lot.port, lot.lot, MIMEType(lot.mime), self._decode(lot.name), lot.data[:lot.size], expiry_time)
         elif evt_type == EventType.SIS:
             sis = c_evt.u.sis
 

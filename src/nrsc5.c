@@ -242,6 +242,7 @@ NRSC5_API void nrsc5_service_data_type_name(unsigned int type, const char **name
     case NRSC5_SERVICE_DATA_TYPE_SERVICE_MAINTENANCE: *name = "Service Maintenance"; break;
     case NRSC5_SERVICE_DATA_TYPE_HD_RADIO_SYSTEM_SERVICES: *name = "HD Radio System Services"; break;
     case NRSC5_SERVICE_DATA_TYPE_AUDIO_RELATED_DATA: *name = "Audio-Related Objects"; break;
+    case NRSC5_SERVICE_DATA_TYPE_RESERVED_FOR_SPECIAL_TESTS: *name = "Reserved for Special Tests"; break;
     default: *name = "Unknown"; break;
     }
 }

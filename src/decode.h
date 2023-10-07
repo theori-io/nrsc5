@@ -62,7 +62,7 @@ typedef struct
 
 void decode_process_p1(decode_t *st);
 void decode_process_pids(decode_t *st);
-void decode_process_p3_p4(decode_t *st, interleaver_iv_t *interleaver, int8_t *viterbi, uint8_t *scrambler, int frame_len, logical_channel_t lc);
+void decode_process_p3_p4(decode_t *st, interleaver_iv_t *interleaver, int8_t *viterbi, uint8_t *scrambler, unsigned int frame_len, logical_channel_t lc);
 void decode_process_pids_am(decode_t *st);
 void decode_process_p1_p3_am(decode_t *st);
 static inline unsigned int decode_get_block(decode_t *st)
@@ -82,7 +82,7 @@ static inline void decode_push_pm(decode_t *st, int8_t sbit)
         st->idx_pm = 0;
     }
 }
-static inline void decode_push_px1_px2(decode_t *st, interleaver_iv_t *interleaver, int8_t *viterbi, uint8_t *scrambler, int8_t sbit, int frame_len)
+static inline void decode_push_px1_px2(decode_t *st, interleaver_iv_t *interleaver, int8_t *viterbi, uint8_t *scrambler, int8_t sbit, unsigned int frame_len)
 {
     unsigned int delay = ((interleaver == &st->interleaver_px2) && (interleaver->idx < frame_len)) ? 7 : 0;
     interleaver->buffer[(interleaver->buffer_number + delay) % 8][interleaver->idx++] = sbit;
@@ -101,7 +101,7 @@ static inline void decode_push_px1_px2(decode_t *st, interleaver_iv_t *interleav
         interleaver->idx = 0;
     }
 }
-static inline void decode_push_px1(decode_t *st, int8_t sbit, int frame_len)
+static inline void decode_push_px1(decode_t *st, int8_t sbit, unsigned int frame_len)
 {
     decode_push_px1_px2(st, &st->interleaver_px1, st->viterbi_p3, st->scrambler_p3, sbit, frame_len);
 }

@@ -318,6 +318,8 @@ static int unescape_hdlc(uint8_t *data, int length)
 
 static void aas_push(frame_t *st, uint8_t* psd, unsigned int length, logical_channel_t lc)
 {
+    (void)lc; // UNUSED
+
     length = unescape_hdlc(psd, length);
 
     if (length == 0)
@@ -494,7 +496,7 @@ void frame_process(frame_t *st, size_t length, logical_channel_t lc)
 
     if (has_fixed(st))
         audio_end = process_fixed_data(st, length, lc);
-    
+
     if (!has_audio(st))
         return;
 

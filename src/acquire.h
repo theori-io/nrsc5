@@ -26,9 +26,9 @@ typedef struct
     int cfo;
 
     int mode;
-    int fft;
-    int fftcp;
-    int cp;
+    unsigned int fft;
+    unsigned int fftcp;
+    unsigned int cp;
 } acquire_t;
 
 void acquire_process(acquire_t *st);

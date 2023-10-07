@@ -183,7 +183,7 @@ int rtltcp_reset_buffer(rtltcp_t *st, size_t cnt)
     // then, read cnt bytes
     while (cnt > 0)
     {
-        int to_read = sizeof(buf);
+        size_t to_read = sizeof(buf);
         if (cnt < to_read)
             to_read = cnt;
 

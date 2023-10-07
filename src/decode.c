@@ -134,7 +134,7 @@ static void interleaver_ma1(decode_t *st)
 }
 
 // calculate number of bit errors by re-encoding and comparing to the input
-static int bit_errors(int8_t *coded, uint8_t *decoded, int k, int frame_len,
+static int bit_errors(int8_t *coded, uint8_t *decoded, unsigned int k, unsigned int frame_len,
                       unsigned int g1, unsigned int g2, unsigned int g3,
                       uint8_t *puncture, int puncture_len)
 {
@@ -247,7 +247,7 @@ void decode_process_pids(decode_t *st)
     pids_frame_push(&st->pids, st->scrambler_pids);
 }
 
-void decode_process_p3_p4(decode_t *st, interleaver_iv_t *interleaver, int8_t *viterbi, uint8_t *scrambler, int frame_len, logical_channel_t lc)
+void decode_process_p3_p4(decode_t *st, interleaver_iv_t *interleaver, int8_t *viterbi, uint8_t *scrambler, unsigned int frame_len, logical_channel_t lc)
 {
     const unsigned int J = (frame_len == P3_FRAME_LEN_FM) ? 4 : 2;
     const unsigned int B = 32;

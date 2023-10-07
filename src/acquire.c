@@ -174,7 +174,7 @@ void acquire_process(acquire_t *st)
         for (i = 0; i < ACQUIRE_SYMBOLS; ++i)
         {
             int offset = (st->mode == NRSC5_MODE_FM) ? 0 : (FFT_AM - CP_AM) / 2;
-            for (int j = 0; j < st->fftcp; ++j)
+            for (j = 0; j < st->fftcp; ++j)
             {
                 float complex sample = temp_phase * st->buffer[i * st->fftcp + j + samperr];
                 if (j < st->cp)
@@ -204,7 +204,7 @@ void acquire_process(acquire_t *st)
 
             if (st->input->sync_state != SYNC_STATE_FINE)
             {
-                for (int j = CENTER_AM - PIDS_2_INDEX_AM; j <= CENTER_AM + PIDS_2_INDEX_AM; j++)
+                for (j = CENTER_AM - PIDS_2_INDEX_AM; j <= CENTER_AM + PIDS_2_INDEX_AM; j++)
                 {
                     mag_sums[j] += cabsf(st->fftout[j]);
                 }
@@ -215,7 +215,7 @@ void acquire_process(acquire_t *st)
         {
             float max_mag = -1.0f;
             int max_index = -1;
-            for (int j = CENTER_AM - PIDS_2_INDEX_AM; j <= CENTER_AM + PIDS_2_INDEX_AM; j++)
+            for (j = CENTER_AM - PIDS_2_INDEX_AM; j <= CENTER_AM + PIDS_2_INDEX_AM; j++)
             {
                 if (mag_sums[j] > max_mag)
                 {
@@ -234,7 +234,7 @@ void acquire_process(acquire_t *st)
     for (i = 0; i < ACQUIRE_SYMBOLS; ++i)
     {
         int offset = (st->mode == NRSC5_MODE_FM) ? 0 : (FFT_AM - CP_AM) / 2;
-        for (int j = 0; j < st->fftcp; ++j)
+        for (j = 0; j < st->fftcp; ++j)
         {
             float complex sample = st->phase * st->buffer[i * st->fftcp + j + samperr];
             if (j < st->cp)

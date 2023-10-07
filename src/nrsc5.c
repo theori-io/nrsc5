@@ -209,13 +209,13 @@ static void nrsc5_init(nrsc5_t *st, int run_worker)
     output_init(&st->output, st);
     input_init(&st->input, st, &st->output);
 
-    if(!run_worker)
-    	return;
-
-    // Create worker thread
-    pthread_mutex_init(&st->worker_mutex, NULL);
-    pthread_cond_init(&st->worker_cond, NULL);
-    pthread_create(&st->worker, NULL, worker_thread, st);
+    if(run_worker)
+    {
+        // Create worker thread
+        pthread_mutex_init(&st->worker_mutex, NULL);
+        pthread_cond_init(&st->worker_cond, NULL);
+        pthread_create(&st->worker, NULL, worker_thread, st);
+    }
 }
 
 NRSC5_API void nrsc5_get_version(const char **version)

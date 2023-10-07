@@ -195,7 +195,7 @@ static void *worker_thread(void *arg)
     return NULL;
 }
 
-static void nrsc5_init(nrsc5_t *st)
+static void nrsc5_init(nrsc5_t *st, int run_worker)
 {
     st->closed = 0;
     st->stopped = 1;
@@ -208,6 +208,9 @@ static void nrsc5_init(nrsc5_t *st)
 
     output_init(&st->output, st);
     input_init(&st->input, st, &st->output);
+
+    if(!run_worker)
+    	return;
 
     // Create worker thread
     pthread_mutex_init(&st->worker_mutex, NULL);
@@ -308,7 +311,7 @@ NRSC5_API int nrsc5_open(nrsc5_t **result, int device_index)
     err = rtlsdr_set_offset_tuning(st->dev, 1);
     if (err && err != -2) goto error;
 
-    nrsc5_init(st);
+    nrsc5_init(st, 1);
 
     *result = st;
     return 0;
@@ -326,7 +329,7 @@ NRSC5_API int nrsc5_open_file(nrsc5_t **result, FILE *fp)
 {
     nrsc5_t *st = nrsc5_alloc();
     st->iq_file = fp;
-    nrsc5_init(st);
+    nrsc5_init(st, 1);
 
     *result = st;
     return 0;
@@ -335,7 +338,7 @@ NRSC5_API int nrsc5_open_file(nrsc5_t **result, FILE *fp)
 NRSC5_API int nrsc5_open_pipe(nrsc5_t **result)
 {
     nrsc5_t *st = nrsc5_alloc();
-    nrsc5_init(st);
+    nrsc5_init(st, 0);
 
     *result = st;
     return 0;
@@ -357,7 +360,7 @@ NRSC5_API int nrsc5_open_rtltcp(nrsc5_t **result, int socket)
     err = rtltcp_set_offset_tuning(st->rtltcp, 1);
     if (err) goto error;
 
-    nrsc5_init(st);
+    nrsc5_init(st, 1);
 
     *result = st;
     return 0;

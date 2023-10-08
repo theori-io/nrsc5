@@ -106,6 +106,11 @@ error:
     return ret;
 }
 
+static int using_worker(nrsc5_t *st)
+{
+    return st->dev || st->rtltcp || st->iq_file;
+}
+
 static void worker_cb(uint8_t *buf, uint32_t len, void *arg)
 {
     nrsc5_t *st = arg;
@@ -209,10 +214,13 @@ static void nrsc5_init(nrsc5_t *st)
     output_init(&st->output, st);
     input_init(&st->input, st, &st->output);
 
-    // Create worker thread
-    pthread_mutex_init(&st->worker_mutex, NULL);
-    pthread_cond_init(&st->worker_cond, NULL);
-    pthread_create(&st->worker, NULL, worker_thread, st);
+    if (using_worker(st))
+    {
+        // Create worker thread
+        pthread_mutex_init(&st->worker_mutex, NULL);
+        pthread_cond_init(&st->worker_cond, NULL);
+        pthread_create(&st->worker, NULL, worker_thread, st);
+    }
 }
 
 NRSC5_API void nrsc5_get_version(const char **version)
@@ -372,14 +380,17 @@ NRSC5_API void nrsc5_close(nrsc5_t *st)
     if (!st)
         return;
 
-    // signal the worker to exit
-    pthread_mutex_lock(&st->worker_mutex);
-    st->closed = 1;
-    pthread_cond_broadcast(&st->worker_cond);
-    pthread_mutex_unlock(&st->worker_mutex);
+    if (using_worker(st))
+    {
+        // signal the worker to exit
+        pthread_mutex_lock(&st->worker_mutex);
+        st->closed = 1;
+        pthread_cond_broadcast(&st->worker_cond);
+        pthread_mutex_unlock(&st->worker_mutex);
 
-    // wait for worker to finish
-    pthread_join(st->worker, NULL);
+        // wait for worker to finish
+        pthread_join(st->worker, NULL);
+    }
 
     if (st->dev)
         rtlsdr_close(st->dev);
@@ -395,26 +406,32 @@ NRSC5_API void nrsc5_close(nrsc5_t *st)
 
 NRSC5_API void nrsc5_start(nrsc5_t *st)
 {
-    // signal the worker to start
-    pthread_mutex_lock(&st->worker_mutex);
-    st->stopped = 0;
-    pthread_cond_broadcast(&st->worker_cond);
-    pthread_mutex_unlock(&st->worker_mutex);
+    if (using_worker(st))
+    {
+        // signal the worker to start
+        pthread_mutex_lock(&st->worker_mutex);
+        st->stopped = 0;
+        pthread_cond_broadcast(&st->worker_cond);
+        pthread_mutex_unlock(&st->worker_mutex);
+    }
 }
 
 NRSC5_API void nrsc5_stop(nrsc5_t *st)
 {
-    // signal the worker to stop
-    pthread_mutex_lock(&st->worker_mutex);
-    st->stopped = 1;
-    pthread_cond_broadcast(&st->worker_cond);
-    pthread_mutex_unlock(&st->worker_mutex);
+    if (using_worker(st))
+    {
+        // signal the worker to stop
+        pthread_mutex_lock(&st->worker_mutex);
+        st->stopped = 1;
+        pthread_cond_broadcast(&st->worker_cond);
+        pthread_mutex_unlock(&st->worker_mutex);
 
-    // wait for worker to stop
-    pthread_mutex_lock(&st->worker_mutex);
-    while (st->stopped != st->worker_stopped)
-        pthread_cond_wait(&st->worker_cond, &st->worker_mutex);
-    pthread_mutex_unlock(&st->worker_mutex);
+        // wait for worker to stop
+        pthread_mutex_lock(&st->worker_mutex);
+        while (st->stopped != st->worker_stopped)
+            pthread_cond_wait(&st->worker_cond, &st->worker_mutex);
+        pthread_mutex_unlock(&st->worker_mutex);
+    }
 }
 
 NRSC5_API int nrsc5_set_mode(nrsc5_t *st, int mode)
@@ -540,10 +557,12 @@ NRSC5_API void nrsc5_set_auto_gain(nrsc5_t *st, int enabled)
 
 NRSC5_API void nrsc5_set_callback(nrsc5_t *st, nrsc5_callback_t callback, void *opaque)
 {
-    pthread_mutex_lock(&st->worker_mutex);
+    if (using_worker(st))
+        pthread_mutex_lock(&st->worker_mutex);
     st->callback = callback;
     st->callback_opaque = opaque;
-    pthread_mutex_unlock(&st->worker_mutex);
+    if (using_worker(st))
+        pthread_mutex_unlock(&st->worker_mutex);
 }
 
 NRSC5_API int nrsc5_pipe_samples_cu8(nrsc5_t *st, const uint8_t *samples, unsigned int length)

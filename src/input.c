@@ -276,7 +276,6 @@ void input_free(input_t *st)
     for (int i = 0; i < AM_DECIM_STAGES; i++)
         firdecim_q15_free(st->decim[i]);
     fftwf_destroy_plan(st->snr_fft);
-    fftwf_cleanup();
 }
 
 void input_set_sync_state(input_t *st, unsigned int new_state)

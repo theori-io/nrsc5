@@ -30,6 +30,11 @@ struct nrsc5_t
     nrsc5_callback_t callback;
     void *callback_opaque;
 
+    uint8_t leftover_u8[4];
+    unsigned int leftover_u8_num;
+    int16_t leftover_s16[2];
+    unsigned int leftover_s16_num;
+
     pthread_t worker;
     pthread_mutex_t worker_mutex;
     pthread_cond_t worker_cond;

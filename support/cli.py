@@ -109,9 +109,9 @@ class NRSC5CLI:
                     if not data:
                         break
                     if self.args.iq_input_format == "cu8":
-                        self.radio.pipe_samples_cu8(data[:(len(data) // 4) * 4])
+                        self.radio.pipe_samples_cu8(data)
                     elif self.args.iq_input_format == "cs16":
-                        self.radio.pipe_samples_cs16(data[:(len(data) // 4) * 4])
+                        self.radio.pipe_samples_cs16(data)
             else:
                 with self.device_condition:
                     self.device_condition.wait()

@@ -145,8 +145,7 @@ if (NOT USE_SYSTEM_LIBUSB)
     set (LIBUSB_BUILTIN libusb_external)
     set (LIBUSB_LIBRARIES libusb)
     set (RTLSDR_CMAKE_ARGS
-        -DLIBUSB_INCLUDE_DIR:STRING=${LIBUSB_PREFIX}/include/libusb-1.0
-        -DLIBUSB_LIBRARIES:STRING=${LIBUSB_PREFIX}/lib/libusb-1.0.a
+        -DCMAKE_PREFIX_PATH:STRING=${LIBUSB_PREFIX}
     )
 endif ()
 
@@ -155,8 +154,8 @@ if (NOT USE_SYSTEM_RTLSDR)
     ExternalProject_Add (
         rtlsdr_external
         TIMEOUT 120
-        GIT_REPOSITORY "https://github.com/osmocom/rtl-sdr.git"
-        GIT_TAG f68bb2fa772ad94f58c59babd78353667570630b
+        GIT_REPOSITORY "https://gitea.osmocom.org/sdr/rtl-sdr.git"
+        GIT_TAG b85f037d85fa5382c3e88463184b77b273cd1091
         PREFIX ${RTLSDR_PREFIX}
 
         UPDATE_COMMAND ""
@@ -264,7 +263,7 @@ add_subdirectory (src)
 # optionally generate documentation via Doxygen
 if (BUILD_DOC)
   find_package(Doxygen)
-  if (NOT DOXYGEN_FOUND) 
+  if (NOT DOXYGEN_FOUND)
     message("** Install the Doxygen application to generate API documentation")
   else ()
     message("-- Build of Doxygen API documentation enabled")

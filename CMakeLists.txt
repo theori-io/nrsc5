@@ -103,8 +103,8 @@ if (NOT USE_SYSTEM_FFTW)
     set (FFTW_PREFIX "${CMAKE_BINARY_DIR}/fftw-prefix")
     ExternalProject_Add (
         fftw_external
-        URL "http://www.fftw.org/fftw-3.3.8.tar.gz"
-        URL_HASH SHA256=6113262f6e92c5bd474f2875fa1b01054c4ad5040f6b0da7c03c98821d9ae303
+        URL "https://www.fftw.org/fftw-3.3.10.tar.gz"
+        URL_HASH SHA256=56c932549852cddcfafdab3820b0200c7742675be92179e59e6215b340e26467
         PREFIX ${FFTW_PREFIX}
 
         CONFIGURE_COMMAND ${FFTW_PREFIX}/src/fftw_external/configure ${HOST_TRIPLE_ARG} --prefix=${FFTW_PREFIX} --enable-float --enable-static --disable-shared --enable-sse2 --enable-avx --enable-avx2 --with-our-malloc
@@ -125,7 +125,7 @@ if (NOT USE_SYSTEM_LIBUSB)
         libusb_external
         TIMEOUT 120
         GIT_REPOSITORY "https://github.com/libusb/libusb.git"
-        GIT_TAG v1.0.22
+        GIT_TAG v1.0.27
         PREFIX ${LIBUSB_PREFIX}
 
         UPDATE_COMMAND ""

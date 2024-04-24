@@ -259,7 +259,7 @@ struct nrsc5_event_t
  *   and NRSC5 document SY_TN_2646s
  * - `NRSC5_EVENT_IQ` : IQ data, see the `iq` union member
  * - `NRSC5_EVENT_HD`C : HDC audio packet, see the `hdc` union member
- * - `NRSC5_EVENT_AUDIO` : audio buffer, see the `audio` union member
+ * - `NRSC5_EVENT_AUDIO` : audio input_buffer, see the `audio` union member
  * - `NRSC5_EVENT_SYNC` : indicates synchronization achieved
  * - `NRSC5_EVENT_LOST_SYNC` : indicates synchronization lost
  * - `NRSC5_EVENT_ID3` : ID3 information packet arrived, see `id3` member
@@ -609,5 +609,43 @@ int nrsc5_pipe_samples_cu8(nrsc5_t *st, const uint8_t *samples, unsigned int len
  *
  */
 int nrsc5_pipe_samples_cs16(nrsc5_t *st, const int16_t *samples, unsigned int length);
+
+/**
+ * Opens output for a specific program. Ensures proper buffering
+ *
+ * @param st[in] pointer to an `nrsc5_t` session object
+ * @param index[in] the program index [0,5]
+ * @return 0 on success, nonzero on error
+ */
+int nrsc5_open_program(nrsc5_t *st, unsigned int index);
+
+/**
+ * Closes output for a specific program.
+ *
+ * @param st[in] pointer to an `nrsc5_t` session object
+ * @param index[in] the program index [0,5]
+ * @return 0 on success, nonzero on error
+ */
+int nrsc5_close_program(nrsc5_t *st, unsigned int index);
+
+/**
+ * Resets buffer for a specific program.
+ *
+ * @param st[in] pointer to an `nrsc5_t` session object
+ * @param index[in] the program index [0,5]
+ * @return 0 on success, nonzero on error
+ */
+int nrsc5_reset_program(nrsc5_t *st, unsigned int index);
+
+/**
+ * Reads audio of a specific program.
+ * Use nrsc5_open_program() to open a specific program
+ *
+ * @param st[in] pointer to an `nrsc5_t` session object
+ * @param index[in] the program index [0,5]
+ * @param buf[in] write input_buffer
+ * @return 0 on success, nonzero on error
+ */
+int nrsc5_read_program(nrsc5_t *st, unsigned int index, int16_t *buf);
 
 #endif /* NRSC5_H_ */

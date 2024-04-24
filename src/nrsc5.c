@@ -214,6 +214,24 @@ static void nrsc5_init(nrsc5_t *st)
     output_init(&st->output, st);
     input_init(&st->input, st, &st->output);
 
+    // Allocate programs
+    for (int i = 0; i < MAX_PROGRAMS; i++)
+    {
+        program_t* prog = &st->programs[i];
+
+        prog->status = 0;
+
+        // Allocate buffers
+        for(int j = 0; j < MAX_STREAMS; j++)
+        {
+            input_init_buffer(&prog->input_buffer[i]);
+        }
+        output_init_buffer(&prog->output_buffer);
+
+        pthread_cond_init(&prog->cond, NULL);
+        pthread_mutex_init(&prog->mutex, NULL);
+    }
+
     if (using_worker(st))
     {
         // Create worker thread
@@ -392,6 +410,20 @@ NRSC5_API void nrsc5_close(nrsc5_t *st)
         pthread_join(st->worker, NULL);
     }
 
+    for (int i = 0; i < MAX_PROGRAMS; i++)
+    {
+        program_t* prog = &st->programs[i];
+
+        for(int j = 0; j < MAX_STREAMS; j++)
+        {
+            input_free_buffer(&prog->input_buffer[j]);
+        }
+        output_free_buffer(&prog->output_buffer);
+
+        pthread_cond_destroy(&prog->cond);
+        pthread_mutex_destroy(&prog->mutex);
+    }
+
     if (st->dev)
         rtlsdr_close(st->dev);
     if (st->iq_file)
@@ -521,6 +553,14 @@ NRSC5_API int nrsc5_set_frequency(nrsc5_t *st, float freq)
     input_reset(&st->input);
     output_reset(&st->output);
 
+    for (int i = 0; i < MAX_PROGRAMS; i++)
+    {
+        program_t *prog = &st->programs[i];
+        output_buffer_t* buffer = &prog->output_buffer;
+
+        output_reset_buffer(buffer);
+    }
+
     st->freq = freq;
     return 0;
 }
@@ -622,6 +662,115 @@ NRSC5_API int nrsc5_pipe_samples_cs16(nrsc5_t *st, const int16_t *samples, unsig
     return 0;
 }
 
+NRSC5_API int nrsc5_open_program(nrsc5_t *st, unsigned int index) {
+    if(index >= MAX_PROGRAMS || index < 0)
+        return -1;
+
+    program_t *prog = nrsc5_get_program(st, index);
+
+    pthread_mutex_lock(&prog->mutex);
+
+    if(prog->status & NRSC5_PROGRAM_ENABLED)
+    {
+        log_error("Opening a program that is already enabled");
+        pthread_mutex_unlock(&prog->mutex);
+        return -1;
+    }
+
+    // Enable program
+    prog->status |= NRSC5_PROGRAM_ENABLED;
+
+    pthread_mutex_unlock(&prog->mutex);
+    return 0;
+}
+
+NRSC5_API int nrsc5_reset_program(nrsc5_t *st, unsigned int index) {
+    if(index >= MAX_PROGRAMS || (index < 0))
+        return -1;
+
+    program_t *prog = nrsc5_get_program(st, index);
+
+    /* Reset input buffer */
+    for(int i = 0; i < MAX_STREAMS; i++)
+    {
+        pthread_mutex_lock(&prog->input_buffer[i].mutex);
+        input_reset_buffer(&prog->input_buffer[i]);
+        pthread_mutex_unlock(&prog->input_buffer[i].mutex);
+    }
+
+    pthread_mutex_lock(&prog->output_buffer.mutex);
+
+    output_reset_buffer(&prog->output_buffer);
+    /* Alert output buffer */
+    pthread_cond_broadcast(&prog->output_buffer.cond);
+
+    pthread_mutex_unlock(&prog->output_buffer.mutex);
+    return 0;
+}
+
+NRSC5_API int nrsc5_close_program(nrsc5_t *st, unsigned int index) {
+    if(index >= MAX_PROGRAMS || (index < 0))
+        return -1;
+
+    program_t *prog = nrsc5_get_program(st, index);
+
+    pthread_mutex_lock(&prog->mutex);
+
+    // Disable program
+    prog->status &= ~NRSC5_PROGRAM_ENABLED;
+
+    pthread_mutex_unlock(&prog->mutex);
+    return nrsc5_reset_program(st, index);
+}
+
+NRSC5_API int nrsc5_read_program(nrsc5_t *st, unsigned int index, int16_t *buf) {
+    if(index >= MAX_PROGRAMS || index < 0)
+        return -1;
+
+#ifndef USE_FAAD2
+    log_error("NRSC5 complied without FAAD2");
+    return -1;
+#else
+    program_t *prog;
+    output_buffer_t *buff;
+    audio_buffer_t *b;
+
+    prog = nrsc5_get_program(st, index);
+    buff = &prog->output_buffer;
+
+    if(!(nrsc5_get_program_status(prog) & NRSC5_PROGRAM_ENABLED))
+    {
+        log_error("Reading a program that is not enabled");
+        return -1;
+    }
+
+    pthread_mutex_lock(&buff->mutex);
+    while(nrsc5_get_program_status(prog) & NRSC5_PROGRAM_ENABLED && buff->head == NULL)
+    {
+        pthread_cond_wait(&buff->cond, &buff->mutex);
+    }
+
+    if(buff->head == NULL)
+    {
+        pthread_mutex_unlock(&buff->mutex);
+        return 0;
+    }
+
+    b = buff->head;
+    buff->head = b->next;
+    if (buff->head == NULL)
+        buff->tail = NULL;
+
+    memmove(buf, b->data, NRSC5_AUDIO_DATA_LENGTH);
+
+    b->next = buff->free;
+    buff->free = b;
+
+    pthread_mutex_unlock(&buff->mutex);
+    return 1;
+#endif
+}
+
 void nrsc5_report(nrsc5_t *st, const nrsc5_event_t *evt)
 {
     if (st->callback)
@@ -670,17 +819,6 @@ void nrsc5_report_hdc(nrsc5_t *st, unsigned int program, const uint8_t *data, si
     evt.hdc.program = program;
     evt.hdc.data = data;
     evt.hdc.count = count;
-    nrsc5_report(st, &evt);
-}
-
-void nrsc5_report_audio(nrsc5_t *st, unsigned int program, const int16_t *data, size_t count)
-{
-    nrsc5_event_t evt;
-
-    evt.event = NRSC5_EVENT_AUDIO;
-    evt.audio.program = program;
-    evt.audio.data = data;
-    evt.audio.count = count;
     nrsc5_report(st, &evt);
 }
 
@@ -866,4 +1004,16 @@ void nrsc5_report_sis(nrsc5_t *st, const char *country_code, int fcc_facility_id
     evt.sis.data_services = data_services;
 
     nrsc5_report(st, &evt);
+}
+
+program_t *nrsc5_get_program(nrsc5_t *st, unsigned int program) {
+    assert(program <= MAX_PROGRAMS);
+    return &st->programs[program];
+}
+
+int nrsc5_get_program_status(program_t *prog) {
+    pthread_mutex_lock(&prog->mutex);
+    int status = prog->status;
+    pthread_mutex_unlock(&prog->mutex);
+    return status;
 }

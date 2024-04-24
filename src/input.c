@@ -57,9 +57,188 @@ static void input_push_to_acquire(input_t *st)
     st->used += acquire_push(&st->acq, &st->buffer[st->used], st->avail - st->used);
 }
 
+static void input_allocate_buffer(input_buffer_t* st, unsigned int count)
+{
+    if(st->count > count)
+        return;
+
+    for (unsigned int i = st->count; i < count; ++i)
+    {
+        packet_buffer_t *packet = malloc(sizeof(packet_buffer_t));
+        packet->next = st->free;
+        st->free = packet;
+    }
+    st->count = count;
+}
+
+static void output_push_all(input_t *st, input_buffer_t *buff, unsigned int program, unsigned int stream_id)
+{
+    packet_buffer_t *b;
+
+    for(int i = 0; i < buff->latency_max; i++)
+    {
+        if(buff->head == NULL)
+            break;
+
+        b = buff->head;
+        buff->head = b->next;
+        if (buff->head == NULL)
+            buff->tail = NULL;
+        buff->items--;
+
+        output_push(st->output, b->data, b->len, program, stream_id);
+
+        // add to free list
+        b->next = buff->free;
+        buff->free = b;
+    }
+}
+
+void input_reset_buffer(input_buffer_t* st)
+{
+    packet_buffer_t *b;
+
+    // find the end of the head list
+    for (b = st->head; b && b->next; b = b->next) { }
+
+    // if the head list is non-empty, prepend to free list
+    if (b != NULL)
+    {
+        b->next = st->free;
+        st->free = st->head;
+    }
+
+    st->head = NULL;
+    st->tail = NULL;
+
+    st->locked = 0;
+    st->try_locked = 0;
+}
+
+void input_init_buffer(input_buffer_t* st)
+{
+    st->latency = 0;
+    st->latency_max = 0;
+    st->latency_min = 0;
+    st->latency_min = 0;
+
+    st->locked = 0;
+    st->try_locked = 0;
+
+    st->head = NULL;
+    st->tail = NULL;
+    st->free = NULL;
+    st->count = 0;
+
+    pthread_cond_init(&st->cond, NULL);
+    pthread_mutex_init(&st->mutex, NULL);
+}
+
+void input_free_buffer(input_buffer_t* st)
+{
+    input_reset_buffer(st);
+
+    while (st->free)
+    {
+        packet_buffer_t *b = st->free;
+        st->free = b->next;
+        free(b);
+    }
+
+    pthread_cond_destroy(&st->cond);
+    pthread_mutex_destroy(&st->mutex);
+}
+
+void input_prepare_push(input_t *st, unsigned int program, unsigned int stream_id, unsigned int average_packets, unsigned int latency)
+{
+    program_t* prog;
+    input_buffer_t* buffer;
+
+    prog = nrsc5_get_program(st->radio, program);
+    buffer = &prog->input_buffer[stream_id];
+
+    // If the latency is the same, we don't need to do anything.
+    // FIXME: Is this needed? Can audio mode change too?
+    if(buffer->latency == latency)
+        return;
+
+    buffer->latency     = latency;
+    buffer->latency_avg = average_packets;
+    buffer->latency_min = average_packets - latency;
+    buffer->latency_max = average_packets + latency;
+
+    // Allocate input_buffer based on max latency with some margin
+    input_allocate_buffer(buffer, buffer->latency_max + buffer->latency * 2);
+}
+
 void input_pdu_push(input_t *st, uint8_t *pdu, unsigned int len, unsigned int program, unsigned int stream_id)
 {
-    output_push(st->output, pdu, len, program, stream_id);
+    program_t* prog;
+    input_buffer_t* buffer;
+    packet_buffer_t *packet;
+
+    prog = nrsc5_get_program(st->radio, program);
+    buffer = &prog->input_buffer[stream_id];
+
+    pthread_mutex_lock(&prog->mutex);
+    if(!(prog->status & NRSC5_PROGRAM_ENABLED))
+    {
+        pthread_mutex_unlock(&prog->mutex);
+        return;
+    }
+    pthread_mutex_unlock(&prog->mutex);
+
+    pthread_mutex_lock(&buffer->mutex);
+    while (buffer->free == NULL)
+    {
+        log_warn("Input buffer overrun");
+        input_reset_buffer(buffer);
+        return;
+    }
+
+    packet = buffer->free;
+    buffer->free = packet->next;
+
+    memmove(packet->data, pdu, len);
+    packet->len = len;
+
+    packet->next = NULL;
+    if (buffer->tail)
+        buffer->tail->next = packet;
+    else
+        buffer->head = packet;
+    buffer->tail = packet;
+
+    if(!buffer->locked && buffer->items > buffer->latency_max)
+    {
+        buffer->try_locked = 1;
+        // TODO `output_push` can be threaded now due to this buffering. Do we want that?
+        output_push_all(st, buffer, program, stream_id);
+    }
+    buffer->items++;
+
+    pthread_mutex_unlock(&buffer->mutex);
+}
+
+void input_finished_push(input_t *st, unsigned int program, unsigned int stream_id)
+{
+    input_buffer_t* buffer;
+    program_t* prog;
+
+    prog = nrsc5_get_program(st->radio, program);
+    buffer = &prog->input_buffer[stream_id];
+
+    pthread_mutex_lock(&buffer->mutex);
+    if(buffer->try_locked)
+    {
+        buffer->locked = 1;
+        buffer->try_locked = 0;
+    }
+    if(buffer->locked)
+    {
+        output_push_all(st, buffer, program, stream_id);
+    }
+    pthread_mutex_unlock(&buffer->mutex);
 }
 
 void input_set_skip(input_t *st, unsigned int skip)
@@ -132,7 +311,7 @@ int input_shift(input_t *st, unsigned int cnt)
 
     if (cnt + st->avail > INPUT_BUF_LEN)
     {
-        log_error("input buffer overflow!");
+        log_error("input input_buffer overflow!");
         return -1;
     }
 
@@ -284,7 +463,13 @@ void input_set_sync_state(input_t *st, unsigned int new_state)
         return;
 
     if (st->sync_state == SYNC_STATE_FINE)
+    {
         nrsc5_report_lost_sync(st->radio);
+        for(int i = 0; i < MAX_PROGRAMS; i++)
+        {
+            nrsc5_reset_program(st->radio, i);
+        }
+    }
     if (new_state == SYNC_STATE_FINE)
     {
         nrsc5_report_sync(st->radio);

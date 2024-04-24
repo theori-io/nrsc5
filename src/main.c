@@ -40,15 +40,7 @@
 #include "bitwriter.h"
 #include "log.h"
 
-#define AUDIO_BUFFERS 128
-#define AUDIO_THRESHOLD 40
 #define AUDIO_DATA_LENGTH 8192
-
-typedef struct buffer_t {
-    struct buffer_t *next;
-    // The samples are signed 16-bit integers, but ao_play requires a char buffer.
-    char data[AUDIO_DATA_LENGTH];
-} audio_buffer_t;
 
 typedef struct {
     float freq;
@@ -64,13 +56,12 @@ typedef struct {
     FILE *hdc_file;
     FILE *iq_file;
     char *aas_files_path;
+    nrsc5_t *radio;
 
-    audio_buffer_t *head, *tail, *free;
     pthread_mutex_t mutex;
     pthread_cond_t cond;
 
     unsigned int program;
-    unsigned int audio_ready;
     unsigned int audio_packets;
     unsigned int audio_bytes;
     int done;
@@ -94,99 +85,6 @@ static ao_device *open_ao_file(const char *name, const char *type)
     return ao_open_file(ao_driver_id(type), name, 1, &sample_format, NULL);
 }
 
-static void reset_audio_buffers(state_t *st)
-{
-    audio_buffer_t *b;
-
-    // find the end of the head list
-    for (b = st->head; b && b->next; b = b->next) { }
-
-    // if the head list is non-empty, prepend to free list
-    if (b != NULL)
-    {
-        b->next = st->free;
-        st->free = st->head;
-    }
-
-    st->head = NULL;
-    st->tail = NULL;
-}
-
-static void push_audio_buffer(state_t *st, unsigned int program, const int16_t *data, size_t count)
-{
-    audio_buffer_t *b;
-    struct timespec ts;
-    struct timeval now;
-
-    gettimeofday(&now, NULL);
-    ts.tv_sec = now.tv_sec;
-    ts.tv_nsec = (now.tv_usec + 100000) * 1000;
-    if (ts.tv_nsec >= 1000000000)
-    {
-        ts.tv_nsec -= 1000000000;
-        ts.tv_sec += 1;
-    }
-
-    pthread_mutex_lock(&st->mutex);
-    if (program != st->program)
-        goto unlock;
-
-    while (st->free == NULL)
-    {
-        if (pthread_cond_timedwait(&st->cond, &st->mutex, &ts) == ETIMEDOUT)
-        {
-            log_warn("Audio output timed out, dropping samples");
-            reset_audio_buffers(st);
-        }
-    }
-    b = st->free;
-    st->free = b->next;
-    pthread_mutex_unlock(&st->mutex);
-
-    assert(AUDIO_DATA_LENGTH == count * sizeof(data[0]));
-    memcpy(b->data, data, count * sizeof(data[0]));
-
-    pthread_mutex_lock(&st->mutex);
-    if (program != st->program)
-    {
-        b->next = st->free;
-        st->free = b;
-        goto unlock;
-    }
-
-    b->next = NULL;
-    if (st->tail)
-        st->tail->next = b;
-    else
-        st->head = b;
-    st->tail = b;
-
-    if (st->audio_ready < AUDIO_THRESHOLD)
-        st->audio_ready++;
-
-    pthread_cond_signal(&st->cond);
-
-unlock:
-    pthread_mutex_unlock(&st->mutex);
-}
-
-static void init_audio_buffers(state_t *st)
-{
-    st->head = NULL;
-    st->tail = NULL;
-    st->free = NULL;
-
-    for (int i = 0; i < AUDIO_BUFFERS; ++i)
-    {
-        audio_buffer_t *b = malloc(sizeof(audio_buffer_t));
-        b->next = st->free;
-        st->free = b;
-    }
-
-    pthread_cond_init(&st->cond, NULL);
-    pthread_mutex_init(&st->mutex, NULL);
-}
-
 static void write_adts_header(FILE *fp, unsigned int len)
 {
     uint8_t hdr[7];
@@ -206,7 +104,7 @@ static void write_adts_header(FILE *fp, unsigned int len)
     bw_addbits(&bw, 0, 1);
     bw_addbits(&bw, 0, 1);
     bw_addbits(&bw, len + 7, 13); // frame length
-    bw_addbits(&bw, 0x7FF, 11); // buffer fullness (VBR)
+    bw_addbits(&bw, 0x7FF, 11); // input_buffer fullness (VBR)
     bw_addbits(&bw, 0, 2); // 1 AAC frame per ADTS frame
 
     fwrite(hdr, 7, 1, fp);
@@ -253,8 +151,8 @@ static void dump_ber(float cber)
 static void done_signal(state_t *st)
 {
     pthread_mutex_lock(&st->mutex);
+    nrsc5_close_program(st->radio, st->program);
     st->done = 1;
-    pthread_cond_signal(&st->cond);
     pthread_mutex_unlock(&st->mutex);
 }
 
@@ -262,14 +160,9 @@ static void change_program(state_t *st, unsigned int program)
 {
     pthread_mutex_lock(&st->mutex);
 
-    // reset audio buffers
-    st->audio_ready = 0;
-    if (st->tail)
-    {
-        st->tail->next = st->free;
-        st->free = st->head;
-        st->head = st->tail = NULL;
-    }
+    nrsc5_close_program(st->radio, st->program);
+    nrsc5_open_program(st->radio, program);
+
     // update current program
     st->program = program;
 
@@ -315,11 +208,10 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
         }
         break;
     case NRSC5_EVENT_AUDIO:
-        push_audio_buffer(st, evt->audio.program, evt->audio.data, evt->audio.count);
+        //push_audio_buffer(st, evt->audio.program, evt->audio.data, evt->audio.count);
         break;
     case NRSC5_EVENT_SYNC:
         log_info("Synchronized");
-        st->audio_ready = 0;
         break;
     case NRSC5_EVENT_LOST_SYNC:
         log_info("Lost synchronization");
@@ -494,8 +386,6 @@ static void *input_main(void *arg)
         {
         case 'q':
             done_signal(st);
-            // user wants to immediately exit, so reset audio buffer
-            change_program(st, -1);
             break;
         case '0':
         case '1':
@@ -690,14 +580,6 @@ static void log_lock(void *udata, int lock)
 
 static void cleanup(state_t *st)
 {
-    reset_audio_buffers(st);
-    while (st->free)
-    {
-        audio_buffer_t *b = st->free;
-        st->free = b->next;
-        free(b);
-    }
-
     if (st->hdc_file)
         fclose(st->hdc_file);
     if (st->iq_file)
@@ -714,7 +596,6 @@ int main(int argc, char *argv[])
 {
     pthread_mutex_t log_mutex;
     pthread_t input_thread;
-    nrsc5_t *radio = NULL;
     state_t *st = calloc(1, sizeof(state_t));
 
 #ifdef __MINGW32__
@@ -726,7 +607,6 @@ int main(int argc, char *argv[])
     log_set_udata(&log_mutex);
 
     ao_initialize();
-    init_audio_buffers(st);
     if (parse_args(st, argc, argv) != 0)
         return 0;
 
@@ -738,7 +618,7 @@ int main(int argc, char *argv[])
             log_fatal("Open IQ file failed.");
             return 1;
         }
-        if (nrsc5_open_file(&radio, fp) != 0)
+        if (nrsc5_open_file(&st->radio, fp) != 0)
         {
             log_fatal("Open IQ failed.");
             return 1;
@@ -752,7 +632,7 @@ int main(int argc, char *argv[])
             log_fatal("Connection failed.");
             return 1;
         }
-        if (nrsc5_open_rtltcp(&radio, s) != 0)
+        if (nrsc5_open_rtltcp(&st->radio, s) != 0)
         {
             log_fatal("Open remote device failed.");
             return 1;
@@ -760,81 +640,78 @@ int main(int argc, char *argv[])
     }
     else
     {
-        if (nrsc5_open(&radio, st->device_index) != 0)
+        if (nrsc5_open(&st->radio, st->device_index) != 0)
         {
             log_fatal("Open device failed.");
             return 1;
         }
     }
-    if (nrsc5_set_bias_tee(radio, st->bias_tee) != 0)
+    if (nrsc5_set_bias_tee(st->radio, st->bias_tee) != 0)
     {
         log_fatal("Set bias-T failed.");
         return 1;
     }
     if (st->direct_sampling != -1)
     {
-        if (nrsc5_set_direct_sampling(radio, st->direct_sampling) != 0)
+        if (nrsc5_set_direct_sampling(st->radio, st->direct_sampling) != 0)
         {
             log_fatal("Set direct sampling failed.");
             return 1;
         }
     }
-    if (st->ppm_error != INT_MIN && nrsc5_set_freq_correction(radio, st->ppm_error) != 0)
+    if (st->ppm_error != INT_MIN && nrsc5_set_freq_correction(st->radio, st->ppm_error) != 0)
     {
         log_fatal("Set frequency correction failed.");
         return 1;
     }
-    if (nrsc5_set_frequency(radio, st->freq) != 0)
+    if (nrsc5_set_frequency(st->radio, st->freq) != 0)
     {
         log_fatal("Set frequency failed.");
         return 1;
     }
-    nrsc5_set_mode(radio, st->mode);
+    nrsc5_set_mode(st->radio, st->mode);
     if (st->gain >= 0.0f)
-        nrsc5_set_gain(radio, st->gain);
-    nrsc5_set_callback(radio, callback, st);
-    nrsc5_start(radio);
+        nrsc5_set_gain(st->radio, st->gain);
+    nrsc5_set_callback(st->radio, callback, st);
+    nrsc5_open_program(st->radio, st->program);
+    nrsc5_start(st->radio);
 
     pthread_create(&input_thread, NULL, input_main, st);
 
     while (1)
     {
-        audio_buffer_t *b;
+        char data[AUDIO_DATA_LENGTH];
 
         pthread_mutex_lock(&st->mutex);
-        while (!st->done && (st->head == NULL || st->audio_ready < AUDIO_THRESHOLD))
-            pthread_cond_wait(&st->cond, &st->mutex);
-
-        // exit once done and no more audio buffers
-        if (st->head == NULL)
+        unsigned int program = st->program;
+        if(st->done)
         {
             pthread_mutex_unlock(&st->mutex);
             break;
         }
-
-        // unlink from head list
-        b = st->head;
-        st->head = b->next;
-        if (st->head == NULL)
-            st->tail = NULL;
         pthread_mutex_unlock(&st->mutex);
 
-        ao_play(st->dev, b->data, sizeof(b->data));
+        int status = nrsc5_read_program(st->radio, program, (int16_t *) data);
+        if(status < 0)
+        {
+            log_fatal("Failed to read audio data.");
+            done_signal(st);
+            break;
+        }
+        else if(status == 0)
+        {
+            continue;
+        }
 
-        pthread_mutex_lock(&st->mutex);
-        // add to free list
-        b->next = st->free;
-        st->free = b;
-        pthread_cond_signal(&st->cond);
-        pthread_mutex_unlock(&st->mutex);
+        ao_play(st->dev, data, sizeof(data));
     }
 
     pthread_cancel(input_thread);
     pthread_join(input_thread, NULL);
 
-    nrsc5_stop(radio);
-    nrsc5_set_bias_tee(radio, 0);
-    nrsc5_close(radio);
+    nrsc5_stop(st->radio);
+    nrsc5_set_bias_tee(st->radio, 0);
+    nrsc5_close(st->radio);
     cleanup(st);
     free(st);
     ao_shutdown();

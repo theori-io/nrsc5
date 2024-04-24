@@ -27,29 +27,134 @@
 #include "private.h"
 #include "unicode.h"
 
+void output_init_buffer(output_buffer_t *st)
+{
+    st->head = NULL;
+    st->tail = NULL;
+    st->free = NULL;
+#ifdef USE_FAAD2
+    st->aacdec = NULL;
+
+    for (int i = 0; i < AUDIO_BUFFERS; ++i)
+    {
+        audio_buffer_t *b = malloc(sizeof(audio_buffer_t));
+        b->next = st->free;
+        st->free = b;
+    }
+#endif
+
+    pthread_cond_init(&st->cond, NULL);
+    pthread_mutex_init(&st->mutex, NULL);
+}
+
+void output_reset_buffer(output_buffer_t *st)
+{
+    audio_buffer_t *b;
+
+    // find the end of the head list
+    for (b = st->head; b && b->next; b = b->next) { }
+
+    // if the head list is non-empty, prepend to free list
+    if (b != NULL)
+    {
+        b->next = st->free;
+        st->free = st->head;
+    }
+
+    st->head = NULL;
+    st->tail = NULL;
+
+#ifdef USE_FAAD2
+    if (st->aacdec)
+        NeAACDecClose(st->aacdec);
+    st->aacdec = NULL;
+#endif
+}
+
+void output_free_buffer(output_buffer_t *st)
+{
+    output_reset_buffer(st);
+
+    while (st->free)
+    {
+        audio_buffer_t *b = st->free;
+        st->free = b->next;
+        free(b);
+    }
+
+    pthread_cond_destroy(&st->cond);
+    pthread_mutex_destroy(&st->mutex);
+}
+
 void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int program, unsigned int stream_id)
 {
     nrsc5_report_hdc(st->radio, program, pkt, len);
 
-    if (stream_id != 0)
-        return; // TODO: Process enhanced stream
-
 #ifdef USE_FAAD2
+    program_t *prog;
+    output_buffer_t *buff;
     void *buffer;
     NeAACDecFrameInfo info;
 
-    if (!st->aacdec[program])
+    if (stream_id != 0)
+        return; // TODO: Process enhanced stream
+
+    prog = nrsc5_get_program(st->radio, program);
+    buff = &prog->output_buffer;
+
+    if (!buff->aacdec)
     {
         unsigned long samprate = 22050;
-        NeAACDecInitHDC(&st->aacdec[program], &samprate);
+        NeAACDecInitHDC(&buff->aacdec, &samprate);
     }
 
-    buffer = NeAACDecDecode(st->aacdec[program], &info, pkt, len);
+    buffer = NeAACDecDecode(buff->aacdec, &info, pkt, len);
     if (info.error > 0)
         log_error("Decode error: %s", NeAACDecGetErrorMessage(info.error));
 
     if (info.error == 0 && info.samples > 0)
-        nrsc5_report_audio(st->radio, program, buffer, info.samples);
+    {
+        audio_buffer_t *b;
+
+        pthread_mutex_lock(&buff->mutex);
+        while (buff->free == NULL)
+        {
+            struct timespec ts;
+            struct timeval now;
+
+            gettimeofday(&now, NULL);
+            ts.tv_sec = now.tv_sec;
+            ts.tv_nsec = (now.tv_usec + 100000) * 1000;
+            if (ts.tv_nsec >= 1000000000)
+            {
+                ts.tv_nsec -= 1000000000;
+                ts.tv_sec += 1;
+            }
+
+            if (pthread_cond_timedwait(&buff->cond, &buff->mutex, &ts) == ETIMEDOUT)
+            {
+                log_warn("Program: %d audio output timed out, dropping samples", program);
+                output_reset_buffer(buff);
+            }
+        }
+
+        b = buff->free;
+        buff->free = b->next;
+
+        pthread_mutex_unlock(&buff->mutex);
+        memcpy(b->data, buffer, info.samples * sizeof(int16_t));
+        pthread_mutex_lock(&buff->mutex);
+
+        b->next = NULL;
+        if (buff->tail)
+            buff->tail->next = b;
+        else
+            buff->head = b;
+        buff->tail = b;
+
+        pthread_cond_signal(&buff->cond);
+        pthread_mutex_unlock(&buff->mutex);
+    }
 #endif
 }
 
@@ -91,24 +196,11 @@ static void aas_reset(output_t *st)
 void output_reset(output_t *st)
 {
     aas_reset(st);
-
-#ifdef USE_FAAD2
-    for (int i = 0; i < MAX_PROGRAMS; i++)
-    {
-        if (st->aacdec[i])
-            NeAACDecClose(st->aacdec[i]);
-        st->aacdec[i] = NULL;
-    }
-#endif
 }
 
 void output_init(output_t *st, nrsc5_t *radio)
 {
     st->radio = radio;
-#ifdef USE_FAAD2
-    for (int i = 0; i < MAX_PROGRAMS; i++)
-        st->aacdec[i] = NULL;
-#endif
 
     memset(st->ports, 0, sizeof(st->ports));
     memset(st->services, 0, sizeof(st->services));

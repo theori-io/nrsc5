@@ -288,6 +288,32 @@ static unsigned int calc_lc_bits(frame_header_t *hdr)
     }
 }
 
+static unsigned int calc_avg_packets(frame_header_t *hdr)
+{
+    switch(hdr->codec)
+    {
+        case 0:
+            return 32;
+        case 1:
+        case 2:
+        case 3:
+            if (hdr->stream_id == 0)
+                return 4;
+            else
+                return 32;
+        case 10:
+            if (hdr->stream_id == 0)
+                return 32;
+            else
+                return 4;
+        case 13:
+            return 4;
+        default:
+            log_warn("unknown codec field (%d)", hdr->codec);
+            return 32;
+    }
+}
+
 static unsigned int parse_location(uint8_t *buf, unsigned int lc_bits, unsigned int i)
 {
     if (lc_bits == 16)
@@ -503,7 +529,7 @@ void frame_process(frame_t *st, size_t length, logical_channel_t lc)
     while (offset < audio_end - RS_CODEWORD_LEN)
     {
         unsigned int start = offset;
-        unsigned int j, lc_bits, loc_bytes, prog;
+        unsigned int j, lc_bits, loc_bytes, prog, avg;
         unsigned short locations[MAX_AUDIO_PACKETS];
         frame_header_t hdr = {0};
         hef_t hef = {0};
@@ -535,9 +561,12 @@ void frame_process(frame_t *st, size_t length, logical_channel_t lc)
         if (hdr.hef)
             offset += parse_hef(st->buffer + offset, audio_end - offset, &hef);
         prog = hef.prog_num;
+        avg = calc_avg_packets(&hdr);
 
         parse_hdlc(st, aas_push, st->psd_buf[prog], &st->psd_idx[prog], MAX_AAS_LEN, st->buffer + offset, start + hdr.la_location + 1 - offset, lc);
         offset = start + hdr.la_location + 1;
+
+        input_prepare_push(st->input, prog, hdr.stream_id, avg, hdr.latency);
 
         for (j = 0; j < hdr.nop; ++j)
         {
@@ -582,8 +611,9 @@ void frame_process(frame_t *st, size_t length, logical_channel_t lc)
 
             offset += cnt + 1;
         }
-    }
 
+        input_finished_push(st->input, prog, hdr.stream_id);
+    }
 }
 
 void frame_push(frame_t *st, uint8_t *bits, size_t length, logical_channel_t lc)

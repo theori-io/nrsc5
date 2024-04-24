@@ -27,6 +27,31 @@ typedef int (*input_snr_cb_t) (void *, float);
 
 enum { SYNC_STATE_NONE, SYNC_STATE_COARSE, SYNC_STATE_FINE };
 
+typedef struct packet_buffer_t {
+    struct packet_buffer_t *next;
+    uint8_t data[MAX_PDU_LEN];
+    unsigned int len;
+} packet_buffer_t;
+
+typedef struct input_buffer_t
+{
+    unsigned int latency;
+    unsigned int latency_min;
+    unsigned int latency_avg;
+    unsigned int latency_max;
+
+    unsigned int count;
+    unsigned int items;
+
+    unsigned int try_locked;
+    unsigned int locked;
+
+    pthread_mutex_t mutex;
+    pthread_cond_t cond;
+
+    packet_buffer_t *head, *tail, *free;
+} input_buffer_t;
+
 typedef struct input_t
 {
     nrsc5_t *radio;
@@ -53,6 +78,9 @@ typedef struct input_t
 } input_t;
 
 void input_init(input_t *st, nrsc5_t *radio, output_t *output);
+void input_init_buffer(input_buffer_t *st);
+void input_reset_buffer(input_buffer_t* st);
+void input_free_buffer(input_buffer_t* st);
 void input_set_mode(input_t *st);
 void input_reset(input_t *st);
 void input_free(input_t *st);
@@ -62,4 +90,6 @@ void input_push_cs16(input_t *st, const int16_t *buf, uint32_t len);
 void input_set_snr_callback(input_t *st, input_snr_cb_t cb, void *);
 void input_set_skip(input_t *st, unsigned int skip);
 void input_pdu_push(input_t *st, uint8_t *pdu, unsigned int len, unsigned int program, unsigned int stream_id);
+void input_prepare_push(input_t *st, unsigned int program, unsigned int stream_id, unsigned int average_packets, unsigned int latency);
+void input_finished_push(input_t *st, unsigned int program, unsigned int stream_id);
 void input_aas_push(input_t *st, uint8_t *psd, unsigned int len);

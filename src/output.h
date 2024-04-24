@@ -90,7 +90,7 @@ typedef struct
 typedef struct buffer_t {
     struct buffer_t *next;
     int16_t data[AUDIO_FRAME_SAMPLES];
-    int len;
+    unsigned int len;
 } audio_buffer_t;
 
 typedef struct output_buffer_t

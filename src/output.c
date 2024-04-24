@@ -143,6 +143,7 @@ void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int prog
 
         pthread_mutex_unlock(&buff->mutex);
         memcpy(b->data, buffer, info.samples * sizeof(int16_t));
+        b->len = info.samples;
         pthread_mutex_lock(&buff->mutex);
 
         b->next = NULL;

@@ -761,7 +761,7 @@ NRSC5_API int nrsc5_read_program(nrsc5_t *st, unsigned int index, int16_t *buf) 
     if (buff->head == NULL)
         buff->tail = NULL;
 
-    memmove(buf, b->data, NRSC5_AUDIO_DATA_LENGTH);
+    memmove(buf, b->data, b->len * sizeof(int16_t));
 
     b->next = buff->free;
     buff->free = b;

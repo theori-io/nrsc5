@@ -207,9 +207,6 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
             }
         }
         break;
-    case NRSC5_EVENT_AUDIO:
-        //push_audio_buffer(st, evt->audio.program, evt->audio.data, evt->audio.count);
-        break;
     case NRSC5_EVENT_SYNC:
         log_info("Synchronized");
         break;

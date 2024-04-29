@@ -554,12 +554,7 @@ NRSC5_API int nrsc5_set_frequency(nrsc5_t *st, float freq)
     output_reset(&st->output);
 
     for (int i = 0; i < MAX_PROGRAMS; i++)
-    {
-        program_t *prog = &st->programs[i];
-        output_buffer_t* buffer = &prog->output_buffer;
-
-        output_reset_buffer(buffer);
-    }
+        nrsc5_reset_program(st, i);
 
     st->freq = freq;
     return 0;
@@ -1006,12 +1001,14 @@ void nrsc5_report_sis(nrsc5_t *st, const char *country_code, int fcc_facility_id
     nrsc5_report(st, &evt);
 }
 
-program_t *nrsc5_get_program(nrsc5_t *st, unsigned int program) {
+program_t *nrsc5_get_program(nrsc5_t *st, unsigned int program)
+{
     assert(program <= MAX_PROGRAMS);
     return &st->programs[program];
 }
 
-int nrsc5_get_program_status(program_t *prog) {
+int nrsc5_get_program_status(program_t *prog)
+{
     pthread_mutex_lock(&prog->mutex);
     int status = prog->status;
     pthread_mutex_unlock(&prog->mutex);

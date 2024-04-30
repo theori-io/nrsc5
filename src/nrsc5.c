@@ -720,7 +720,7 @@ NRSC5_API int nrsc5_close_program(nrsc5_t *st, unsigned int index) {
 
 static int nrsc5_read_program(nrsc5_t *st, unsigned int index, int16_t *buf, unsigned int len, int blocking)
 {
-    if(index >= MAX_PROGRAMS || index < 0)
+    if(index >= MAX_PROGRAMS)
         return -1;
 
 #ifndef USE_FAAD2

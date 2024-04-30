@@ -645,6 +645,19 @@ int nrsc5_reset_program(nrsc5_t *st, unsigned int index);
  * @param len[in] maximum number of samples to read
  * @return amount filled otherwise, nonzero on error
  */
-int nrsc5_read_program(nrsc5_t *st, unsigned int index, int16_t *buf, unsigned int len);
+int nrsc5_read_program_blocking(nrsc5_t *st, unsigned int index, int16_t *buf, unsigned int len);
+
+/**
+ * Reads available audio of a specific program.
+ * Use nrsc5_open_program() to open a specific program.
+ * This function will not wait. It will return immediately.
+ *
+ * @param st[in] pointer to an `nrsc5_t` session object
+ * @param index[in] the program index [0,5]
+ * @param buf[out] Pointer to read data to
+ * @param len[in] maximum number of samples to read
+ * @return amount filled otherwise, nonzero on error
+ */
+int nrsc5_read_program_nonblocking(nrsc5_t *st, unsigned int index, int16_t *buf, unsigned int len);
 
 #endif /* NRSC5_H_ */

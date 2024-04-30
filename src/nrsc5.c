@@ -718,7 +718,8 @@ NRSC5_API int nrsc5_close_program(nrsc5_t *st, unsigned int index) {
     return nrsc5_reset_program(st, index);
 }
 
-NRSC5_API int nrsc5_read_program(nrsc5_t *st, unsigned int index, int16_t *buf, unsigned int len) {
+static int nrsc5_read_program(nrsc5_t *st, unsigned int index, int16_t *buf, unsigned int len, int blocking)
+{
     if(index >= MAX_PROGRAMS || index < 0)
         return -1;
 
@@ -739,7 +740,7 @@ NRSC5_API int nrsc5_read_program(nrsc5_t *st, unsigned int index, int16_t *buf, 
     }
 
     pthread_mutex_lock(&ring->mutex);
-    while(nrsc5_get_program_status(prog) & NRSC5_PROGRAM_ENABLED && output_available_buffer(ring) == len)
+    while(blocking && nrsc5_get_program_status(prog) & NRSC5_PROGRAM_ENABLED && output_available_buffer(ring) == 0)
     {
         pthread_cond_wait(&ring->cond, &ring->mutex);
     }
@@ -759,6 +760,16 @@ NRSC5_API int nrsc5_read_program(nrsc5_t *st, unsigned int index, int16_t *buf, 
     pthread_mutex_unlock(&ring->mutex);
     return count;
 #endif
+}
+
+NRSC5_API int nrsc5_read_program_blocking(nrsc5_t *st, unsigned int index, int16_t *buf, unsigned int len)
+{
+    return nrsc5_read_program(st, index, buf, len, 1);
+}
+
+NRSC5_API int nrsc5_read_program_nonblocking(nrsc5_t *st, unsigned int index, int16_t *buf, unsigned int len)
+{
+    return nrsc5_read_program(st, index, buf, len, 0);
 }
 
 void nrsc5_report(nrsc5_t *st, const nrsc5_event_t *evt)

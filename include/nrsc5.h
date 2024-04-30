@@ -636,6 +636,16 @@ int nrsc5_close_program(nrsc5_t *st, unsigned int index);
 int nrsc5_reset_program(nrsc5_t *st, unsigned int index);
 
 /**
+ * Gets len samples available audio of a specific program.
+ * Use nrsc5_open_program() to open a specific program.
+ *
+ * @param st[in] pointer to an `nrsc5_t` session object
+ * @param index[in] the program index [0,5]
+ * @return amount in buffer, nonzero on error
+ */
+int nrsc5_available_len_program(nrsc5_t *st, unsigned int index);
+
+/**
  * Reads available audio of a specific program.
  * Use nrsc5_open_program() to open a specific program
  *

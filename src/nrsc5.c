@@ -772,6 +772,30 @@ NRSC5_API int nrsc5_read_program_nonblocking(nrsc5_t *st, unsigned int index, in
     return nrsc5_read_program(st, index, buf, len, 0);
 }
 
+NRSC5_API int nrsc5_available_len_program(nrsc5_t *st, unsigned int index)
+{
+    if(index >= MAX_PROGRAMS)
+        return -1;
+
+#ifndef USE_FAAD2
+    log_error("NRSC5 complied without FAAD2");
+    return -1;
+#else
+    program_t *prog;
+    output_buffer_t *ring;
+
+    prog = nrsc5_get_program(st, index);
+    ring = &prog->output_buffer;
+
+    if(!(nrsc5_get_program_status(prog) & NRSC5_PROGRAM_ENABLED))
+    {
+        log_error("Reading a program that is not enabled");
+        return -1;
+    }
+    return output_available_buffer(ring);
+#endif
+}
+
 void nrsc5_report(nrsc5_t *st, const nrsc5_event_t *evt)
 {
     if (st->callback)

@@ -677,7 +677,7 @@ int main(int argc, char *argv[])
 
     while (1)
     {
-        char data[AUDIO_DATA_LENGTH];
+        int16_t data[AUDIO_DATA_LENGTH];
 
         pthread_mutex_lock(&st->mutex);
         unsigned int program = st->program;
@@ -688,7 +688,7 @@ int main(int argc, char *argv[])
         }
         pthread_mutex_unlock(&st->mutex);
 
-        int status = nrsc5_read_program(st->radio, program, (int16_t *) data);
+        int status = nrsc5_read_program(st->radio, program, data, AUDIO_DATA_LENGTH);
         if(status < 0)
         {
             log_fatal("Failed to read audio data.");
@@ -700,7 +700,7 @@ int main(int argc, char *argv[])
             continue;
         }
 
-        ao_play(st->dev, data, sizeof(data));
+        ao_play(st->dev, (char*) data, status * sizeof(*data));
     }
 
     pthread_cancel(input_thread);

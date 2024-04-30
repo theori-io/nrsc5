@@ -27,20 +27,65 @@
 #include "private.h"
 #include "unicode.h"
 
+static unsigned int output_writable_buffer(output_buffer_t *st)
+{
+    if (st->read > st->write)
+        return (st->read - st->write) - 1;
+    else
+        return st->size - (st->write - st->read) - 1;
+}
+
+static void output_write_buffer(output_buffer_t *st, int16_t *buffer, unsigned int samples)
+{
+    if (st->write + samples > st->size)
+    {
+        unsigned int len = st->size - st->write;
+        memcpy(st->data + st->write, buffer, len * sizeof(*buffer));
+        memcpy(st->data, buffer + len, (samples - len) * sizeof(*buffer));
+        st->write = samples - len;
+    }
+    else
+    {
+        memcpy(st->data + st->write, buffer, samples * sizeof(*buffer));
+        st->write += samples;
+        if(st->write == st->size)
+            st->write = 0;
+    }
+}
+
+void output_read_buffer(output_buffer_t *st, int16_t *buffer, unsigned int samples) {
+    if (st->read + samples > st->size)
+    {
+        unsigned int first = st->size - st->read;
+        memcpy(buffer, &st->data[st->read], first * sizeof(*buffer));
+        memcpy(&buffer[first], st->data, (samples - first) * sizeof(*buffer));
+        st->read = samples - first;
+    }
+    else
+    {
+        memcpy(buffer, &st->data[st->read], samples * sizeof(*buffer));
+        st->read += samples;
+        if(st->read == st->size)
+            st->read = 0;
+    }
+}
+
+unsigned int output_available_buffer(output_buffer_t *st)
+{
+    if (st->write >= st->read)
+        return st->write - st->read;
+    else
+        return st->size - (st->read - st->write);
+}
+
 void output_init_buffer(output_buffer_t *st)
 {
-    st->head = NULL;
-    st->tail = NULL;
-    st->free = NULL;
 #ifdef USE_FAAD2
     st->aacdec = NULL;
-
-    for (int i = 0; i < AUDIO_BUFFERS; ++i)
-    {
-        audio_buffer_t *b = malloc(sizeof(audio_buffer_t));
-        b->next = st->free;
-        st->free = b;
-    }
+    st->size = OUTPUT_AUDIO_BUFFER;
+    st->data = NULL;
+    st->read = 0;
+    st->write = 0;
 #endif
 
     pthread_cond_init(&st->cond, NULL);
@@ -49,25 +94,12 @@ void output_init_buffer(output_buffer_t *st)
 
 void output_reset_buffer(output_buffer_t *st)
 {
-    audio_buffer_t *b;
-
-    // find the end of the head list
-    for (b = st->head; b && b->next; b = b->next) { }
-
-    // if the head list is non-empty, prepend to free list
-    if (b != NULL)
-    {
-        b->next = st->free;
-        st->free = st->head;
-    }
-
-    st->head = NULL;
-    st->tail = NULL;
-
 #ifdef USE_FAAD2
     if (st->aacdec)
         NeAACDecClose(st->aacdec);
     st->aacdec = NULL;
+    st->write = 0;
+    st->read = 0;
 #endif
 }
 
@@ -75,24 +107,22 @@ void output_free_buffer(output_buffer_t *st)
 {
     output_reset_buffer(st);
 
-    while (st->free)
-    {
-        audio_buffer_t *b = st->free;
-        st->free = b->next;
-        free(b);
-    }
+    if(st->data)
+        free(st->data);
+
+    st->data = NULL;
 
     pthread_cond_destroy(&st->cond);
     pthread_mutex_destroy(&st->mutex);
 }
 
-void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int program, unsigned int stream_id)
+void output_push(output_t *st, uint8_t *pkt, unsigned int pkt_len, unsigned int program, unsigned int stream_id)
 {
-    nrsc5_report_hdc(st->radio, program, pkt, len);
+    nrsc5_report_hdc(st->radio, program, pkt, pkt_len);
 
 #ifdef USE_FAAD2
     program_t *prog;
-    output_buffer_t *buff;
+    output_buffer_t *ring;
     void *buffer;
     NeAACDecFrameInfo info;
 
@@ -100,62 +130,48 @@ void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int prog
         return; // TODO: Process enhanced stream
 
     prog = nrsc5_get_program(st->radio, program);
-    buff = &prog->output_buffer;
+    ring = &prog->output_buffer;
 
-    if (!buff->aacdec)
+    if (!ring->aacdec)
     {
         unsigned long samprate = 22050;
-        NeAACDecInitHDC(&buff->aacdec, &samprate);
+        NeAACDecInitHDC(&ring->aacdec, &samprate);
     }
+    if (!ring->data)
+        ring->data = malloc(ring->size * sizeof(int16_t));
 
-    buffer = NeAACDecDecode(buff->aacdec, &info, pkt, len);
+    buffer = NeAACDecDecode(ring->aacdec, &info, pkt, pkt_len);
     if (info.error > 0)
         log_error("Decode error: %s", NeAACDecGetErrorMessage(info.error));
 
-    if (info.error == 0 && info.samples > 0)
+    if (info.samples == 0)
+        return;
+
+    pthread_mutex_lock(&ring->mutex);
+    if(output_writable_buffer(ring) < info.samples)
     {
-        audio_buffer_t *b;
+        struct timespec ts;
+        struct timeval now;
 
-        pthread_mutex_lock(&buff->mutex);
-        while (buff->free == NULL)
+        gettimeofday(&now, NULL);
+        ts.tv_sec = now.tv_sec;
+        ts.tv_nsec = (now.tv_usec + 100000) * 1000;
+        if (ts.tv_nsec >= 1000000000)
         {
-            struct timespec ts;
-            struct timeval now;
-
-            gettimeofday(&now, NULL);
-            ts.tv_sec = now.tv_sec;
-            ts.tv_nsec = (now.tv_usec + 100000) * 1000;
-            if (ts.tv_nsec >= 1000000000)
-            {
-                ts.tv_nsec -= 1000000000;
-                ts.tv_sec += 1;
-            }
-
-            if (pthread_cond_timedwait(&buff->cond, &buff->mutex, &ts) == ETIMEDOUT)
-            {
-                log_warn("Program: %d audio output timed out, dropping samples", program);
-                output_reset_buffer(buff);
-            }
+            ts.tv_nsec -= 1000000000;
+            ts.tv_sec += 1;
         }
 
-        b = buff->free;
-        buff->free = b->next;
-
-        pthread_mutex_unlock(&buff->mutex);
-        memcpy(b->data, buffer, info.samples * sizeof(int16_t));
-        b->len = info.samples;
-        pthread_mutex_lock(&buff->mutex);
-
-        b->next = NULL;
-        if (buff->tail)
-            buff->tail->next = b;
-        else
-            buff->head = b;
-        buff->tail = b;
-
-        pthread_cond_signal(&buff->cond);
-        pthread_mutex_unlock(&buff->mutex);
+        if (pthread_cond_timedwait(&ring->cond, &ring->mutex, &ts) == ETIMEDOUT)
+        {
+            log_warn("Program: %d audio output timed out, overriding samples", program);
+        }
     }
+
+    output_write_buffer(ring, buffer, info.samples);
+
+    pthread_cond_signal(&ring->cond);
+    pthread_mutex_unlock(&ring->mutex);
 #endif
 }
 

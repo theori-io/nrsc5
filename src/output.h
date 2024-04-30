@@ -10,7 +10,7 @@
 #endif
 
 #define AUDIO_FRAME_SAMPLES 4096
-#define AUDIO_BUFFERS 128
+#define OUTPUT_AUDIO_BUFFER (128 * AUDIO_FRAME_SAMPLES)
 #define MAX_PORTS 32
 #define MAX_SIG_SERVICES 8
 #define MAX_SIG_COMPONENTS 8
@@ -87,18 +87,15 @@ typedef struct
     sig_component_t component[MAX_SIG_COMPONENTS];
 } sig_service_t;
 
-typedef struct buffer_t {
-    struct buffer_t *next;
-    int16_t data[AUDIO_FRAME_SAMPLES];
-    unsigned int len;
-} audio_buffer_t;
-
 typedef struct output_buffer_t
 {
 #ifdef HAVE_FAAD2
     NeAACDecHandle aacdec;
 #endif
-    audio_buffer_t *head, *tail, *free;
+    int16_t *data;
+    unsigned int write;
+    unsigned int read;
+    unsigned int size;
 
     pthread_mutex_t mutex;
     pthread_cond_t cond;
@@ -115,8 +112,10 @@ void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int prog
 void output_begin(output_t *st);
 void output_reset(output_t *st);
 void output_init(output_t *st, nrsc5_t *);
+void output_free(output_t *st);
+void output_aas_push(output_t *st, uint8_t *psd, unsigned int len);
 void output_init_buffer(output_buffer_t* st);
 void output_reset_buffer(output_buffer_t *st);
 void output_free_buffer(output_buffer_t *st);
-void output_free(output_t *st);
-void output_aas_push(output_t *st, uint8_t *psd, unsigned int len);
+void output_read_buffer(output_buffer_t *st, int16_t *buffer, unsigned int samples);
+unsigned int output_available_buffer(output_buffer_t *st);

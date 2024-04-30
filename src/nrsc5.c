@@ -718,7 +718,7 @@ NRSC5_API int nrsc5_close_program(nrsc5_t *st, unsigned int index) {
     return nrsc5_reset_program(st, index);
 }
 
-NRSC5_API int nrsc5_read_program(nrsc5_t *st, unsigned int index, int16_t *buf) {
+NRSC5_API int nrsc5_read_program(nrsc5_t *st, unsigned int index, int16_t *buf, unsigned int len) {
     if(index >= MAX_PROGRAMS || index < 0)
         return -1;
 
@@ -727,11 +727,10 @@ NRSC5_API int nrsc5_read_program(nrsc5_t *st, unsigned int index, int16_t *buf) 
     return -1;
 #else
     program_t *prog;
-    output_buffer_t *buff;
-    audio_buffer_t *b;
+    output_buffer_t *ring;
 
     prog = nrsc5_get_program(st, index);
-    buff = &prog->output_buffer;
+    ring = &prog->output_buffer;
 
     if(!(nrsc5_get_program_status(prog) & NRSC5_PROGRAM_ENABLED))
     {
@@ -739,30 +738,26 @@ NRSC5_API int nrsc5_read_program(nrsc5_t *st, unsigned int index, int16_t *buf) 
         return -1;
     }
 
-    pthread_mutex_lock(&buff->mutex);
-    while(nrsc5_get_program_status(prog) & NRSC5_PROGRAM_ENABLED && buff->head == NULL)
+    pthread_mutex_lock(&ring->mutex);
+    while(nrsc5_get_program_status(prog) & NRSC5_PROGRAM_ENABLED && output_available_buffer(ring) == len)
     {
-        pthread_cond_wait(&buff->cond, &buff->mutex);
+        pthread_cond_wait(&ring->cond, &ring->mutex);
     }
 
-    if(buff->head == NULL)
+    unsigned int count = output_available_buffer(ring);
+    if(count > len)
+        count = len;
+
+    if(count == 0)
     {
-        pthread_mutex_unlock(&buff->mutex);
+        pthread_mutex_unlock(&ring->mutex);
         return 0;
     }
 
-    b = buff->head;
-    buff->head = b->next;
-    if (buff->head == NULL)
-        buff->tail = NULL;
+    output_read_buffer(ring, buf, count);
 
-    memmove(buf, b->data, b->len * sizeof(int16_t));
-
-    b->next = buff->free;
-    buff->free = b;
-
-    pthread_mutex_unlock(&buff->mutex);
-    return 1;
+    pthread_mutex_unlock(&ring->mutex);
+    return count;
 #endif
 }
 

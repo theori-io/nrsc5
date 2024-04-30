@@ -311,7 +311,7 @@ int input_shift(input_t *st, unsigned int cnt)
 
     if (cnt + st->avail > INPUT_BUF_LEN)
     {
-        log_error("input input_buffer overflow!");
+        log_error("input buffer overflow!");
         return -1;
     }
 

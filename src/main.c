@@ -104,7 +104,7 @@ static void write_adts_header(FILE *fp, unsigned int len)
     bw_addbits(&bw, 0, 1);
     bw_addbits(&bw, 0, 1);
     bw_addbits(&bw, len + 7, 13); // frame length
-    bw_addbits(&bw, 0x7FF, 11); // input_buffer fullness (VBR)
+    bw_addbits(&bw, 0x7FF, 11); // buffer fullness (VBR)
     bw_addbits(&bw, 0, 2); // 1 AAC frame per ADTS frame
 
     fwrite(hdr, 7, 1, fp);

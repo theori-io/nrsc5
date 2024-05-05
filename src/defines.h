@@ -30,12 +30,15 @@
 #define CENTER_AM (FFT_AM / 2)
 // indexes of AM subcarriers
 #define REF_INDEX_AM 1
-#define PIDS_1_INDEX_AM 27
-#define PIDS_2_INDEX_AM 53
-#define TERTIARY_INDEX_AM 2
-#define SECONDARY_INDEX_AM 28
-#define PRIMARY_INDEX_AM 57
+#define PIDS_INNER_INDEX_AM 27
+#define PIDS_OUTER_INDEX_AM 53
+#define INNER_PARTITION_START_AM 2
+#define MIDDLE_PARTITION_START_AM 28
+#define OUTER_PARTITION_START_AM 57
 #define MAX_INDEX_AM 81
+// AM service modes
+#define SERVICE_MODE_MA1 1
+#define SERVICE_MODE_MA3 2
 // bits per P1 frame
 #define P1_FRAME_LEN_FM 146176
 #define P1_FRAME_LEN_AM 3750
@@ -49,10 +52,12 @@
 #define PIDS_FRAME_LEN_ENCODED_AM (PIDS_FRAME_LEN * 3)
 // bits per P3 frame
 #define P3_FRAME_LEN_FM 4608
-#define P3_FRAME_LEN_AM 24000
+#define P3_FRAME_LEN_MA1 24000
+#define P3_FRAME_LEN_MA3 30000
 // bits per encoded P3 frame
 #define P3_FRAME_LEN_ENCODED_FM (P3_FRAME_LEN_FM * 2)
-#define P3_FRAME_LEN_ENCODED_AM (P3_FRAME_LEN_AM * 3 / 2)
+#define P3_FRAME_LEN_ENCODED_MA1 (P3_FRAME_LEN_MA1 * 3 / 2)
+#define P3_FRAME_LEN_ENCODED_MA3 (P3_FRAME_LEN_MA3 * 12 / 5)
 // bits per L2 PCI
 #define PCI_LEN 24
 // bytes per L2 PDU (max)

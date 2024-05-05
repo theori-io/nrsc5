@@ -65,19 +65,48 @@ static void interleaver_ma1(decode_t *st)
         p = 3 + (n % 3);
         st->mu[DIVERSITY_DELAY_AM + n] = bit_map(st->buffer_pu, b, k, p);
     }
-    for (int n = 0; n < 12000; n++)
+
+    if (st->input->sync.psmi != SERVICE_MODE_MA3)
     {
-        b = (3*n + n/3000) % 8;
-        k = (n + (n/6000)) % 750;
-        p = n % 2;
-        st->el[n] = bit_map(st->buffer_t, b, k, p);
+        for (int n = 0; n < 12000; n++)
+        {
+            b = (3*n + n/3000) % 8;
+            k = (n + (n/6000)) % 750;
+            p = n % 2;
+            st->el[n] = bit_map(st->buffer_t, b, k, p);
+        }
+        for (int n = 0; n < 24000; n++)
+        {
+            b = (3*n + n/3000 + 2*(n/12000)) % 8;
+            k = (n + (n/6000)) % 750;
+            p = n % 4;
+            st->eu[n] = bit_map(st->buffer_s, b, k, p);
+        }
     }
-    for (int n = 0; n < 24000; n++)
+    else
     {
-        b = (3*n + n/3000 + 2*(n/12000)) % 8;
-        k = (n + (n/6000)) % 750;
-        p = n % 4;
-        st->eu[n] = bit_map(st->buffer_s, b, k, p);
+        for (int n = 0; n < 18000; n++)
+        {
+            b = (3*n + 3) % 8;
+            k = (n + n/3000 + 3) % 750;
+            p = n % 3;
+            st->ebl[n] = bit_map(st->buffer_t, b, k, p);
+
+            b = (3*n + 3) % 8;
+            k = (n + n/3000 + 3) % 750;
+            p = 3 + (n % 3);
+            st->eml[DIVERSITY_DELAY_AM + n] = bit_map(st->buffer_t, b, k, p);
+
+            b = (3*n) % 8;
+            k = (n + n/3000 + 2) % 750;
+            p = n % 3;
+            st->ebu[n] = bit_map(st->buffer_s, b, k, p);
+
+            b = (3*n) % 8;
+            k = (n + n/3000 + 2) % 750;
+            p = 3 + (n % 3);
+            st->emu[DIVERSITY_DELAY_AM + n] = bit_map(st->buffer_s, b, k, p);
+        }
     }
 
     for (int i = 0; i < 6000; i++)
@@ -89,18 +118,36 @@ static void interleaver_ma1(decode_t *st)
             st->p1_am[i*12 + bu_delay[j]] = st->bu[i*3 + j];
             st->p1_am[i*12 + mu_delay[j]] = st->mu[i*3 + j];
         }
-        for (int j = 0; j < 2; j++)
+        if (st->input->sync.psmi != SERVICE_MODE_MA3)
         {
-            st->p3_am[i*6 + el_delay[j]] = st->el[i*2 + j];
+            for (int j = 0; j < 2; j++)
+            {
+                st->p3_am[i*6 + el_delay[j]] = st->el[i*2 + j];
+            }
+            for (int j = 0; j < 4; j++)
+            {
+                st->p3_am[i*6 + eu_delay[j]] = st->eu[i*4 + j];
+            }
         }
-        for (int j = 0; j < 4; j++)
+        else
         {
-            st->p3_am[i*6 + eu_delay[j]] = st->eu[i*4 + j];
+            for (int j = 0; j < 3; j++)
+            {
+                st->p3_am[i*12 + bl_delay[j]] = st->ebl[i*3 + j];
+                st->p3_am[i*12 + ml_delay[j]] = st->eml[i*3 + j];
+                st->p3_am[i*12 + bu_delay[j]] = st->ebu[i*3 + j];
+                st->p3_am[i*12 + mu_delay[j]] = st->emu[i*3 + j];
+            }
         }
     }
 
     memmove(st->ml, st->ml + 18000, DIVERSITY_DELAY_AM);
     memmove(st->mu, st->mu + 18000, DIVERSITY_DELAY_AM);
+    if (st->input->sync.psmi == SERVICE_MODE_MA3)
+    {
+        memmove(st->eml, st->eml + 18000, DIVERSITY_DELAY_AM);
+        memmove(st->emu, st->emu + 18000, DIVERSITY_DELAY_AM);
+    }
 
     int offset = 0;
     for (int i = 0; i < 8 * P1_FRAME_LEN_AM * 3; i++)
@@ -118,17 +165,36 @@ static void interleaver_ma1(decode_t *st)
     }
 
     offset = 0;
-    for (int i = 0; i < P3_FRAME_LEN_AM * 3; i++)
+    if (st->input->sync.psmi != SERVICE_MODE_MA3)
     {
-        switch (i % 6)
+        for (int i = 0; i < P3_FRAME_LEN_MA1 * 3; i++)
         {
-        case 1:
-        case 4:
-        case 5:
-            st->viterbi_p3_am[i] = 0;
-            break;
-        default:
-            st->viterbi_p3_am[i] = st->p3_am[offset++] ? 1 : -1;
+            switch (i % 6)
+            {
+            case 1:
+            case 4:
+            case 5:
+                st->viterbi_p3_am[i] = 0;
+                break;
+            default:
+                st->viterbi_p3_am[i] = st->p3_am[offset++] ? 1 : -1;
+            }
+        }
+    }
+    else
+    {
+        for (int i = 0; i < P3_FRAME_LEN_MA3 * 3; i++)
+        {
+            switch (i % 15)
+            {
+            case 1:
+            case 4:
+            case 7:
+                st->viterbi_p3_am[i] = 0;
+                break;
+            default:
+                st->viterbi_p3_am[i] = st->p3_am[offset++] ? 1 : -1;
+            }
         }
     }
 }
@@ -173,10 +239,16 @@ static int bit_errors_p1_am(int8_t *coded, uint8_t *decoded)
     return bit_errors(coded, decoded, 9, P1_FRAME_LEN_AM, 0561, 0657, 0711, puncture, 15);
 }
 
-static int bit_errors_p3_am(int8_t *coded, uint8_t *decoded)
+static int bit_errors_p3_ma1(int8_t *coded, uint8_t *decoded)
 {
     uint8_t puncture[] = {1, 0, 1, 1, 0, 0};
-    return bit_errors(coded, decoded, 9, P3_FRAME_LEN_AM, 0561, 0753, 0711, puncture, 6);
+    return bit_errors(coded, decoded, 9, P3_FRAME_LEN_MA1, 0561, 0753, 0711, puncture, 6);
+}
+
+static int bit_errors_p3_ma3(int8_t *coded, uint8_t *decoded)
+{
+    uint8_t puncture[] = {1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1};
+    return bit_errors(coded, decoded, 9, P3_FRAME_LEN_MA3, 0561, 0657, 0711, puncture, 15);
 }
 
 static void descramble(uint8_t *buf, unsigned int length)
@@ -336,12 +408,25 @@ void decode_process_p1_p3_am(decode_t *st)
         descramble(st->scrambler_p1_am, P1_FRAME_LEN_AM);
         frame_push(&st->input->frame, st->scrambler_p1_am, P1_FRAME_LEN_AM, P1_LOGICAL_CHANNEL);
     }
-    nrsc5_conv_decode_e2(st->viterbi_p3_am, st->scrambler_p3_am, P3_FRAME_LEN_AM);
-    total_errors += bit_errors_p3_am(st->viterbi_p3_am, st->scrambler_p3_am);
-    descramble(st->scrambler_p3_am, P3_FRAME_LEN_AM);
-    frame_push(&st->input->frame, st->scrambler_p3_am, P3_FRAME_LEN_AM, P3_LOGICAL_CHANNEL);
 
-    nrsc5_report_ber(st->input->radio, (float) total_errors / (8 * P1_FRAME_LEN_ENCODED_AM + P3_FRAME_LEN_ENCODED_AM));
+    if (st->input->sync.psmi != SERVICE_MODE_MA3)
+    {
+        nrsc5_conv_decode_e2(st->viterbi_p3_am, st->scrambler_p3_am, P3_FRAME_LEN_MA1);
+        total_errors += bit_errors_p3_ma1(st->viterbi_p3_am, st->scrambler_p3_am);
+        descramble(st->scrambler_p3_am, P3_FRAME_LEN_MA1);
+        frame_push(&st->input->frame, st->scrambler_p3_am, P3_FRAME_LEN_MA1, P3_LOGICAL_CHANNEL);
+
+        nrsc5_report_ber(st->input->radio, (float) total_errors / (8 * P1_FRAME_LEN_ENCODED_AM + P3_FRAME_LEN_ENCODED_MA1));
+    }
+    else
+    {
+        nrsc5_conv_decode_e1(st->viterbi_p3_am, st->scrambler_p3_am, P3_FRAME_LEN_MA3);
+        total_errors += bit_errors_p3_ma3(st->viterbi_p3_am, st->scrambler_p3_am);
+        descramble(st->scrambler_p3_am, P3_FRAME_LEN_MA3);
+        frame_push(&st->input->frame, st->scrambler_p3_am, P3_FRAME_LEN_MA3, P3_LOGICAL_CHANNEL);
+
+        nrsc5_report_ber(st->input->radio, (float) total_errors / (8 * P1_FRAME_LEN_ENCODED_AM + P3_FRAME_LEN_ENCODED_MA3));
+    }
 }
 
 static void interleaver_iv_reset(interleaver_iv_t *interleaver)

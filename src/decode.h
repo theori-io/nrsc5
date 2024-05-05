@@ -36,6 +36,10 @@ typedef struct
     uint8_t mu[18000 + DIVERSITY_DELAY_AM];
     uint8_t el[12000];
     uint8_t eu[24000];
+    uint8_t ebl[18000];
+    uint8_t ebu[18000];
+    uint8_t eml[18000 + DIVERSITY_DELAY_AM];
+    uint8_t emu[18000 + DIVERSITY_DELAY_AM];
 
     int8_t viterbi_p1[P1_FRAME_LEN_FM * 3];
     uint8_t scrambler_p1[P1_FRAME_LEN_FM];
@@ -51,9 +55,9 @@ typedef struct
     uint8_t p1_am[8 * P1_FRAME_LEN_ENCODED_AM];
     int8_t viterbi_p1_am[8 * P1_FRAME_LEN_AM * 3];
     uint8_t scrambler_p1_am[P1_FRAME_LEN_AM];
-    uint8_t p3_am[P3_FRAME_LEN_ENCODED_AM];
-    int8_t viterbi_p3_am[P3_FRAME_LEN_AM * 3];
-    uint8_t scrambler_p3_am[P3_FRAME_LEN_AM];
+    uint8_t p3_am[P3_FRAME_LEN_ENCODED_MA3];
+    int8_t viterbi_p3_am[P3_FRAME_LEN_MA3 * 3];
+    uint8_t scrambler_p3_am[P3_FRAME_LEN_MA3];
 
     pids_t pids;
 } decode_t;

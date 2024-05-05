@@ -204,7 +204,7 @@ void acquire_process(acquire_t *st)
 
             if (st->input->sync_state != SYNC_STATE_FINE)
             {
-                for (j = CENTER_AM - PIDS_2_INDEX_AM; j <= CENTER_AM + PIDS_2_INDEX_AM; j++)
+                for (j = CENTER_AM - PIDS_OUTER_INDEX_AM; j <= CENTER_AM + PIDS_OUTER_INDEX_AM; j++)
                 {
                     mag_sums[j] += cabsf(st->fftout[j]);
                 }
@@ -215,7 +215,7 @@ void acquire_process(acquire_t *st)
         {
             float max_mag = -1.0f;
             int max_index = -1;
-            for (j = CENTER_AM - PIDS_2_INDEX_AM; j <= CENTER_AM + PIDS_2_INDEX_AM; j++)
+            for (j = CENTER_AM - PIDS_OUTER_INDEX_AM; j <= CENTER_AM + PIDS_OUTER_INDEX_AM; j++)
             {
                 if (mag_sums[j] > max_mag)
                 {

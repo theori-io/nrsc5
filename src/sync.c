@@ -196,6 +196,7 @@ static int find_block_am(sync_t *st, unsigned int ref)
         0, 1, 1, 0, 0, 1, 0, -1, -1, 1, -1, -1, -1, -1, 0, -1, -1, -1, -1, -1, -1, 1, 1, -1, -1, -1, -1, -1, -1, -1, -1, -1
     };
     unsigned char data[BLKSZ];
+    int bc;
 
     for (int n = 0; n < BLKSZ; n++)
     {
@@ -209,7 +210,10 @@ static int find_block_am(sync_t *st, unsigned int ref)
     if (data[15] ^ data[16] ^ data[17] ^ data[18] ^ data[19] ^ data[20]) return -1;
     if (data[23] ^ data[24] ^ data[25] ^ data[26] ^ data[27] ^ data[28] ^ data[29] ^ data[30] ^ data[31]) return -1;
 
-    return (data[17] << 2) | (data[18] << 1) | data[19];
+    bc = (data[17] << 2) | (data[18] << 1) | data[19];
+    if (bc == 0)
+        st->psmi = (data[26] << 4) | (data[27] << 3) | (data[28] << 2) | (data[29] << 1) | data[30];
+    return bc;
 }
 
 static int find_ref_am(sync_t *st, unsigned int ref)
@@ -539,19 +543,22 @@ void sync_process_am(sync_t *st)
 {
     int offset;
 
-    for (int i = REF_INDEX_AM; i <= PIDS_2_INDEX_AM; i++)
-    {
-        for (int n = 0; n < BLKSZ; n++)
-        {
-            st->buffer[CENTER_AM + i][n] -= conjf(st->buffer[CENTER_AM - i][n]);
-        }
-    }
-
-    for (int i = PRIMARY_INDEX_AM; i <= MAX_INDEX_AM; i++)
+    for (int i = REF_INDEX_AM; i <= MAX_INDEX_AM; i++)
     {
         for (int n = 0; n < BLKSZ; n++)
         {
             st->buffer[CENTER_AM - i][n] = -conjf(st->buffer[CENTER_AM - i][n]);
+        }
+    }
+
+    if (st->psmi != SERVICE_MODE_MA3)
+    {
+        for (int i = REF_INDEX_AM; i <= PIDS_OUTER_INDEX_AM; i++)
+        {
+            for (int n = 0; n < BLKSZ; n++)
+            {
+                st->buffer[CENTER_AM + i][n] += st->buffer[CENTER_AM - i][n];
+            }
         }
     }
 
@@ -591,16 +598,19 @@ void sync_process_am(sync_t *st)
 
     if (st->input->sync_state == SYNC_STATE_FINE)
     {
-        float complex pids1_mult = 2 * CMPLXF(1.5, -0.5) / (st->buffer[CENTER_AM + PIDS_1_INDEX_AM][8] + st->buffer[CENTER_AM + PIDS_1_INDEX_AM][24]);
-        float complex pids2_mult = 2 * CMPLXF(1.5, -0.5) / (st->buffer[CENTER_AM + PIDS_2_INDEX_AM][8] + st->buffer[CENTER_AM + PIDS_2_INDEX_AM][24]);
+        int pids_0_index = (st->psmi != SERVICE_MODE_MA3) ? PIDS_INNER_INDEX_AM : -PIDS_INNER_INDEX_AM;
+        int pids_1_index = (st->psmi != SERVICE_MODE_MA3) ? PIDS_OUTER_INDEX_AM : PIDS_INNER_INDEX_AM;
+
+        float complex pids1_mult = 2 * CMPLXF(1.5, -0.5) / (st->buffer[CENTER_AM + pids_0_index][8] + st->buffer[CENTER_AM + pids_0_index][24]);
+        float complex pids2_mult = 2 * CMPLXF(1.5, -0.5) / (st->buffer[CENTER_AM + pids_1_index][8] + st->buffer[CENTER_AM + pids_1_index][24]);
 
         for (int n = 0; n < BLKSZ; n++)
         {
-            st->buffer[CENTER_AM + PIDS_1_INDEX_AM][n] *= pids1_mult;
-            decode_push_pids(&st->input->decode, qam16(st->buffer[CENTER_AM + PIDS_1_INDEX_AM][n]));
+            st->buffer[CENTER_AM + pids_0_index][n] *= pids1_mult;
+            decode_push_pids(&st->input->decode, qam16(st->buffer[CENTER_AM + pids_0_index][n]));
 
-            st->buffer[CENTER_AM + PIDS_2_INDEX_AM][n] *= pids2_mult;
-            decode_push_pids(&st->input->decode, qam16(st->buffer[CENTER_AM + PIDS_2_INDEX_AM][n]));
+            st->buffer[CENTER_AM + pids_1_index][n] *= pids2_mult;
+            decode_push_pids(&st->input->decode, qam16(st->buffer[CENTER_AM + pids_1_index][n]));
         }
 
         float complex pl_mult[PARTITION_WIDTH_AM];
@@ -608,16 +618,28 @@ void sync_process_am(sync_t *st)
         float complex s_mult[PARTITION_WIDTH_AM];
         float complex t_mult[PARTITION_WIDTH_AM];
 
+        int primary_index = (st->psmi != SERVICE_MODE_MA3) ? OUTER_PARTITION_START_AM : INNER_PARTITION_START_AM;
+        int secondary_index = MIDDLE_PARTITION_START_AM;
+        int tertiary_index = (st->psmi != SERVICE_MODE_MA3) ? INNER_PARTITION_START_AM : MIDDLE_PARTITION_START_AM;
+
         float samperr = 0;
         for (int col = 0; col < PARTITION_WIDTH_AM; col++)
         {
             int train1 = (5 + 11*col) % 32;
             int train2 = (21 + 11*col) % 32;
 
-            pl_mult[col] = 2 * CMPLXF(2.5, -2.5) / (st->buffer[CENTER_AM - PRIMARY_INDEX_AM - col][train1] + st->buffer[CENTER_AM - PRIMARY_INDEX_AM - col][train2]);
-            pu_mult[col] = 2 * CMPLXF(2.5, -2.5) / (st->buffer[CENTER_AM + PRIMARY_INDEX_AM + col][train1] + st->buffer[CENTER_AM + PRIMARY_INDEX_AM + col][train2]);
-            s_mult[col] = 2 * CMPLXF(1.5, -0.5) / (st->buffer[CENTER_AM + SECONDARY_INDEX_AM + col][train1] + st->buffer[CENTER_AM + SECONDARY_INDEX_AM + col][train2]);
-            t_mult[col] = 2 * CMPLXF(-0.5, 0.5) / (st->buffer[CENTER_AM + TERTIARY_INDEX_AM + col][train1] + st->buffer[CENTER_AM + TERTIARY_INDEX_AM + col][train2]);
+            pl_mult[col] = 2 * CMPLXF(2.5, -2.5) / (st->buffer[CENTER_AM - primary_index - col][train1] + st->buffer[CENTER_AM - primary_index - col][train2]);
+            pu_mult[col] = 2 * CMPLXF(2.5, -2.5) / (st->buffer[CENTER_AM + primary_index + col][train1] + st->buffer[CENTER_AM + primary_index + col][train2]);
+            if (st->psmi != SERVICE_MODE_MA3)
+            {
+                s_mult[col] = 2 * CMPLXF(1.5, -0.5) / (st->buffer[CENTER_AM + secondary_index + col][train1] + st->buffer[CENTER_AM + secondary_index + col][train2]);
+                t_mult[col] = 2 * CMPLXF(-0.5, 0.5) / (st->buffer[CENTER_AM + tertiary_index + col][train1] + st->buffer[CENTER_AM + tertiary_index + col][train2]);
+            }
+            else
+            {
+                s_mult[col] = 2 * CMPLXF(2.5, -2.5) / (st->buffer[CENTER_AM + secondary_index + col][train1] + st->buffer[CENTER_AM + secondary_index + col][train2]);
+                t_mult[col] = 2 * CMPLXF(2.5, -2.5) / (st->buffer[CENTER_AM - tertiary_index - col][train1] + st->buffer[CENTER_AM - tertiary_index - col][train2]);
+            }
 
             if (col > 0)
             {
@@ -632,18 +654,34 @@ void sync_process_am(sync_t *st)
         {
             for (int col = 0; col < PARTITION_WIDTH_AM; col++)
             {
-                st->buffer[CENTER_AM - PRIMARY_INDEX_AM - col][n] *= pl_mult[col];
-                st->buffer[CENTER_AM + PRIMARY_INDEX_AM + col][n] *= pu_mult[col];
-                st->buffer[CENTER_AM + SECONDARY_INDEX_AM + col][n] *= s_mult[col];
-                st->buffer[CENTER_AM + TERTIARY_INDEX_AM + col][n] *= t_mult[col];
+                st->buffer[CENTER_AM - primary_index - col][n] *= pl_mult[col];
+                st->buffer[CENTER_AM + primary_index + col][n] *= pu_mult[col];
+                st->buffer[CENTER_AM + secondary_index + col][n] *= s_mult[col];
+                if (st->psmi != SERVICE_MODE_MA3)
+                    st->buffer[CENTER_AM + tertiary_index + col][n] *= t_mult[col];
+                else
+                    st->buffer[CENTER_AM - tertiary_index - col][n] *= t_mult[col];
 
-                decode_push_pl_pu_s_t(
-                    &st->input->decode,
-                    qam64(st->buffer[CENTER_AM - PRIMARY_INDEX_AM - col][n]),
-                    qam64(st->buffer[CENTER_AM + PRIMARY_INDEX_AM + col][n]),
-                    qam16(st->buffer[CENTER_AM + SECONDARY_INDEX_AM + col][n]),
-                    qpsk(st->buffer[CENTER_AM + TERTIARY_INDEX_AM + col][n])
-                );
+                if (st->psmi != SERVICE_MODE_MA3)
+                {
+                    decode_push_pl_pu_s_t(
+                        &st->input->decode,
+                        qam64(st->buffer[CENTER_AM - primary_index - col][n]),
+                        qam64(st->buffer[CENTER_AM + primary_index + col][n]),
+                        qam16(st->buffer[CENTER_AM + secondary_index + col][n]),
+                        qpsk(st->buffer[CENTER_AM + tertiary_index + col][n])
+                    );
+                }
+                else
+                {
+                    decode_push_pl_pu_s_t(
+                        &st->input->decode,
+                        qam64(st->buffer[CENTER_AM - primary_index - col][n]),
+                        qam64(st->buffer[CENTER_AM + primary_index + col][n]),
+                        qam64(st->buffer[CENTER_AM + secondary_index + col][n]),
+                        qam64(st->buffer[CENTER_AM - tertiary_index - col][n])
+                    );
+                }
             }
         }
     }

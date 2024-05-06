@@ -614,9 +614,14 @@ void frame_push(frame_t *st, uint8_t *bits, size_t length, logical_channel_t lc)
         offset = 160;
         pci_len = 22;
         break;
-    case P3_FRAME_LEN_AM:
+    case P3_FRAME_LEN_MA1:
         start = 120;
         offset = 992;
+        pci_len = 24;
+        break;
+    case P3_FRAME_LEN_MA3:
+        start = 120;
+        offset = 1240;
         pci_len = 24;
         break;
     default:

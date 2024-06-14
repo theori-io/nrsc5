@@ -49,7 +49,6 @@ static void output_realign_reader_buffer(decoder_t *dec, unsigned int pdu_seq, u
 void output_align(output_t *st, unsigned int program, unsigned int stream_id, unsigned int pdu_seq, unsigned int latency, unsigned int avg, unsigned int seq, unsigned int nop)
 {
     decoder_t *dec = &st->decoder[program];
-    unsigned int read_pos;
 
     if (stream_id != 0)
         return; // TODO: Process enhanced stream
@@ -226,6 +225,8 @@ void output_reset(output_t *st)
         if (st->decoder[i].aacdec)
             NeAACDecClose(st->decoder[i].aacdec);
         st->decoder[i].aacdec = NULL;
+        if(st->decoder[i].buffer)
+            free(st->decoder[i].buffer);
         st->decoder[i].buffer = NULL;
         st->decoder[i].avail = 0;
         st->decoder[i].write = st->decoder[i].read = 0;

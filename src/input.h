@@ -27,31 +27,6 @@ typedef int (*input_snr_cb_t) (void *, float);
 
 enum { SYNC_STATE_NONE, SYNC_STATE_COARSE, SYNC_STATE_FINE };
 
-typedef struct packet_buffer_t {
-    struct packet_buffer_t *next;
-    uint8_t data[MAX_PDU_LEN];
-    unsigned int len;
-} packet_buffer_t;
-
-typedef struct input_buffer_t
-{
-    unsigned int latency;
-    unsigned int latency_min;
-    unsigned int latency_avg;
-    unsigned int latency_max;
-
-    unsigned int count;
-    unsigned int items;
-
-    unsigned int try_locked;
-    unsigned int locked;
-
-    pthread_mutex_t mutex;
-    pthread_cond_t cond;
-
-    packet_buffer_t *head, *tail, *free;
-} input_buffer_t;
-
 typedef struct input_t
 {
     nrsc5_t *radio;

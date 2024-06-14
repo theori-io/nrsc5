@@ -380,7 +380,8 @@ static void output_id3(output_t *st, unsigned int program, uint8_t *buf, unsigne
             if (frame_len < 6)
             {
                 log_warn("bad XHDR tag (frame_len %d)", frame_len);
-            } else
+            }
+            else
             {
                 xhdr_mime = data[0] | (data[1] << 8) | (data[2] << 16) | ((uint32_t)data[3] << 24);
                 xhdr_param = data[4];

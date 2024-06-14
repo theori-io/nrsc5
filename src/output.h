@@ -4,7 +4,6 @@
 #include "frame.h"
 
 #include <nrsc5.h>
-#include <pthread.h>
 
 #ifdef HAVE_FAAD2
 #include <neaacdec.h>

@@ -259,6 +259,7 @@ struct nrsc5_event_t
  *   and NRSC5 document SY_TN_2646s
  * - `NRSC5_EVENT_IQ` : IQ data, see the `iq` union member
  * - `NRSC5_EVENT_HD`C : HDC audio packet, see the `hdc` union member
+ * - `NRSC5_EVENT_AUDIO` : audio buffer, see the `audio` union member
  * - `NRSC5_EVENT_SYNC` : indicates synchronization achieved
  * - `NRSC5_EVENT_LOST_SYNC` : indicates synchronization lost
  * - `NRSC5_EVENT_ID3` : ID3 information packet arrived, see `id3` member

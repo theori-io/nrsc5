@@ -26,8 +26,6 @@
 #define PCI_AUDIO_FIXED_OPP 0x8D8D33
 #define PCI_FIXED 0x3634CE
 
-#define MAX_AUDIO_PACKETS 64
-
 typedef struct
 {
     unsigned int codec;
@@ -529,7 +527,7 @@ void frame_process(frame_t *st, size_t length, logical_channel_t lc)
     while (offset < audio_end - RS_CODEWORD_LEN)
     {
         unsigned int start = offset;
-        unsigned int j, lc_bits, loc_bytes, prog, avg;
+        unsigned int j, lc_bits, loc_bytes, prog, avg, seq;
         unsigned short locations[MAX_AUDIO_PACKETS];
         frame_header_t hdr = {0};
         hef_t hef = {0};
@@ -562,11 +560,12 @@ void frame_process(frame_t *st, size_t length, logical_channel_t lc)
             offset += parse_hef(st->buffer + offset, audio_end - offset, &hef);
         prog = hef.prog_num;
         avg = calc_avg_packets(&hdr);
+        seq = (hdr.seq - hdr.pfirst) % MAX_AUDIO_PACKETS;
+
+        output_align(st->input->output, prog, hdr.stream_id, hdr.pdu_seq, hdr.latency, avg, seq, hdr.nop);
 
         parse_hdlc(st, aas_push, st->psd_buf[prog], &st->psd_idx[prog], MAX_AAS_LEN, st->buffer + offset, start + hdr.la_location + 1 - offset, lc);
         offset = start + hdr.la_location + 1;
-
-        input_prepare_push(st->input, prog, hdr.stream_id, avg, hdr.latency);
 
         for (j = 0; j < hdr.nop; ++j)
         {
@@ -584,7 +583,7 @@ void frame_process(frame_t *st, size_t length, logical_channel_t lc)
                     if (crc == 0)
                     {
                         memcpy(&st->pdu[prog][hdr.stream_id][idx], st->buffer + offset, cnt);
-                        input_pdu_push(st->input, st->pdu[prog][hdr.stream_id], cnt + idx, prog, hdr.stream_id);
+                        input_pdu_push(st->input, st->pdu[prog][hdr.stream_id], cnt + idx, prog, hdr.stream_id, seq);
                     }
                     st->pdu_idx[prog][hdr.stream_id] = 0;
                 }
@@ -605,14 +604,13 @@ void frame_process(frame_t *st, size_t length, logical_channel_t lc)
             {
                 if (crc == 0)
                 {
-                    input_pdu_push(st->input, st->buffer + offset, cnt, prog, hdr.stream_id);
+                    input_pdu_push(st->input, st->buffer + offset, cnt, prog, hdr.stream_id, seq);
                 }
             }
 
             offset += cnt + 1;
+            seq = (seq + 1) % MAX_AUDIO_PACKETS;
         }
-
-        input_finished_push(st->input, prog, hdr.stream_id);
     }
 }
 

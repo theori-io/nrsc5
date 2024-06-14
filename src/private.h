@@ -12,19 +12,6 @@
 #include "output.h"
 #include "rtltcp.h"
 
-#define NRSC5_PROGRAM_ENABLED 1
-
-typedef struct program_t
-{
-    int status;
-
-    pthread_mutex_t mutex;
-    pthread_cond_t cond;
-
-    input_buffer_t input_buffer[MAX_STREAMS];
-    output_buffer_t output_buffer;
-} program_t;
-
 struct nrsc5_t
 {
     rtlsdr_dev_t *dev;
@@ -54,7 +41,6 @@ struct nrsc5_t
 
     input_t input;
     output_t output;
-    program_t programs[MAX_PROGRAMS];
 };
 
 void nrsc5_report(nrsc5_t *, const nrsc5_event_t *evt);
@@ -65,6 +51,7 @@ void nrsc5_report_lost_sync(nrsc5_t *);
 void nrsc5_report_mer(nrsc5_t *, float lower, float upper);
 void nrsc5_report_ber(nrsc5_t *, float cber);
 void nrsc5_report_hdc(nrsc5_t *, unsigned int program, const uint8_t *data, size_t count);
+void nrsc5_report_audio(nrsc5_t *, unsigned int program, const int16_t *data, size_t count);
 void nrsc5_report_stream(nrsc5_t *, uint16_t port, uint16_t seq, unsigned int size, uint32_t mime, const uint8_t *data);
 void nrsc5_report_packet(nrsc5_t *, uint16_t port, uint16_t seq, unsigned int size, uint32_t mime, const uint8_t *data);
 void nrsc5_report_lot(nrsc5_t *, uint16_t port, unsigned int lot, unsigned int size, uint32_t mime, const char *name, const uint8_t *data, struct tm *expiry_utc);
@@ -73,5 +60,3 @@ void nrsc5_report_sis(nrsc5_t *, const char *country_code, int fcc_facility_id, 
                       const char *slogan, const char *message, const char *alert,
                       float latitude, float longitude, int altitude, nrsc5_sis_asd_t *audio_services,
                       nrsc5_sis_dsd_t *data_services);
-program_t *nrsc5_get_program(nrsc5_t *, unsigned int program);
-int nrsc5_get_program_status(program_t *);

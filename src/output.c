@@ -27,7 +27,7 @@
 #include "private.h"
 #include "unicode.h"
 
-static unsigned int output_writable_buffer(output_buffer_t *st)
+static unsigned int output_writable_buffer(decoder_t *st)
 {
     if (st->read > st->write)
         return (st->read - st->write) - 1;
@@ -35,144 +35,150 @@ static unsigned int output_writable_buffer(output_buffer_t *st)
         return st->size - (st->write - st->read) - 1;
 }
 
-static void output_write_buffer(output_buffer_t *st, int16_t *buffer, unsigned int samples)
+static unsigned int output_reader_position(unsigned int pdu_seq, unsigned int avg)
 {
-    if (st->write + samples > st->size)
-    {
-        unsigned int len = st->size - st->write;
-        memcpy(st->data + st->write, buffer, len * sizeof(*buffer));
-        memcpy(st->data, buffer + len, (samples - len) * sizeof(*buffer));
-        st->write = samples - len;
-    }
-    else
-    {
-        memcpy(st->data + st->write, buffer, samples * sizeof(*buffer));
-        st->write += samples;
-        if(st->write == st->size)
-            st->write = 0;
-    }
+    return ((pdu_seq * avg) + (MAX_AUDIO_PACKETS / 2)) % MAX_AUDIO_PACKETS;
 }
 
-void output_read_buffer(output_buffer_t *st, int16_t *buffer, unsigned int samples) {
-    if (st->read + samples > st->size)
-    {
-        unsigned int first = st->size - st->read;
-        memcpy(buffer, &st->data[st->read], first * sizeof(*buffer));
-        memcpy(&buffer[first], st->data, (samples - first) * sizeof(*buffer));
-        st->read = samples - first;
-    }
-    else
-    {
-        memcpy(buffer, &st->data[st->read], samples * sizeof(*buffer));
-        st->read += samples;
-        if(st->read == st->size)
-            st->read = 0;
-    }
+static void output_realign_reader_buffer(decoder_t *dec, unsigned int pdu_seq, unsigned int avg)
+{
+    dec->read = (dec->write - (dec->delay + dec->buffer[dec->write].seq)
+                 + output_reader_position(pdu_seq, avg) + dec->size) % dec->size;
 }
 
-unsigned int output_available_buffer(output_buffer_t *st)
+void output_align(output_t *st, unsigned int program, unsigned int stream_id, unsigned int pdu_seq, unsigned int latency, unsigned int avg, unsigned int seq, unsigned int nop)
 {
-    if (st->write >= st->read)
-        return st->write - st->read;
-    else
-        return st->size - (st->read - st->write);
-}
-
-void output_init_buffer(output_buffer_t *st)
-{
-#ifdef USE_FAAD2
-    st->aacdec = NULL;
-    st->size = OUTPUT_AUDIO_BUFFER;
-    st->data = NULL;
-    st->read = 0;
-    st->write = 0;
-#endif
-
-    pthread_cond_init(&st->cond, NULL);
-    pthread_mutex_init(&st->mutex, NULL);
-}
-
-void output_reset_buffer(output_buffer_t *st)
-{
-#ifdef USE_FAAD2
-    if (st->aacdec)
-        NeAACDecClose(st->aacdec);
-    st->aacdec = NULL;
-    st->write = 0;
-    st->read = 0;
-#endif
-}
-
-void output_free_buffer(output_buffer_t *st)
-{
-    output_reset_buffer(st);
-
-    if(st->data)
-        free(st->data);
-
-    st->data = NULL;
-
-    pthread_cond_destroy(&st->cond);
-    pthread_mutex_destroy(&st->mutex);
-}
-
-void output_push(output_t *st, uint8_t *pkt, unsigned int pkt_len, unsigned int program, unsigned int stream_id)
-{
-    nrsc5_report_hdc(st->radio, program, pkt, pkt_len);
-
-#ifdef USE_FAAD2
-    program_t *prog;
-    output_buffer_t *ring;
-    void *buffer;
-    NeAACDecFrameInfo info;
+    decoder_t *dec = &st->decoder[program];
+    unsigned int read_pos;
 
     if (stream_id != 0)
         return; // TODO: Process enhanced stream
 
-    prog = nrsc5_get_program(st->radio, program);
-    ring = &prog->output_buffer;
+    dec->latency = latency * 2;
+    dec->avg = avg;
 
-    if (!ring->aacdec)
+    if (!dec->buffer)
     {
-        unsigned long samprate = 22050;
-        NeAACDecInitHDC(&ring->aacdec, &samprate);
+        // buffer should look like this: ||latency|| + ||64|| + ||latency||
+        dec->delay  = latency;
+        dec->size   = (dec->delay * 2) + MAX_AUDIO_PACKETS;
+        dec->buffer = malloc(dec->size * sizeof(packet_t));
+
+        for(int i = 0; i < dec->size; i++)
+        {
+            dec->buffer[i].size = 0;
+            dec->buffer[i].seq  = -1;
+        }
+
+        dec->write = (dec->delay + seq) % dec->size;
+        dec->buffer[dec->write].seq = seq;
+
+        // default read position (half-length from PDU sequence number)
+        output_realign_reader_buffer(dec, pdu_seq, avg);
+
+        log_debug("Program %d -> Buffer created. pdu_seq: %d, size %d, read %d, write: %d, avg: %d", program, pdu_seq, dec->size, dec->read, dec->write, avg);
     }
-    if (!ring->data)
-        ring->data = malloc(ring->size * sizeof(int16_t));
+    // Re-sync (lost-syndication)
+    else if(output_writable_buffer(dec) < (seq - dec->buffer[dec->write].seq)+nop)
+    {
+        output_realign_reader_buffer(dec, pdu_seq, avg);
+        log_debug("Program %d -> Buffer realigned. pdu_seq: %d, read %d, write: %d, avg: %d", program, pdu_seq, dec->read, dec->write, avg);
+    }
+}
 
-    buffer = NeAACDecDecode(ring->aacdec, &info, pkt, pkt_len);
-    if (info.error > 0)
-        log_error("Decode error: %s", NeAACDecGetErrorMessage(info.error));
+void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int program, unsigned int stream_id, unsigned int seq)
+{
+    nrsc5_report_hdc(st->radio, program, pkt, len);
 
-    if (info.samples == 0)
+#ifdef USE_FAAD2
+    decoder_t *dec = &st->decoder[program];
+
+    if (stream_id != 0)
+        return; // TODO: Process enhanced stream
+
+    unsigned int seq_diff = (seq - dec->buffer[dec->write].seq) % MAX_AUDIO_PACKETS;
+    unsigned int pos = (dec->write + seq_diff) % dec->size;
+
+    if (output_writable_buffer(dec) == 0)
+    {
+        log_warn("Program: %d -> Buffer full. write: %d, read: %d", program, dec->write, dec->read);
         return;
-
-    pthread_mutex_lock(&ring->mutex);
-    if(output_writable_buffer(ring) < info.samples)
-    {
-        struct timespec ts;
-        struct timeval now;
-
-        gettimeofday(&now, NULL);
-        ts.tv_sec = now.tv_sec;
-        ts.tv_nsec = (now.tv_usec + 100000) * 1000;
-        if (ts.tv_nsec >= 1000000000)
-        {
-            ts.tv_nsec -= 1000000000;
-            ts.tv_sec += 1;
-        }
-
-        if (pthread_cond_timedwait(&ring->cond, &ring->mutex, &ts) == ETIMEDOUT)
-        {
-            log_warn("Program: %d audio output timed out, overriding samples", program);
-        }
     }
 
-    output_write_buffer(ring, buffer, info.samples);
+    memcpy(dec->buffer[pos].data, pkt, len);
+    dec->buffer[pos].size = len;
+    dec->buffer[pos].seq = seq;
 
-    pthread_cond_signal(&ring->cond);
-    pthread_mutex_unlock(&ring->mutex);
+    dec->write = pos;
 #endif
+}
+
+static void output_advance_push(output_t *st, unsigned int program)
+{
+    decoder_t *dec = &st->decoder[program];
+    void *buffer;
+    NeAACDecFrameInfo info;
+
+    for(int i = 0; i < dec->avg; i++)
+    {
+        if (dec->buffer[dec->read].size == 0)
+        {
+            nrsc5_report_audio(st->radio, program, st->silence, AUDIO_FRAME_SAMPLES);
+
+            // Reset decoder. Missing packets.
+            if(dec->aacdec)
+            {
+                NeAACDecClose(dec->aacdec);
+                dec->aacdec = NULL;
+            }
+        }
+        else
+        {
+            if (!dec->aacdec)
+            {
+                unsigned long samprate = 22050;
+                NeAACDecInitHDC(&dec->aacdec, &samprate);
+            }
+
+            buffer = NeAACDecDecode(dec->aacdec, &info, dec->buffer[dec->read].data, dec->buffer[dec->read].size);
+            if (info.error > 0)
+                log_error("Decode error: %s", NeAACDecGetErrorMessage(info.error));
+
+            if(info.error > 0 || info.samples == 0)
+            {
+                nrsc5_report_audio(st->radio, program, st->silence, AUDIO_FRAME_SAMPLES);
+            }
+            else
+            {
+                nrsc5_report_audio(st->radio, program, buffer, info.samples);
+            }
+        }
+
+        dec->buffer[dec->read].size = 0;
+        dec->read = (dec->read + 1) % dec->size;
+    }
+}
+
+void output_advance(output_t *st, unsigned int len)
+{
+    for(int i = 0; i < MAX_PROGRAMS; i++)
+    {
+        decoder_t *dec = &st->decoder[i];
+
+        // Skip if no buffer
+        if(!dec->buffer)
+            continue;
+
+        // Reading clock
+        dec->avail += len;
+
+        // Output packets based on average
+        while(dec->avail >= ((dec->avg) * RADIO_FRAME_SAMPLES))
+        {
+            output_advance_push(st, i);
+            dec->avail -= ((dec->avg) * RADIO_FRAME_SAMPLES);
+        }
+    }
 }
 
 static void aas_free_lot(aas_file_t *file)
@@ -213,11 +219,29 @@ static void aas_reset(output_t *st)
 void output_reset(output_t *st)
 {
     aas_reset(st);
+
+#ifdef USE_FAAD2
+    for (int i = 0; i < MAX_PROGRAMS; i++)
+    {
+        if (st->decoder[i].aacdec)
+            NeAACDecClose(st->decoder[i].aacdec);
+        st->decoder[i].aacdec = NULL;
+        st->decoder[i].buffer = NULL;
+        st->decoder[i].avail = 0;
+        st->decoder[i].write = st->decoder[i].read = 0;
+    }
+
+    memset(st->silence, 0, sizeof(st->silence));
+#endif
 }
 
 void output_init(output_t *st, nrsc5_t *radio)
 {
     st->radio = radio;
+#ifdef USE_FAAD2
+    for (int i = 0; i < MAX_PROGRAMS; i++)
+        st->decoder[i].aacdec = NULL;
+#endif
 
     memset(st->ports, 0, sizeof(st->ports));
     memset(st->services, 0, sizeof(st->services));
@@ -282,23 +306,19 @@ static void output_id3(output_t *st, unsigned int program, uint8_t *buf, unsigne
         {
             free(title);
             title = id3_text(data, frame_len);
-        }
-        else if (memcmp(tag, "TPE1", 4) == 0)
+        } else if (memcmp(tag, "TPE1", 4) == 0)
         {
             free(artist);
             artist = id3_text(data, frame_len);
-        }
-        else if (memcmp(tag, "TALB", 4) == 0)
+        } else if (memcmp(tag, "TALB", 4) == 0)
         {
             free(album);
             album = id3_text(data, frame_len);
-        }
-        else if (memcmp(tag, "TCON", 4) == 0)
+        } else if (memcmp(tag, "TCON", 4) == 0)
         {
             free(genre);
             genre = id3_text(data, frame_len);
-        }
-        else if (memcmp(tag, "UFID", 4) == 0)
+        } else if (memcmp(tag, "UFID", 4) == 0)
         {
             uint8_t *delim = memchr(data, 0, frame_len);
             uint8_t *end = data + frame_len;
@@ -306,13 +326,12 @@ static void output_id3(output_t *st, unsigned int program, uint8_t *buf, unsigne
             if (delim)
             {
                 free(ufid_owner);
-                ufid_owner = strdup((char *)data);
+                ufid_owner = strdup((char *) data);
 
                 free(ufid_id);
-                ufid_id = strndup((char *)delim + 1, end - delim - 1);
+                ufid_id = strndup((char *) delim + 1, end - delim - 1);
             }
-        }
-        else if (memcmp(tag, "COMR", 4) == 0)
+        } else if (memcmp(tag, "COMR", 4) == 0)
         {
             int i;
             uint8_t *delim[4];
@@ -347,18 +366,16 @@ static void output_id3(output_t *st, unsigned int program, uint8_t *buf, unsigne
                 log_debug("Commercial: price=%s until=%s url=\"%s\" seller=\"%s\" desc=\"%s\" received_as=%d",
                           price, until, url, seller, desc, received_as);
             }
-        }
-        else if (memcmp(tag, "XHDR", 4) == 0)
+        } else if (memcmp(tag, "XHDR", 4) == 0)
         {
             uint8_t extlen;
 
             if (frame_len < 6)
             {
                 log_warn("bad XHDR tag (frame_len %d)", frame_len);
-            }
-            else
+            } else
             {
-                xhdr_mime = data[0] | (data[1] << 8) | (data[2] << 16) | ((uint32_t)data[3] << 24);
+                xhdr_mime = data[0] | (data[1] << 8) | (data[2] << 16) | ((uint32_t) data[3] << 24);
                 xhdr_param = data[4];
                 extlen = data[5];
                 if (6u + extlen != frame_len)
@@ -370,15 +387,14 @@ static void output_id3(output_t *st, unsigned int program, uint8_t *buf, unsigne
                 else
                     log_warn("unhandled XHDR param (frame_len %d, param %d, extlen %d)", frame_len, xhdr_param, extlen);
             }
-        }
-        else
+        } else
         {
             unsigned int i;
             char *hex = malloc(3 * frame_len + 1);
             for (i = 0; i < frame_len; i++)
                 sprintf(hex + (3 * i), "%02X ", buf[off + 10 + i]);
             hex[3 * i - 1] = 0;
-            log_debug("%c%c%c%c tag: %s", buf[off], buf[off+1], buf[off+2], buf[off+3], hex);
+            log_debug("%c%c%c%c tag: %s", buf[off], buf[off + 1], buf[off + 2], buf[off + 3], hex);
             free(hex);
         }
 
@@ -426,92 +442,89 @@ static void parse_sig(output_t *st, uint8_t *buf, unsigned int len)
         uint8_t type = *p++;
         switch (type & 0xF0)
         {
-        case 0x40:
-        {
-            if (service_idx == MAX_SIG_SERVICES)
+            case 0x40:
             {
-                log_warn("Too many SIG services");
+                if (service_idx == MAX_SIG_SERVICES)
+                {
+                    log_warn("Too many SIG services");
+                    goto done;
+                }
+
+                service = &st->services[service_idx++];
+                service->type = type == 0x40 ? SIG_SERVICE_AUDIO : SIG_SERVICE_DATA;
+                service->number = p[0] | (p[1] << 8);
+                component_idx = 0;
+
+                p += 3;
+                break;
+            }
+            case 0x60:
+            {
+                // length (1-byte) value (length - 1)
+                uint8_t l = *p++;
+                if (service == NULL)
+                {
+                    log_warn("Invalid SIG data (%02X)", type);
+                    goto done;
+                } else if (type == 0x69)
+                {
+                    service->name = iso_8859_1_to_utf_8(p + 1, l - 2);
+                } else if (type == 0x67)
+                {
+                    sig_component_t *comp;
+
+                    if (component_idx == MAX_SIG_COMPONENTS)
+                    {
+                        log_warn("Too many SIG components");
+                        goto done;
+                    }
+
+                    if (port_idx == MAX_PORTS)
+                    {
+                        log_warn("Too many AAS ports");
+                        goto done;
+                    }
+
+                    comp = &service->component[component_idx++];
+                    comp->type = SIG_COMPONENT_DATA;
+                    comp->id = p[0];
+                    comp->data.port = p[1] | (p[2] << 8);
+                    comp->data.service_data_type = p[3] | (p[4] << 8);
+                    comp->data.type = p[5];
+                    comp->data.mime = p[8] | (p[9] << 8) | (p[10] << 16) | ((uint32_t) p[11] << 24);
+
+                    aas_port_t *port = &st->ports[port_idx++];
+                    port->port = comp->data.port;
+                    port->type = comp->data.type;
+                    port->mime = comp->data.mime;
+                    port->service_number = service->number;
+                } else if (type == 0x66)
+                {
+                    sig_component_t *comp;
+
+                    if (component_idx == MAX_SIG_COMPONENTS)
+                    {
+                        log_warn("Too many SIG components");
+                        goto done;
+                    }
+
+                    comp = &service->component[component_idx++];
+                    comp->type = SIG_COMPONENT_AUDIO;
+                    comp->id = p[0];
+                    comp->audio.port = p[1];
+                    comp->audio.type = p[2];
+                    comp->audio.mime = p[7] | (p[8] << 8) | (p[9] << 16) | ((uint32_t) p[10] << 24);
+                }
+                p += l - 1;
+                break;
+            }
+            default:
+                log_warn("unexpected byte %02X", *p);
                 goto done;
-            }
-
-            service = &st->services[service_idx++];
-            service->type = type == 0x40 ? SIG_SERVICE_AUDIO : SIG_SERVICE_DATA;
-            service->number = p[0] | (p[1] << 8);
-            component_idx = 0;
-
-            p += 3;
-            break;
-        }
-        case 0x60:
-        {
-            // length (1-byte) value (length - 1)
-            uint8_t l = *p++;
-            if (service == NULL)
-            {
-                log_warn("Invalid SIG data (%02X)", type);
-                goto done;
-            }
-            else if (type == 0x69)
-            {
-                service->name = iso_8859_1_to_utf_8(p + 1, l - 2);
-            }
-            else if (type == 0x67)
-            {
-                sig_component_t *comp;
-
-                if (component_idx == MAX_SIG_COMPONENTS)
-                {
-                    log_warn("Too many SIG components");
-                    goto done;
-                }
-
-                if (port_idx == MAX_PORTS)
-                {
-                    log_warn("Too many AAS ports");
-                    goto done;
-                }
-
-                comp = &service->component[component_idx++];
-                comp->type = SIG_COMPONENT_DATA;
-                comp->id = p[0];
-                comp->data.port = p[1] | (p[2] << 8);
-                comp->data.service_data_type = p[3] | (p[4] << 8);
-                comp->data.type = p[5];
-                comp->data.mime = p[8] | (p[9] << 8) | (p[10] << 16) | ((uint32_t)p[11] << 24);
-
-                aas_port_t *port = &st->ports[port_idx++];
-                port->port = comp->data.port;
-                port->type = comp->data.type;
-                port->mime = comp->data.mime;
-                port->service_number = service->number;
-            }
-            else if (type == 0x66)
-            {
-                sig_component_t *comp;
-
-                if (component_idx == MAX_SIG_COMPONENTS)
-                {
-                    log_warn("Too many SIG components");
-                    goto done;
-                }
-
-                comp = &service->component[component_idx++];
-                comp->type = SIG_COMPONENT_AUDIO;
-                comp->id = p[0];
-                comp->audio.port = p[1];
-                comp->audio.type = p[2];
-                comp->audio.mime = p[7] | (p[8] << 8) | (p[9] << 16) | ((uint32_t)p[10] << 24);
-            }
-            p += l - 1;
-            break;
-        }
-        default:
-            log_warn("unexpected byte %02X", *p);
-            goto done;
         }
     }
 
-done:
+    done:
     nrsc5_report_sig(st->radio, st->services, service_idx);
 }
 
@@ -581,130 +594,132 @@ static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *
 
     switch (port->type)
     {
-    case AAS_TYPE_STREAM:
-    {
-        nrsc5_report_stream(st->radio, port_id, seq, len, port->mime, buf);
-        break;
-    }
-    case AAS_TYPE_PACKET:
-    {
-        nrsc5_report_packet(st->radio, port_id, seq, len, port->mime, buf);
-        break;
-    }
-    case AAS_TYPE_LOT:
-    {
-        if (len < 8)
+        case AAS_TYPE_STREAM:
         {
-            log_warn("bad fragment (port %04X, len %d)", port_id, len);
-            return;
+            nrsc5_report_stream(st->radio, port_id, seq, len, port->mime, buf);
+            break;
         }
-        uint8_t hdrlen = buf[0];
-        // uint8_t repeat = buf[1];
-        uint16_t lot = buf[2] | (buf[3] << 8);
-        uint32_t seq = buf[4] | (buf[5] << 8) | (buf[6] << 16) | ((uint32_t)buf[7] << 24);
-        if (hdrlen < 8 || hdrlen > len)
+        case AAS_TYPE_PACKET:
         {
-            log_warn("wrong header len (port %04X, len %d, hdrlen %d)", port_id, len, hdrlen);
-            return;
+            nrsc5_report_packet(st->radio, port_id, seq, len, port->mime, buf);
+            break;
         }
-        buf += 8;
-        len -= 8;
-        hdrlen -= 8;
-
-        if (seq >= MAX_LOT_FRAGMENTS)
+        case AAS_TYPE_LOT:
         {
-            log_warn("sequence too large (%d)", seq);
-            return;
-        }
-
-        aas_file_t *file = find_lot(port, lot);
-        if (file == NULL)
-        {
-            file = find_free_lot(port);
-            file->lot = lot;
-            file->fragments = calloc(MAX_LOT_FRAGMENTS, sizeof(uint8_t*));
-        }
-        file->timestamp = counter++;
-
-        if (seq == 0)
-        {
-            if (hdrlen < 16)
+            if (len < 8)
             {
-                log_warn("header is too short (port %04X, len %d, hdrlen %d)", port_id, len, hdrlen);
+                log_warn("bad fragment (port %04X, len %d)", port_id, len);
+                return;
+            }
+            uint8_t hdrlen = buf[0];
+            // uint8_t repeat = buf[1];
+            uint16_t lot = buf[2] | (buf[3] << 8);
+            uint32_t seq = buf[4] | (buf[5] << 8) | (buf[6] << 16) | ((uint32_t) buf[7] << 24);
+            if (hdrlen < 8 || hdrlen > len)
+            {
+                log_warn("wrong header len (port %04X, len %d, hdrlen %d)", port_id, len, hdrlen);
+                return;
+            }
+            buf += 8;
+            len -= 8;
+            hdrlen -= 8;
+
+            if (seq >= MAX_LOT_FRAGMENTS)
+            {
+                log_warn("sequence too large (%d)", seq);
                 return;
             }
 
-            uint32_t version = buf[0] | (buf[1] << 8) | (buf[2] << 16) | ((uint32_t)buf[3] << 24);
-            if (version != 1)
-                log_warn("unknown LOT version: %d", version);
-
-            file->expiry_utc.tm_year = ((buf[7] << 4) | (buf[6] >> 4)) - 1900;
-            file->expiry_utc.tm_mon = (buf[6] & 0xf) - 1;
-            file->expiry_utc.tm_mday = (buf[5] >> 3);
-            file->expiry_utc.tm_hour = ((buf[5] & 0x7) << 2) | (buf[4] >> 6);
-            file->expiry_utc.tm_min = (buf[4] & 0x3f);
-
-            file->size = buf[8] | (buf[9] << 8) | (buf[10] << 16) | ((uint32_t)buf[11] << 24);
-            file->mime = buf[12] | (buf[13] << 8) | (buf[14] << 16) | ((uint32_t)buf[15] << 24);
-            buf += 16;
-            len -= 16;
-            hdrlen -= 16;
-
-            // Everything after the fixed header is the filename.
-            free(file->name);
-            file->name = strndup((const char *)buf, hdrlen);
-            buf += hdrlen;
-            len -= hdrlen;
-            hdrlen = 0;
-
-            log_debug("File %s, size %d, lot %d, port %04X, mime %08X", file->name, file->size, file->lot, port->port, file->mime);
-        }
-
-        if (hdrlen != 0)
-        {
-            log_warn("unexpected hdrlen (port %04X, hdrlen %d)", port_id, hdrlen);
-            break;
-        }
-
-        if (!file->fragments[seq])
-        {
-            uint8_t *fragment = calloc(LOT_FRAGMENT_SIZE, 1);
-            if (len > LOT_FRAGMENT_SIZE)
+            aas_file_t *file = find_lot(port, lot);
+            if (file == NULL)
             {
-                log_warn("fragment too large (%d)", len);
+                file = find_free_lot(port);
+                file->lot = lot;
+                file->fragments = calloc(MAX_LOT_FRAGMENTS, sizeof(uint8_t *));
+            }
+            file->timestamp = counter++;
+
+            if (seq == 0)
+            {
+                if (hdrlen < 16)
+                {
+                    log_warn("header is too short (port %04X, len %d, hdrlen %d)", port_id, len, hdrlen);
+                    return;
+                }
+
+                uint32_t version = buf[0] | (buf[1] << 8) | (buf[2] << 16) | ((uint32_t) buf[3] << 24);
+                if (version != 1)
+                    log_warn("unknown LOT version: %d", version);
+
+                file->expiry_utc.tm_year = ((buf[7] << 4) | (buf[6] >> 4)) - 1900;
+                file->expiry_utc.tm_mon = (buf[6] & 0xf) - 1;
+                file->expiry_utc.tm_mday = (buf[5] >> 3);
+                file->expiry_utc.tm_hour = ((buf[5] & 0x7) << 2) | (buf[4] >> 6);
+                file->expiry_utc.tm_min = (buf[4] & 0x3f);
+
+                file->size = buf[8] | (buf[9] << 8) | (buf[10] << 16) | ((uint32_t) buf[11] << 24);
+                file->mime = buf[12] | (buf[13] << 8) | (buf[14] << 16) | ((uint32_t) buf[15] << 24);
+                buf += 16;
+                len -= 16;
+                hdrlen -= 16;
+
+                // Everything after the fixed header is the filename.
+                free(file->name);
+                file->name = strndup((const char *) buf, hdrlen);
+                buf += hdrlen;
+                len -= hdrlen;
+                hdrlen = 0;
+
+                log_debug("File %s, size %d, lot %d, port %04X, mime %08X", file->name, file->size, file->lot,
+                          port->port, file->mime);
+            }
+
+            if (hdrlen != 0)
+            {
+                log_warn("unexpected hdrlen (port %04X, hdrlen %d)", port_id, hdrlen);
                 break;
             }
-            memcpy(fragment, buf, len);
-            file->fragments[seq] = fragment;
-        }
 
-        if (file->size)
-        {
-            int complete = 1;
-            int num_fragments = (file->size + LOT_FRAGMENT_SIZE - 1) / LOT_FRAGMENT_SIZE;
-            for (int i = 0; i < num_fragments; i++)
+            if (!file->fragments[seq])
             {
-                if (file->fragments[i] == NULL)
+                uint8_t *fragment = calloc(LOT_FRAGMENT_SIZE, 1);
+                if (len > LOT_FRAGMENT_SIZE)
                 {
-                    complete = 0;
+                    log_warn("fragment too large (%d)", len);
                     break;
                 }
+                memcpy(fragment, buf, len);
+                file->fragments[seq] = fragment;
             }
-            if (complete)
+
+            if (file->size)
             {
-                uint8_t *data = malloc(num_fragments * LOT_FRAGMENT_SIZE);
+                int complete = 1;
+                int num_fragments = (file->size + LOT_FRAGMENT_SIZE - 1) / LOT_FRAGMENT_SIZE;
                 for (int i = 0; i < num_fragments; i++)
-                    memcpy(data + i * LOT_FRAGMENT_SIZE, file->fragments[i], LOT_FRAGMENT_SIZE);
-                nrsc5_report_lot(st->radio, port->port, file->lot, file->size, file->mime, file->name, data, &file->expiry_utc);
-                free(data);
-                aas_free_lot(file);
+                {
+                    if (file->fragments[i] == NULL)
+                    {
+                        complete = 0;
+                        break;
+                    }
+                }
+                if (complete)
+                {
+                    uint8_t *data = malloc(num_fragments * LOT_FRAGMENT_SIZE);
+                    for (int i = 0; i < num_fragments; i++)
+                        memcpy(data + i * LOT_FRAGMENT_SIZE, file->fragments[i], LOT_FRAGMENT_SIZE);
+                    nrsc5_report_lot(st->radio, port->port, file->lot, file->size, file->mime, file->name, data,
+                                     &file->expiry_utc);
+                    free(data);
+                    aas_free_lot(file);
+                }
             }
+            break;
         }
-        break;
-    }
-    default:
-        log_info("unknown port type %d", port->type);
-        break;
+        default:
+            log_info("unknown port type %d", port->type);
+            break;
     }
 }
 
@@ -716,17 +731,14 @@ void output_aas_push(output_t *st, uint8_t *buf, unsigned int len)
     {
         // PSD ports
         output_id3(st, port & 0x7, buf + 4, len - 4);
-    }
-    else if (port == 0x20)
+    } else if (port == 0x20)
     {
         // Station Information Guide
         parse_sig(st, buf + 4, len - 4);
-    }
-    else if (port >= 0x401 && port <= 0x50FF)
+    } else if (port >= 0x401 && port <= 0x50FF)
     {
         process_port(st, port, seq, buf + 4, len - 4);
-    }
-    else
+    } else
     {
         log_warn("unknown AAS port %04X, seq %04X, length %d", port, seq, len);
     }

@@ -2,6 +2,7 @@
 
 #include "defines.h"
 
+#define MAX_AUDIO_PACKETS 64
 #define MAX_AAS_LEN 8212
 #define RS_BLOCK_LEN 255
 #define RS_CODEWORD_LEN 96

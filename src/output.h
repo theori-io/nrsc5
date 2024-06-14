@@ -1,6 +1,7 @@
 #pragma once
 
 #include "config.h"
+#include "frame.h"
 
 #include <nrsc5.h>
 #include <pthread.h>
@@ -10,7 +11,7 @@
 #endif
 
 #define AUDIO_FRAME_SAMPLES 4096
-#define OUTPUT_AUDIO_BUFFER (128 * AUDIO_FRAME_SAMPLES)
+#define RADIO_FRAME_SAMPLES ((AUDIO_FRAME_SAMPLES / 2) * 135 / 8)
 #define MAX_PORTS 32
 #define MAX_SIG_SERVICES 8
 #define MAX_SIG_COMPONENTS 8
@@ -87,35 +88,44 @@ typedef struct
     sig_component_t component[MAX_SIG_COMPONENTS];
 } sig_service_t;
 
-typedef struct output_buffer_t
-{
 #ifdef HAVE_FAAD2
+typedef struct
+{
+    unsigned int seq;
+    unsigned int size;
+    uint8_t data[MAX_PDU_LEN];
+} packet_t;
+
+typedef struct
+{
     NeAACDecHandle aacdec;
-#endif
-    int16_t *data;
-    unsigned int write;
-    unsigned int read;
+
+    packet_t *buffer;
     unsigned int size;
 
-    pthread_mutex_t mutex;
-    pthread_cond_t cond;
-} output_buffer_t;
+    unsigned int read, write;
+    unsigned int avail;
+    unsigned int latency, avg, delay;
+} decoder_t;
+#endif
 
 typedef struct
 {
     nrsc5_t *radio;
     aas_port_t ports[MAX_PORTS];
     sig_service_t services[MAX_SIG_SERVICES];
+    int16_t silence[AUDIO_FRAME_SAMPLES];
+
+#ifdef HAVE_FAAD2
+    decoder_t decoder[MAX_PROGRAMS];
+#endif
 } output_t;
 
-void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int program, unsigned int stream_id);
+void output_align(output_t *st, unsigned int program, unsigned int stream_id, unsigned int pdu_seq, unsigned int latency, unsigned int avg, unsigned int seq, unsigned int nop);
+void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int program, unsigned int stream_id, unsigned int seq);
+void output_advance(output_t *st, unsigned int len);
 void output_begin(output_t *st);
 void output_reset(output_t *st);
 void output_init(output_t *st, nrsc5_t *);
 void output_free(output_t *st);
 void output_aas_push(output_t *st, uint8_t *psd, unsigned int len);
-void output_init_buffer(output_buffer_t* st);
-void output_reset_buffer(output_buffer_t *st);
-void output_free_buffer(output_buffer_t *st);
-void output_read_buffer(output_buffer_t *st, int16_t *buffer, unsigned int samples);
-unsigned int output_available_buffer(output_buffer_t *st);

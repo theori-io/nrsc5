@@ -330,10 +330,10 @@ static void output_id3(output_t *st, unsigned int program, uint8_t *buf, unsigne
             if (delim)
             {
                 free(ufid_owner);
-                ufid_owner = strdup((char *) data);
+                ufid_owner = strdup((char *)data);
 
                 free(ufid_id);
-                ufid_id = strndup((char *) delim + 1, end - delim - 1);
+                ufid_id = strndup((char *)delim + 1, end - delim - 1);
             }
         }
         else if (memcmp(tag, "COMR", 4) == 0)
@@ -381,7 +381,7 @@ static void output_id3(output_t *st, unsigned int program, uint8_t *buf, unsigne
                 log_warn("bad XHDR tag (frame_len %d)", frame_len);
             } else
             {
-                xhdr_mime = data[0] | (data[1] << 8) | (data[2] << 16) | ((uint32_t) data[3] << 24);
+                xhdr_mime = data[0] | (data[1] << 8) | (data[2] << 16) | ((uint32_t)data[3] << 24);
                 xhdr_param = data[4];
                 extlen = data[5];
                 if (6u + extlen != frame_len)
@@ -401,7 +401,7 @@ static void output_id3(output_t *st, unsigned int program, uint8_t *buf, unsigne
             for (i = 0; i < frame_len; i++)
                 sprintf(hex + (3 * i), "%02X ", buf[off + 10 + i]);
             hex[3 * i - 1] = 0;
-            log_debug("%c%c%c%c tag: %s", buf[off], buf[off + 1], buf[off + 2], buf[off + 3], hex);
+            log_debug("%c%c%c%c tag: %s", buf[off], buf[off+1], buf[off+2], buf[off+3], hex);
             free(hex);
         }
 
@@ -500,7 +500,7 @@ static void parse_sig(output_t *st, uint8_t *buf, unsigned int len)
                 comp->data.port = p[1] | (p[2] << 8);
                 comp->data.service_data_type = p[3] | (p[4] << 8);
                 comp->data.type = p[5];
-                comp->data.mime = p[8] | (p[9] << 8) | (p[10] << 16) | ((uint32_t) p[11] << 24);
+                comp->data.mime = p[8] | (p[9] << 8) | (p[10] << 16) | ((uint32_t)p[11] << 24);
 
                 aas_port_t *port = &st->ports[port_idx++];
                 port->port = comp->data.port;
@@ -523,7 +523,7 @@ static void parse_sig(output_t *st, uint8_t *buf, unsigned int len)
                 comp->id = p[0];
                 comp->audio.port = p[1];
                 comp->audio.type = p[2];
-                comp->audio.mime = p[7] | (p[8] << 8) | (p[9] << 16) | ((uint32_t) p[10] << 24);
+                comp->audio.mime = p[7] | (p[8] << 8) | (p[9] << 16) | ((uint32_t)p[10] << 24);
             }
             p += l - 1;
             break;
@@ -534,7 +534,7 @@ static void parse_sig(output_t *st, uint8_t *buf, unsigned int len)
         }
     }
 
-    done:
+done:
     nrsc5_report_sig(st->radio, st->services, service_idx);
 }
 
@@ -624,7 +624,7 @@ static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *
         uint8_t hdrlen = buf[0];
         // uint8_t repeat = buf[1];
         uint16_t lot = buf[2] | (buf[3] << 8);
-        uint32_t seq = buf[4] | (buf[5] << 8) | (buf[6] << 16) | ((uint32_t) buf[7] << 24);
+        uint32_t seq = buf[4] | (buf[5] << 8) | (buf[6] << 16) | ((uint32_t)buf[7] << 24);
         if (hdrlen < 8 || hdrlen > len)
         {
             log_warn("wrong header len (port %04X, len %d, hdrlen %d)", port_id, len, hdrlen);
@@ -645,7 +645,7 @@ static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *
         {
             file = find_free_lot(port);
             file->lot = lot;
-            file->fragments = calloc(MAX_LOT_FRAGMENTS, sizeof(uint8_t *));
+            file->fragments = calloc(MAX_LOT_FRAGMENTS, sizeof(uint8_t*));
         }
         file->timestamp = counter++;
 
@@ -657,7 +657,7 @@ static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *
                 return;
             }
 
-            uint32_t version = buf[0] | (buf[1] << 8) | (buf[2] << 16) | ((uint32_t) buf[3] << 24);
+            uint32_t version = buf[0] | (buf[1] << 8) | (buf[2] << 16) | ((uint32_t)buf[3] << 24);
             if (version != 1)
                 log_warn("unknown LOT version: %d", version);
 
@@ -667,21 +667,20 @@ static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *
             file->expiry_utc.tm_hour = ((buf[5] & 0x7) << 2) | (buf[4] >> 6);
             file->expiry_utc.tm_min = (buf[4] & 0x3f);
 
-            file->size = buf[8] | (buf[9] << 8) | (buf[10] << 16) | ((uint32_t) buf[11] << 24);
-            file->mime = buf[12] | (buf[13] << 8) | (buf[14] << 16) | ((uint32_t) buf[15] << 24);
+            file->size = buf[8] | (buf[9] << 8) | (buf[10] << 16) | ((uint32_t)buf[11] << 24);
+            file->mime = buf[12] | (buf[13] << 8) | (buf[14] << 16) | ((uint32_t)buf[15] << 24);
             buf += 16;
             len -= 16;
             hdrlen -= 16;
 
             // Everything after the fixed header is the filename.
             free(file->name);
-            file->name = strndup((const char *) buf, hdrlen);
+            file->name = strndup((const char *)buf, hdrlen);
             buf += hdrlen;
             len -= hdrlen;
             hdrlen = 0;
 
-            log_debug("File %s, size %d, lot %d, port %04X, mime %08X", file->name, file->size, file->lot,
-                      port->port, file->mime);
+            log_debug("File %s, size %d, lot %d, port %04X, mime %08X", file->name, file->size, file->lot, port->port, file->mime);
         }
 
         if (hdrlen != 0)
@@ -719,8 +718,7 @@ static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *
                 uint8_t *data = malloc(num_fragments * LOT_FRAGMENT_SIZE);
                 for (int i = 0; i < num_fragments; i++)
                     memcpy(data + i * LOT_FRAGMENT_SIZE, file->fragments[i], LOT_FRAGMENT_SIZE);
-                nrsc5_report_lot(st->radio, port->port, file->lot, file->size, file->mime, file->name, data,
-                                 &file->expiry_utc);
+                nrsc5_report_lot(st->radio, port->port, file->lot, file->size, file->mime, file->name, data, &file->expiry_utc);
                 free(data);
                 aas_free_lot(file);
             }

@@ -78,13 +78,13 @@ void output_align(output_t *st, unsigned int program, unsigned int stream_id, un
         // default read position (half-length from PDU sequence number)
         output_realign_reader_buffer(dec, pdu_seq, avg, seq);
 
-        log_debug("Program %d -> Buffer created. pdu_seq: %d, size %d, read %d, write: %d, avg: %d", program, pdu_seq, dec->size, dec->read, dec->write, avg);
+        log_debug("Buffer created. Program: %d, Size %d bytes, Read %d pos, Write: %d pos", program, dec->size, dec->read, dec->write);
     }
-    // Re-sync (lost-syndication)
+    // // Re-sync (lost-synchronization with reader and writer)
     else if(output_writable_buffer(dec) < ((seq - dec->buffer[dec->write].seq) % MAX_AUDIO_PACKETS)+nop)
     {
         output_realign_reader_buffer(dec, pdu_seq, avg, seq);
-        log_debug("Program %d -> Buffer realigned. pdu_seq: %d, read %d, write: %d, avg: %d", program, pdu_seq, dec->read, dec->write, avg);
+        log_debug("Buffer realigned. Program: %d, Read %d pos, Write: %d pos", program, dec->read, dec->write);
     }
 }
 
@@ -103,7 +103,7 @@ void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int prog
 
     if (output_writable_buffer(dec) == 0)
     {
-        log_warn("Program: %d -> Buffer full. write: %d, read: %d", program, dec->write, dec->read);
+        log_warn("Buffer full. program: %d write: %d read: %d", program, dec->write, dec->read);
         return;
     }
 

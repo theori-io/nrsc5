@@ -66,10 +66,10 @@ void output_align(output_t *st, unsigned int program, unsigned int stream_id, un
         dec->size   = (dec->delay * 2) + MAX_AUDIO_PACKETS;
         dec->buffer = malloc(dec->size * sizeof(packet_t));
 
-        for(int i = 0; i < dec->size; i++)
+        for (int i = 0; i < dec->size; i++)
         {
             dec->buffer[i].size = 0;
-            dec->buffer[i].seq  = -1;
+            dec->buffer[i].seq = -1;
         }
 
         dec->write = (dec->delay + seq) % dec->size;
@@ -80,8 +80,8 @@ void output_align(output_t *st, unsigned int program, unsigned int stream_id, un
 
         log_debug("Buffer created. Program: %d, Size %d bytes, Read %d pos, Write: %d pos", program, dec->size, dec->read, dec->write);
     }
-    // // Re-sync (lost-synchronization with reader and writer)
-    else if(output_writable_buffer(dec) < ((seq - dec->buffer[dec->write].seq) % MAX_AUDIO_PACKETS)+nop)
+    // Re-sync (lost-synchronization with reader and writer)
+    else if (output_writable_buffer(dec) < ((seq - dec->buffer[dec->write].seq) % MAX_AUDIO_PACKETS) + nop)
     {
         output_realign_reader_buffer(dec, pdu_seq, avg, seq);
         log_debug("Buffer realigned. Program: %d, Read %d pos, Write: %d pos", program, dec->read, dec->write);
@@ -121,14 +121,14 @@ static void output_advance_push(output_t *st, unsigned int program)
     void *buffer;
     NeAACDecFrameInfo info;
 
-    for(int i = 0; i < dec->avg; i++)
+    for (int i = 0; i < dec->avg; i++)
     {
         if (dec->buffer[dec->read].size == 0)
         {
             nrsc5_report_audio(st->radio, program, st->silence, AUDIO_FRAME_SAMPLES);
 
             // Reset decoder. Missing packets.
-            if(dec->aacdec)
+            if (dec->aacdec)
             {
                 NeAACDecClose(dec->aacdec);
                 dec->aacdec = NULL;
@@ -146,7 +146,7 @@ static void output_advance_push(output_t *st, unsigned int program)
             if (info.error > 0)
                 log_error("Decode error: %s", NeAACDecGetErrorMessage(info.error));
 
-            if(info.error > 0 || info.samples == 0)
+            if (info.error > 0 || info.samples == 0)
             {
                 nrsc5_report_audio(st->radio, program, st->silence, AUDIO_FRAME_SAMPLES);
             }
@@ -163,19 +163,19 @@ static void output_advance_push(output_t *st, unsigned int program)
 
 void output_advance(output_t *st, unsigned int len)
 {
-    for(int i = 0; i < MAX_PROGRAMS; i++)
+    for (int i = 0; i < MAX_PROGRAMS; i++)
     {
         decoder_t *dec = &st->decoder[i];
 
         // Skip if no buffer
-        if(!dec->buffer)
+        if (!dec->buffer)
             continue;
 
         // Reading clock
         dec->avail += len;
 
         // Output packets based on average
-        while(dec->avail >= ((dec->avg) * RADIO_FRAME_SAMPLES))
+        while (dec->avail >= ((dec->avg) * RADIO_FRAME_SAMPLES))
         {
             output_advance_push(st, i);
             dec->avail -= ((dec->avg) * RADIO_FRAME_SAMPLES);
@@ -228,7 +228,7 @@ void output_reset(output_t *st)
         if (st->decoder[i].aacdec)
             NeAACDecClose(st->decoder[i].aacdec);
         st->decoder[i].aacdec = NULL;
-        if(st->decoder[i].buffer)
+        if (st->decoder[i].buffer)
             free(st->decoder[i].buffer);
         st->decoder[i].buffer = NULL;
         st->decoder[i].avail = 0;
@@ -454,92 +454,92 @@ static void parse_sig(output_t *st, uint8_t *buf, unsigned int len)
         uint8_t type = *p++;
         switch (type & 0xF0)
         {
-            case 0x40:
+        case 0x40:
+        {
+            if (service_idx == MAX_SIG_SERVICES)
             {
-                if (service_idx == MAX_SIG_SERVICES)
-                {
-                    log_warn("Too many SIG services");
-                    goto done;
-                }
-
-                service = &st->services[service_idx++];
-                service->type = type == 0x40 ? SIG_SERVICE_AUDIO : SIG_SERVICE_DATA;
-                service->number = p[0] | (p[1] << 8);
-                component_idx = 0;
-
-                p += 3;
-                break;
-            }
-            case 0x60:
-            {
-                // length (1-byte) value (length - 1)
-                uint8_t l = *p++;
-                if (service == NULL)
-                {
-                    log_warn("Invalid SIG data (%02X)", type);
-                    goto done;
-                }
-                else if (type == 0x69)
-                {
-                    service->name = iso_8859_1_to_utf_8(p + 1, l - 2);
-                }
-                else if (type == 0x67)
-                {
-                    sig_component_t *comp;
-
-                    if (component_idx == MAX_SIG_COMPONENTS)
-                    {
-                        log_warn("Too many SIG components");
-                        goto done;
-                    }
-
-                    if (port_idx == MAX_PORTS)
-                    {
-                        log_warn("Too many AAS ports");
-                        goto done;
-                    }
-
-                    comp = &service->component[component_idx++];
-                    comp->type = SIG_COMPONENT_DATA;
-                    comp->id = p[0];
-                    comp->data.port = p[1] | (p[2] << 8);
-                    comp->data.service_data_type = p[3] | (p[4] << 8);
-                    comp->data.type = p[5];
-                    comp->data.mime = p[8] | (p[9] << 8) | (p[10] << 16) | ((uint32_t)p[11] << 24);
-
-                    aas_port_t *port = &st->ports[port_idx++];
-                    port->port = comp->data.port;
-                    port->type = comp->data.type;
-                    port->mime = comp->data.mime;
-                    port->service_number = service->number;
-                }
-                else if (type == 0x66)
-                {
-                    sig_component_t *comp;
-
-                    if (component_idx == MAX_SIG_COMPONENTS)
-                    {
-                        log_warn("Too many SIG components");
-                        goto done;
-                    }
-
-                    comp = &service->component[component_idx++];
-                    comp->type = SIG_COMPONENT_AUDIO;
-                    comp->id = p[0];
-                    comp->audio.port = p[1];
-                    comp->audio.type = p[2];
-                    comp->audio.mime = p[7] | (p[8] << 8) | (p[9] << 16) | ((uint32_t)p[10] << 24);
-                }
-                p += l - 1;
-                break;
-            }
-            default:
-                log_warn("unexpected byte %02X", *p);
+                log_warn("Too many SIG services");
                 goto done;
+            }
+
+            service = &st->services[service_idx++];
+            service->type = type == 0x40 ? SIG_SERVICE_AUDIO : SIG_SERVICE_DATA;
+            service->number = p[0] | (p[1] << 8);
+            component_idx = 0;
+
+            p += 3;
+            break;
+        }
+        case 0x60:
+        {
+            // length (1-byte) value (length - 1)
+            uint8_t l = *p++;
+            if (service == NULL)
+            {
+                log_warn("Invalid SIG data (%02X)", type);
+                goto done;
+            }
+            else if (type == 0x69)
+            {
+                service->name = iso_8859_1_to_utf_8(p + 1, l - 2);
+            }
+            else if (type == 0x67)
+            {
+                sig_component_t *comp;
+
+                if (component_idx == MAX_SIG_COMPONENTS)
+                {
+                    log_warn("Too many SIG components");
+                    goto done;
+                }
+
+                if (port_idx == MAX_PORTS)
+                {
+                    log_warn("Too many AAS ports");
+                    goto done;
+                }
+
+                comp = &service->component[component_idx++];
+                comp->type = SIG_COMPONENT_DATA;
+                comp->id = p[0];
+                comp->data.port = p[1] | (p[2] << 8);
+                comp->data.service_data_type = p[3] | (p[4] << 8);
+                comp->data.type = p[5];
+                comp->data.mime = p[8] | (p[9] << 8) | (p[10] << 16) | ((uint32_t) p[11] << 24);
+
+                aas_port_t *port = &st->ports[port_idx++];
+                port->port = comp->data.port;
+                port->type = comp->data.type;
+                port->mime = comp->data.mime;
+                port->service_number = service->number;
+            }
+            else if (type == 0x66)
+            {
+                sig_component_t *comp;
+
+                if (component_idx == MAX_SIG_COMPONENTS)
+                {
+                    log_warn("Too many SIG components");
+                    goto done;
+                }
+
+                comp = &service->component[component_idx++];
+                comp->type = SIG_COMPONENT_AUDIO;
+                comp->id = p[0];
+                comp->audio.port = p[1];
+                comp->audio.type = p[2];
+                comp->audio.mime = p[7] | (p[8] << 8) | (p[9] << 16) | ((uint32_t) p[10] << 24);
+            }
+            p += l - 1;
+            break;
+        }
+        default:
+            log_warn("unexpected byte %02X", *p);
+            goto done;
         }
     }
 
-    done:
+done:
     nrsc5_report_sig(st->radio, st->services, service_idx);
 }
 
@@ -609,130 +609,131 @@ static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *
 
     switch (port->type)
     {
-        case AAS_TYPE_STREAM:
+    case AAS_TYPE_STREAM:
+    {
+        nrsc5_report_stream(st->radio, port_id, seq, len, port->mime, buf);
+        break;
+    }
+    case AAS_TYPE_PACKET:
+    {
+        nrsc5_report_packet(st->radio, port_id, seq, len, port->mime, buf);
+        break;
+    }
+    case AAS_TYPE_LOT:
+    {
+        if (len < 8)
         {
-            nrsc5_report_stream(st->radio, port_id, seq, len, port->mime, buf);
+            log_warn("bad fragment (port %04X, len %d)", port_id, len);
+            return;
+        }
+        uint8_t hdrlen = buf[0];
+        // uint8_t repeat = buf[1];
+        uint16_t lot = buf[2] | (buf[3] << 8);
+        uint32_t seq = buf[4] | (buf[5] << 8) | (buf[6] << 16) | ((uint32_t) buf[7] << 24);
+        if (hdrlen < 8 || hdrlen > len)
+        {
+            log_warn("wrong header len (port %04X, len %d, hdrlen %d)", port_id, len, hdrlen);
+            return;
+        }
+        buf += 8;
+        len -= 8;
+        hdrlen -= 8;
+
+        if (seq >= MAX_LOT_FRAGMENTS)
+        {
+            log_warn("sequence too large (%d)", seq);
+            return;
+        }
+
+        aas_file_t *file = find_lot(port, lot);
+        if (file == NULL)
+        {
+            file = find_free_lot(port);
+            file->lot = lot;
+            file->fragments = calloc(MAX_LOT_FRAGMENTS, sizeof(uint8_t *));
+        }
+        file->timestamp = counter++;
+
+        if (seq == 0)
+        {
+            if (hdrlen < 16)
+            {
+                log_warn("header is too short (port %04X, len %d, hdrlen %d)", port_id, len, hdrlen);
+                return;
+            }
+
+            uint32_t version = buf[0] | (buf[1] << 8) | (buf[2] << 16) | ((uint32_t) buf[3] << 24);
+            if (version != 1)
+                log_warn("unknown LOT version: %d", version);
+
+            file->expiry_utc.tm_year = ((buf[7] << 4) | (buf[6] >> 4)) - 1900;
+            file->expiry_utc.tm_mon = (buf[6] & 0xf) - 1;
+            file->expiry_utc.tm_mday = (buf[5] >> 3);
+            file->expiry_utc.tm_hour = ((buf[5] & 0x7) << 2) | (buf[4] >> 6);
+            file->expiry_utc.tm_min = (buf[4] & 0x3f);
+
+            file->size = buf[8] | (buf[9] << 8) | (buf[10] << 16) | ((uint32_t) buf[11] << 24);
+            file->mime = buf[12] | (buf[13] << 8) | (buf[14] << 16) | ((uint32_t) buf[15] << 24);
+            buf += 16;
+            len -= 16;
+            hdrlen -= 16;
+
+            // Everything after the fixed header is the filename.
+            free(file->name);
+            file->name = strndup((const char *) buf, hdrlen);
+            buf += hdrlen;
+            len -= hdrlen;
+            hdrlen = 0;
+
+            log_debug("File %s, size %d, lot %d, port %04X, mime %08X", file->name, file->size, file->lot, port->port,
+                      file->mime);
+        }
+
+        if (hdrlen != 0)
+        {
+            log_warn("unexpected hdrlen (port %04X, hdrlen %d)", port_id, hdrlen);
             break;
         }
-        case AAS_TYPE_PACKET:
+
+        if (!file->fragments[seq])
         {
-            nrsc5_report_packet(st->radio, port_id, seq, len, port->mime, buf);
-            break;
-        }
-        case AAS_TYPE_LOT:
-        {
-            if (len < 8)
+            uint8_t *fragment = calloc(LOT_FRAGMENT_SIZE, 1);
+            if (len > LOT_FRAGMENT_SIZE)
             {
-                log_warn("bad fragment (port %04X, len %d)", port_id, len);
-                return;
-            }
-            uint8_t hdrlen = buf[0];
-            // uint8_t repeat = buf[1];
-            uint16_t lot = buf[2] | (buf[3] << 8);
-            uint32_t seq = buf[4] | (buf[5] << 8) | (buf[6] << 16) | ((uint32_t)buf[7] << 24);
-            if (hdrlen < 8 || hdrlen > len)
-            {
-                log_warn("wrong header len (port %04X, len %d, hdrlen %d)", port_id, len, hdrlen);
-                return;
-            }
-            buf += 8;
-            len -= 8;
-            hdrlen -= 8;
-
-            if (seq >= MAX_LOT_FRAGMENTS)
-            {
-                log_warn("sequence too large (%d)", seq);
-                return;
-            }
-
-            aas_file_t *file = find_lot(port, lot);
-            if (file == NULL)
-            {
-                file = find_free_lot(port);
-                file->lot = lot;
-                file->fragments = calloc(MAX_LOT_FRAGMENTS, sizeof(uint8_t*));
-            }
-            file->timestamp = counter++;
-
-            if (seq == 0)
-            {
-                if (hdrlen < 16)
-                {
-                    log_warn("header is too short (port %04X, len %d, hdrlen %d)", port_id, len, hdrlen);
-                    return;
-                }
-
-                uint32_t version = buf[0] | (buf[1] << 8) | (buf[2] << 16) | ((uint32_t)buf[3] << 24);
-                if (version != 1)
-                    log_warn("unknown LOT version: %d", version);
-
-                file->expiry_utc.tm_year = ((buf[7] << 4) | (buf[6] >> 4)) - 1900;
-                file->expiry_utc.tm_mon = (buf[6] & 0xf) - 1;
-                file->expiry_utc.tm_mday = (buf[5] >> 3);
-                file->expiry_utc.tm_hour = ((buf[5] & 0x7) << 2) | (buf[4] >> 6);
-                file->expiry_utc.tm_min = (buf[4] & 0x3f);
-
-                file->size = buf[8] | (buf[9] << 8) | (buf[10] << 16) | ((uint32_t)buf[11] << 24);
-                file->mime = buf[12] | (buf[13] << 8) | (buf[14] << 16) | ((uint32_t)buf[15] << 24);
-                buf += 16;
-                len -= 16;
-                hdrlen -= 16;
-
-                // Everything after the fixed header is the filename.
-                free(file->name);
-                file->name = strndup((const char *)buf, hdrlen);
-                buf += hdrlen;
-                len -= hdrlen;
-                hdrlen = 0;
-
-                log_debug("File %s, size %d, lot %d, port %04X, mime %08X", file->name, file->size, file->lot, port->port, file->mime);
-            }
-
-            if (hdrlen != 0)
-            {
-                log_warn("unexpected hdrlen (port %04X, hdrlen %d)", port_id, hdrlen);
+                log_warn("fragment too large (%d)", len);
                 break;
             }
+            memcpy(fragment, buf, len);
+            file->fragments[seq] = fragment;
+        }
 
-            if (!file->fragments[seq])
+        if (file->size)
+        {
+            int complete = 1;
+            int num_fragments = (file->size + LOT_FRAGMENT_SIZE - 1) / LOT_FRAGMENT_SIZE;
+            for (int i = 0; i < num_fragments; i++)
             {
-                uint8_t *fragment = calloc(LOT_FRAGMENT_SIZE, 1);
-                if (len > LOT_FRAGMENT_SIZE)
+                if (file->fragments[i] == NULL)
                 {
-                    log_warn("fragment too large (%d)", len);
+                    complete = 0;
                     break;
                 }
-                memcpy(fragment, buf, len);
-                file->fragments[seq] = fragment;
             }
-
-            if (file->size)
+            if (complete)
             {
-                int complete = 1;
-                int num_fragments = (file->size + LOT_FRAGMENT_SIZE - 1) / LOT_FRAGMENT_SIZE;
+                uint8_t *data = malloc(num_fragments * LOT_FRAGMENT_SIZE);
                 for (int i = 0; i < num_fragments; i++)
-                {
-                    if (file->fragments[i] == NULL)
-                    {
-                        complete = 0;
-                        break;
-                    }
-                }
-                if (complete)
-                {
-                    uint8_t *data = malloc(num_fragments * LOT_FRAGMENT_SIZE);
-                    for (int i = 0; i < num_fragments; i++)
-                        memcpy(data + i * LOT_FRAGMENT_SIZE, file->fragments[i], LOT_FRAGMENT_SIZE);
-                    nrsc5_report_lot(st->radio, port->port, file->lot, file->size, file->mime, file->name, data, &file->expiry_utc);
-                    free(data);
-                    aas_free_lot(file);
-                }
+                    memcpy(data + i * LOT_FRAGMENT_SIZE, file->fragments[i], LOT_FRAGMENT_SIZE);
+                nrsc5_report_lot(st->radio, port->port, file->lot, file->size, file->mime, file->name, data, &file->expiry_utc);
+                free(data);
+                aas_free_lot(file);
             }
-            break;
         }
-        default:
-            log_info("unknown port type %d", port->type);
-            break;
+        break;
+    }
+    default:
+        log_info("unknown port type %d", port->type);
+        break;
     }
 }
 

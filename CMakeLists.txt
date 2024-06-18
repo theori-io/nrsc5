@@ -102,12 +102,12 @@ check_symbol_exists (_Complex_I complex.h HAVE_COMPLEX_I)
 if (NOT USE_SYSTEM_FFTW)
     set (FFTW_PREFIX "${CMAKE_BINARY_DIR}/fftw-prefix")
     ExternalProject_Add (
-            fftw_external
-            URL "https://www.fftw.org/fftw-3.3.10.tar.gz"
-            URL_HASH SHA256=56c932549852cddcfafdab3820b0200c7742675be92179e59e6215b340e26467
-            PREFIX ${FFTW_PREFIX}
+        fftw_external
+        URL "https://www.fftw.org/fftw-3.3.10.tar.gz"
+        URL_HASH SHA256=56c932549852cddcfafdab3820b0200c7742675be92179e59e6215b340e26467
+        PREFIX ${FFTW_PREFIX}
 
-            CONFIGURE_COMMAND ${FFTW_PREFIX}/src/fftw_external/configure ${HOST_TRIPLE_ARG} --prefix=${FFTW_PREFIX} --enable-float --enable-static --disable-shared --enable-sse2 --enable-avx --enable-avx2 --with-our-malloc
+        CONFIGURE_COMMAND ${FFTW_PREFIX}/src/fftw_external/configure ${HOST_TRIPLE_ARG} --prefix=${FFTW_PREFIX} --enable-float --enable-static --disable-shared --enable-sse2 --enable-avx --enable-avx2 --with-our-malloc
     )
 
     add_library (fftw3f STATIC IMPORTED)
@@ -122,22 +122,22 @@ endif ()
 if (NOT USE_SYSTEM_LIBUSB)
     set (LIBUSB_PREFIX "${CMAKE_BINARY_DIR}/libusb-prefix")
     ExternalProject_Add (
-            libusb_external
-            TIMEOUT 120
-            GIT_REPOSITORY "https://github.com/libusb/libusb.git"
-            GIT_TAG v1.0.27
-            PREFIX ${LIBUSB_PREFIX}
+        libusb_external
+        TIMEOUT 120
+        GIT_REPOSITORY "https://github.com/libusb/libusb.git"
+        GIT_TAG v1.0.27
+        PREFIX ${LIBUSB_PREFIX}
 
-            UPDATE_COMMAND ""
-            CONFIGURE_COMMAND ${LIBUSB_PREFIX}/src/libusb_external/configure ${HOST_TRIPLE_ARG} --prefix=${LIBUSB_PREFIX}
+        UPDATE_COMMAND ""
+        CONFIGURE_COMMAND ${LIBUSB_PREFIX}/src/libusb_external/configure ${HOST_TRIPLE_ARG} --prefix=${LIBUSB_PREFIX}
     )
     ExternalProject_Add_Step (
-            libusb_external
-            bootstrap
-            COMMAND sh ./bootstrap.sh
-            DEPENDEES patch
-            DEPENDERS configure
-            WORKING_DIRECTORY <SOURCE_DIR>
+        libusb_external
+        bootstrap
+        COMMAND sh ./bootstrap.sh
+        DEPENDEES patch
+        DEPENDERS configure
+        WORKING_DIRECTORY <SOURCE_DIR>
     )
     add_library (libusb STATIC IMPORTED)
     set_property (TARGET libusb PROPERTY IMPORTED_LOCATION "${LIBUSB_PREFIX}/lib/libusb-1.0.a")
@@ -145,21 +145,21 @@ if (NOT USE_SYSTEM_LIBUSB)
     set (LIBUSB_BUILTIN libusb_external)
     set (LIBUSB_LIBRARIES libusb)
     set (RTLSDR_CMAKE_ARGS
-            -DCMAKE_PREFIX_PATH:STRING=${LIBUSB_PREFIX}
+        -DCMAKE_PREFIX_PATH:STRING=${LIBUSB_PREFIX}
     )
 endif ()
 
 if (NOT USE_SYSTEM_RTLSDR)
     set (RTLSDR_PREFIX "${CMAKE_BINARY_DIR}/rtlsdr-prefix")
     ExternalProject_Add (
-            rtlsdr_external
-            TIMEOUT 120
-            GIT_REPOSITORY "https://gitea.osmocom.org/sdr/rtl-sdr.git"
-            GIT_TAG b85f037d85fa5382c3e88463184b77b273cd1091
-            PREFIX ${RTLSDR_PREFIX}
+        rtlsdr_external
+        TIMEOUT 120
+        GIT_REPOSITORY "https://gitea.osmocom.org/sdr/rtl-sdr.git"
+        GIT_TAG b85f037d85fa5382c3e88463184b77b273cd1091
+        PREFIX ${RTLSDR_PREFIX}
 
-            UPDATE_COMMAND ""
-            CMAKE_ARGS
+        UPDATE_COMMAND ""
+        CMAKE_ARGS
             -DCMAKE_INSTALL_PREFIX:STRING=${RTLSDR_PREFIX}
             -DCMAKE_C_COMPILER:STRING=${CMAKE_C_COMPILER}
             -DCMAKE_SYSTEM_NAME:STRING=${CMAKE_SYSTEM_NAME}
@@ -186,22 +186,22 @@ if (NOT USE_SYSTEM_LIBAO)
 
     set (LIBAO_PREFIX "${CMAKE_BINARY_DIR}/libao-prefix")
     ExternalProject_Add (
-            libao_external
-            TIMEOUT 120
-            GIT_REPOSITORY "https://gitlab.xiph.org/xiph/libao.git"
-            GIT_TAG cafce902a73c1050474a62feff83e428bbbee5f4
-            PREFIX ${LIBAO_PREFIX}
+        libao_external
+        TIMEOUT 120
+        GIT_REPOSITORY "https://gitlab.xiph.org/xiph/libao.git"
+        GIT_TAG cafce902a73c1050474a62feff83e428bbbee5f4
+        PREFIX ${LIBAO_PREFIX}
 
-            UPDATE_COMMAND ""
-            CONFIGURE_COMMAND ${LIBAO_PREFIX}/src/libao_external/configure ${HOST_TRIPLE_ARG} --prefix=${LIBAO_PREFIX} --enable-static --disable-shared --disable-pulse
+        UPDATE_COMMAND ""
+        CONFIGURE_COMMAND ${LIBAO_PREFIX}/src/libao_external/configure ${HOST_TRIPLE_ARG} --prefix=${LIBAO_PREFIX} --enable-static --disable-shared --disable-pulse
     )
     ExternalProject_Add_Step (
-            libao_external
-            bootstrap
-            COMMAND sh ./autogen.sh
-            DEPENDEES patch
-            DEPENDERS configure
-            WORKING_DIRECTORY <SOURCE_DIR>
+        libao_external
+        bootstrap
+        COMMAND sh ./autogen.sh
+        DEPENDEES patch
+        DEPENDERS configure
+        WORKING_DIRECTORY <SOURCE_DIR>
     )
 
     add_library (libao STATIC IMPORTED)
@@ -216,17 +216,17 @@ endif ()
 if (USE_FAAD2)
     set (FAAD2_PREFIX "${CMAKE_BINARY_DIR}/faad2-prefix")
     ExternalProject_Add (
-            faad2_external
-            TIMEOUT 120
-            GIT_REPOSITORY "https://github.com/knik0/faad2.git"
-            GIT_TAG df42c6fc018552519d140e3d8ffe7046ed48b0cf
-            PREFIX ${FAAD2_PREFIX}
+        faad2_external
+        TIMEOUT 120
+        GIT_REPOSITORY "https://github.com/knik0/faad2.git"
+        GIT_TAG df42c6fc018552519d140e3d8ffe7046ed48b0cf
+        PREFIX ${FAAD2_PREFIX}
 
-            UPDATE_COMMAND ""
-            PATCH_COMMAND patch -p1 -Ni "${CMAKE_SOURCE_DIR}/support/faad2-hdc-support.patch" || exit 0
-            COMMAND sh ./bootstrap
+        UPDATE_COMMAND ""
+        PATCH_COMMAND patch -p1 -Ni "${CMAKE_SOURCE_DIR}/support/faad2-hdc-support.patch" || exit 0
+        COMMAND sh ./bootstrap
 
-            CONFIGURE_COMMAND ${FAAD2_PREFIX}/src/faad2_external/configure ${HOST_TRIPLE_ARG} ${FAAD2_CONFIGURE_ARGS} --prefix=${FAAD2_PREFIX} "CFLAGS=-O2 -fPIC ${CMAKE_C_FLAGS}"
+        CONFIGURE_COMMAND ${FAAD2_PREFIX}/src/faad2_external/configure ${HOST_TRIPLE_ARG} ${FAAD2_CONFIGURE_ARGS} --prefix=${FAAD2_PREFIX} "CFLAGS=-O2 -fPIC ${CMAKE_C_FLAGS}"
     )
 
     add_library (faad2 STATIC IMPORTED)
@@ -247,14 +247,14 @@ endif()
 set (BUILTIN_LIBRARIES ${FFTW3F_BUILTIN} ${RTL_SDR_BUILTIN} ${FAAD2_BUILTIN} ${AO_BUILTIN})
 
 if(EXISTS "${CMAKE_SOURCE_DIR}/.git")
-    execute_process(
-            COMMAND git log -1 --format=%h
-            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
-            OUTPUT_VARIABLE GIT_COMMIT_HASH
-            OUTPUT_STRIP_TRAILING_WHITESPACE
-    )
+  execute_process(
+    COMMAND git log -1 --format=%h
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    OUTPUT_VARIABLE GIT_COMMIT_HASH
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+  )
 else()
-    set(GIT_COMMIT_HASH "unknown")
+  set(GIT_COMMIT_HASH "unknown")
 endif()
 add_definitions("-DGIT_COMMIT_HASH=\"${GIT_COMMIT_HASH}\"")
 
@@ -262,21 +262,21 @@ add_subdirectory (src)
 
 # optionally generate documentation via Doxygen
 if (BUILD_DOC)
-    find_package(Doxygen)
-    if (NOT DOXYGEN_FOUND)
-        message("** Install the Doxygen application to generate API documentation")
-    else ()
-        message("-- Build of Doxygen API documentation enabled")
-        set(DOXYGEN_IN ${CMAKE_CURRENT_BINARY_DIR}/../doc/Doxyfile.in)
-        set(DOXYGEN_OUT ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile)
-        configure_file(${DOXYGEN_IN} ${DOXYGEN_OUT} @ONLY)
-        # 'ALL' below enables building docs together with the application
-        add_custom_target( doc_doxygen ALL
-                COMMAND ${DOXYGEN_EXECUTABLE} ${DOXYGEN_OUT}
-                WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-                COMMENT "Generating API documentation with Doxygen"
-                VERBATIM )
-    endif ()
+  find_package(Doxygen)
+  if (NOT DOXYGEN_FOUND)
+    message("** Install the Doxygen application to generate API documentation")
+  else ()
+    message("-- Build of Doxygen API documentation enabled")
+    set(DOXYGEN_IN ${CMAKE_CURRENT_BINARY_DIR}/../doc/Doxyfile.in)
+    set(DOXYGEN_OUT ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile)
+    configure_file(${DOXYGEN_IN} ${DOXYGEN_OUT} @ONLY)
+    # 'ALL' below enables building docs together with the application
+    add_custom_target( doc_doxygen ALL
+      COMMAND ${DOXYGEN_EXECUTABLE} ${DOXYGEN_OUT}
+      WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+      COMMENT "Generating API documentation with Doxygen"
+      VERBATIM )
+  endif ()
 else ()
     message("-- Build of Doxygen API documentation disabled; use -DBUILD_DOC=ON to enable")
 endif ()

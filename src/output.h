@@ -87,7 +87,6 @@ typedef struct
     sig_component_t component[MAX_SIG_COMPONENTS];
 } sig_service_t;
 
-#ifdef HAVE_FAAD2
 typedef struct
 {
     unsigned int seq;
@@ -106,7 +105,6 @@ typedef struct
     unsigned int avail;
     unsigned int latency, avg, delay;
 } decoder_t;
-#endif
 
 typedef struct
 {

@@ -35,23 +35,38 @@ static unsigned int output_writable_buffer(decoder_t *st)
         return st->size - (st->write - st->read) - 1;
 }
 
-static unsigned int output_reader_position(unsigned int pdu_seq, unsigned int avg, unsigned int seq)
+static unsigned int output_available_buffer(decoder_t *st)
 {
-    unsigned int offset = ((pdu_seq * avg)) % MAX_AUDIO_PACKETS;
-    if (((offset + 64 - seq) % MAX_AUDIO_PACKETS) < 32)
-        offset = (offset + 32) % MAX_AUDIO_PACKETS;
-    return offset;
+    if (st->write >= st->read)
+        return st->write - st->read;
+    else
+        return st->size - (st->read - st->write);
 }
 
-static void output_realign_reader_buffer(decoder_t *dec, unsigned int pdu_seq, unsigned int avg, unsigned int seq)
+static unsigned int output_relative_writer_pos(decoder_t *dec, unsigned int seq)
 {
-    dec->read = (dec->write - (dec->delay + dec->buffer[dec->write].seq)
-                 + output_reader_position(pdu_seq, avg, seq) + dec->size) % dec->size;
+    return (seq - dec->buffer[dec->write].seq) % MAX_AUDIO_PACKETS;
+}
+
+static void output_realign_reader(decoder_t *dec, unsigned int pdu_seq, unsigned int avg, unsigned int seq)
+{
+    unsigned int reader_offset = pdu_seq * avg;
+    if (((reader_offset + 64 - seq) % MAX_AUDIO_PACKETS) < 32)
+        reader_offset = (reader_offset + 32) % MAX_AUDIO_PACKETS;
+
+    dec->read = (dec->write - dec->delay - seq + reader_offset) % dec->size;
+}
+
+static void output_realign_writer(decoder_t *dec, unsigned int relative)
+{
+    dec->write = (dec->write + relative) % dec->size;
+    dec->buffer[dec->write].seq = relative;
 }
 
 void output_align(output_t *st, unsigned int program, unsigned int stream_id, unsigned int pdu_seq, unsigned int latency, unsigned int avg, unsigned int seq, unsigned int nop)
 {
     decoder_t *dec = &st->decoder[program];
+    unsigned int relative;
 
     if (stream_id != 0)
         return; // TODO: Process enhanced stream
@@ -61,10 +76,14 @@ void output_align(output_t *st, unsigned int program, unsigned int stream_id, un
 
     if (!dec->buffer)
     {
-        // buffer should look like this: ||latency|| + ||64|| + ||latency||
-        dec->delay  = latency;
+        // Buffer Diagram: ||delay|| + ||64|| + ||delay||
+        dec->delay  = dec->latency;
         dec->size   = (dec->delay * 2) + MAX_AUDIO_PACKETS;
         dec->buffer = malloc(dec->size * sizeof(packet_t));
+
+        // Startup the buffer
+        dec->avail  = dec->avg * RADIO_FRAME_SAMPLES;
+        dec->write  = dec->delay;
 
         for (int i = 0; i < dec->size; i++)
         {
@@ -72,18 +91,20 @@ void output_align(output_t *st, unsigned int program, unsigned int stream_id, un
             dec->buffer[i].seq = -1;
         }
 
-        dec->write = (dec->delay + seq) % dec->size;
-        dec->buffer[dec->write].seq = seq;
-
-        // default read position (half-length from PDU sequence number)
-        output_realign_reader_buffer(dec, pdu_seq, avg, seq);
+        // Align writer position
+        output_realign_writer(dec, seq);
+        // Align read position
+        output_realign_reader(dec, pdu_seq, avg, seq);
 
         log_debug("Buffer created. Program: %d, Size %d bytes, Read %d pos, Write: %d pos", program, dec->size, dec->read, dec->write);
     }
+
     // Re-sync (lost-synchronization with reader and writer)
-    else if (output_writable_buffer(dec) < ((seq - dec->buffer[dec->write].seq) % MAX_AUDIO_PACKETS) + nop)
+    relative = output_relative_writer_pos(dec, seq);
+    if (output_writable_buffer(dec) < relative + nop)
     {
-        output_realign_reader_buffer(dec, pdu_seq, avg, seq);
+        output_realign_writer(dec, relative);
+        output_realign_reader(dec, pdu_seq, avg, seq);
         log_debug("Buffer realigned. Program: %d, Read %d pos, Write: %d pos", program, dec->read, dec->write);
     }
 }
@@ -98,14 +119,14 @@ void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int prog
     if (stream_id != 0)
         return; // TODO: Process enhanced stream
 
-    unsigned int seq_diff = (seq - dec->buffer[dec->write].seq) % MAX_AUDIO_PACKETS;
-    unsigned int pos = (dec->write + seq_diff) % dec->size;
-
     if (output_writable_buffer(dec) == 0)
     {
         log_warn("Buffer full. program: %d write: %d read: %d", program, dec->write, dec->read);
         return;
     }
+
+    unsigned int relative = output_relative_writer_pos(dec, seq);
+    unsigned int pos = (dec->write + relative) % dec->size;
 
     memcpy(dec->buffer[pos].data, pkt, len);
     dec->buffer[pos].size = len;

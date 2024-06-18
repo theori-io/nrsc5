@@ -38,7 +38,7 @@ static float decim_taps[] = {
     -0.00410953676328063
 };
 
-static void input_push_to_acquire(input_t *st)
+static unsigned int input_push_to_acquire(input_t *st)
 {
     if (st->skip)
     {
@@ -54,7 +54,10 @@ static void input_push_to_acquire(input_t *st)
         }
     }
 
-    st->used += acquire_push(&st->acq, &st->buffer[st->used], st->avail - st->used);
+    unsigned int needed = acquire_push(&st->acq, &st->buffer[st->used], st->avail - st->used);
+
+    st->used += needed;
+    return needed;
 }
 
 void input_pdu_push(input_t *st, uint8_t *pdu, unsigned int len, unsigned int program, unsigned int stream_id, unsigned int seq)
@@ -143,9 +146,9 @@ void input_push(input_t *st, unsigned int len)
 {
     while (st->avail - st->used >= (st->radio->mode == NRSC5_MODE_FM ? FFTCP_FM : FFTCP_AM))
     {
-        input_push_to_acquire(st);
+        unsigned int needed = input_push_to_acquire(st);
         acquire_process(&st->acq);
-        output_advance(st->output, st->radio->mode == NRSC5_MODE_FM ? FFTCP_FM : FFTCP_AM);
+        output_advance(st->output, needed);
     }
 }
 

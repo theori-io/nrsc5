@@ -57,10 +57,10 @@ static void output_realign_reader(decoder_t *dec, unsigned int pdu_seq, unsigned
     dec->read = (dec->write - dec->delay - seq + reader_offset) % dec->size;
 }
 
-static void output_realign_writer(decoder_t *dec, unsigned int relative)
+static void output_realign_writer(decoder_t *dec, unsigned int relative, unsigned int seq)
 {
     dec->write = (dec->write + relative) % dec->size;
-    dec->buffer[dec->write].seq = relative;
+    dec->buffer[dec->write].seq = seq;
 }
 
 void output_align(output_t *st, unsigned int program, unsigned int stream_id, unsigned int pdu_seq, unsigned int latency, unsigned int avg, unsigned int seq, unsigned int nop)
@@ -92,7 +92,7 @@ void output_align(output_t *st, unsigned int program, unsigned int stream_id, un
         }
 
         // Align writer position
-        output_realign_writer(dec, seq);
+        output_realign_writer(dec, seq, seq);
         // Align read position
         output_realign_reader(dec, pdu_seq, avg, seq);
 
@@ -103,7 +103,7 @@ void output_align(output_t *st, unsigned int program, unsigned int stream_id, un
     relative = output_relative_writer_pos(dec, seq);
     if (output_writable_buffer(dec) < relative + nop)
     {
-        output_realign_writer(dec, relative);
+        output_realign_writer(dec, relative, seq);
         output_realign_reader(dec, pdu_seq, avg, seq);
         log_debug("Buffer realigned. Program: %d, Read %d pos, Write: %d pos", program, dec->read, dec->write);
     }

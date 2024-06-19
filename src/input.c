@@ -142,7 +142,7 @@ int input_shift(input_t *st, unsigned int cnt)
     return 0;
 }
 
-void input_push(input_t *st, unsigned int len)
+void input_push(input_t *st)
 {
     while (st->avail - st->used >= (st->radio->mode == NRSC5_MODE_FM ? FFTCP_FM : FFTCP_AM))
     {
@@ -205,7 +205,7 @@ void input_push_cu8(input_t *st, const uint8_t *buf, uint32_t len)
         }
     }
 
-    input_push(st, len / 4);
+    input_push(st);
 }
 
 void input_push_cs16(input_t *st, const int16_t *buf, uint32_t len)
@@ -218,7 +218,7 @@ void input_push_cs16(input_t *st, const int16_t *buf, uint32_t len)
     memcpy(&st->buffer[st->avail], buf, len * sizeof(int16_t));
     st->avail += len / 2;
 
-    input_push(st, len / 2);
+    input_push(st);
 }
 
 void input_set_snr_callback(input_t *st, input_snr_cb_t cb, void *arg)

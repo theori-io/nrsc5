@@ -105,6 +105,7 @@ void output_align(output_t *st, unsigned int program, unsigned int stream_id, un
     {
         output_realign_writer(dec, relative, seq);
         output_realign_reader(dec, pdu_seq, avg, seq);
+
         log_debug("Buffer realigned. Program: %d, Read %d pos, Write: %d pos", program, dec->read, dec->write);
     }
 }
@@ -133,6 +134,11 @@ void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int prog
     dec->buffer[pos].seq = seq;
 
     dec->write = pos;
+
+    if(program == 0)
+    {
+      //output_vis(dec);
+    }
 #endif
 }
 
@@ -175,6 +181,11 @@ static void output_advance_push(output_t *st, unsigned int program)
             {
                 nrsc5_report_audio(st->radio, program, buffer, info.samples);
             }
+        }
+
+        if(program == 0)
+        {
+          //output_vis(dec);
         }
 
         dec->buffer[dec->read].size = 0;

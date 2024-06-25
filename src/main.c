@@ -78,7 +78,7 @@ typedef struct {
 
 static ao_sample_format sample_format = {
     16,
-    44100,
+    NRSC5_SAMPLE_RATE_AUDIO,
     2,
     AO_FMT_NATIVE,
     "L,R"
@@ -308,7 +308,7 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
             st->audio_packets++;
             st->audio_bytes += evt->hdc.count * sizeof(evt->hdc.data[0]);
             if (st->audio_packets >= 32) {
-                log_info("Audio bit rate: %.1f kbps", (float)st->audio_bytes * 8 * 44100 / 2048 / st->audio_packets / 1000);
+                log_info("Audio bit rate: %.1f kbps", (float)st->audio_bytes * 8 * NRSC5_SAMPLE_RATE_AUDIO / 2048 / st->audio_packets / 1000);
                 st->audio_packets = 0;
                 st->audio_bytes = 0;
             }

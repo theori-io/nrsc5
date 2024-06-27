@@ -40,24 +40,30 @@ static float decim_taps[] = {
 
 static unsigned int input_push_to_acquire(input_t *st)
 {
+    unsigned int used = 0;
+
     if (st->skip)
     {
         if (st->skip > st->avail - st->used)
         {
             st->skip -= st->avail - st->used;
             st->used = st->avail;
+
+            used += st->avail - st->used;
         }
         else
         {
             st->used += st->skip;
             st->skip = 0;
+
+            used += st->skip;
         }
     }
 
-    unsigned int needed = acquire_push(&st->acq, &st->buffer[st->used], st->avail - st->used);
+    used += acquire_push(&st->acq, &st->buffer[st->used], st->avail - st->used);
+    st->used += used;
 
-    st->used += needed;
-    return needed;
+    return used;
 }
 
 void input_pdu_push(input_t *st, uint8_t *pdu, unsigned int len, unsigned int program, unsigned int stream_id, unsigned int seq)

@@ -97,6 +97,7 @@ typedef struct
 typedef struct
 {
     NeAACDecHandle aacdec;
+    int extra;
 
     packet_t *buffer;
     unsigned int size;

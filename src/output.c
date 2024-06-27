@@ -35,14 +35,6 @@ static unsigned int output_writable_buffer(decoder_t *st)
         return st->size - (st->write - st->read) - 1;
 }
 
-static unsigned int output_available_buffer(decoder_t *st)
-{
-    if (st->write >= st->read)
-        return st->write - st->read;
-    else
-        return st->size - (st->read - st->write);
-}
-
 static unsigned int output_relative_writer_pos(decoder_t *dec, unsigned int seq)
 {
     return (seq - dec->buffer[dec->write].seq) % MAX_AUDIO_PACKETS;
@@ -134,63 +126,68 @@ void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int prog
     dec->buffer[pos].seq = seq;
 
     dec->write = pos;
-
-    if(program == 0)
-    {
-      //output_vis(dec);
-    }
 #endif
 }
 
-static void output_advance_push(output_t *st, unsigned int program)
+static void output_decode_buffer(output_t *st, decoder_t *dec, int16_t **audio, unsigned int *samples)
 {
-    decoder_t *dec = &st->decoder[program];
-    void *buffer;
     NeAACDecFrameInfo info;
+    void *buffer;
 
-    for (int i = 0; i < dec->avg; i++)
+    if (dec->buffer[dec->read].size == 0)
     {
-        if (dec->buffer[dec->read].size == 0)
-        {
-            nrsc5_report_audio(st->radio, program, st->silence, AUDIO_FRAME_SAMPLES);
+        *audio = st->silence;
+        *samples = AUDIO_FRAME_SAMPLES;
 
-            // Reset decoder. Missing packets.
-            if (dec->aacdec)
-            {
-                NeAACDecClose(dec->aacdec);
-                dec->aacdec = NULL;
-            }
+        // Reset decoder. Missing packets.
+        if (dec->aacdec)
+        {
+            NeAACDecClose(dec->aacdec);
+            dec->aacdec = NULL;
+        }
+    }
+    else
+    {
+        if (!dec->aacdec)
+        {
+            unsigned long samprate = 22050;
+            NeAACDecInitHDC(&dec->aacdec, &samprate);
+        }
+
+        buffer = NeAACDecDecode(dec->aacdec, &info, dec->buffer[dec->read].data, dec->buffer[dec->read].size);
+        if (info.error > 0)
+            log_error("Decode error: %s", NeAACDecGetErrorMessage(info.error));
+
+        if (info.error > 0 || info.samples == 0)
+        {
+            *audio = st->silence;
+            *samples = AUDIO_FRAME_SAMPLES;
         }
         else
         {
-            if (!dec->aacdec)
-            {
-                unsigned long samprate = 22050;
-                NeAACDecInitHDC(&dec->aacdec, &samprate);
-            }
-
-            buffer = NeAACDecDecode(dec->aacdec, &info, dec->buffer[dec->read].data, dec->buffer[dec->read].size);
-            if (info.error > 0)
-                log_error("Decode error: %s", NeAACDecGetErrorMessage(info.error));
-
-            if (info.error > 0 || info.samples == 0)
-            {
-                nrsc5_report_audio(st->radio, program, st->silence, AUDIO_FRAME_SAMPLES);
-            }
-            else
-            {
-                nrsc5_report_audio(st->radio, program, buffer, info.samples);
-            }
+            *audio = buffer;
+            *samples = info.samples;
         }
-
-        if(program == 0)
-        {
-          //output_vis(dec);
-        }
-
-        dec->buffer[dec->read].size = 0;
-        dec->read = (dec->read + 1) % dec->size;
     }
+
+    dec->buffer[dec->read].size = 0;
+    dec->read = (dec->read + 1) % dec->size;
+}
+
+static void output_advance_avg_push(output_t *st, unsigned int program)
+{
+    decoder_t *dec = &st->decoder[program];
+
+    for (int i = 0; i < dec->avg - dec->extra; i++)
+    {
+        int16_t *audio;
+        unsigned int samples;
+
+        output_decode_buffer(st, dec, &audio, &samples);
+        nrsc5_report_audio(st->radio, program, audio, samples);
+    }
+
+    dec->extra = 0;
 }
 
 void output_advance(output_t *st, unsigned int len)
@@ -198,6 +195,7 @@ void output_advance(output_t *st, unsigned int len)
     for (int i = 0; i < MAX_PROGRAMS; i++)
     {
         decoder_t *dec = &st->decoder[i];
+        int sent = 0;
 
         // Skip if no buffer
         if (!dec->buffer)
@@ -207,10 +205,24 @@ void output_advance(output_t *st, unsigned int len)
         dec->avail += len;
 
         // Output packets based on average
-        while (dec->avail >= ((dec->avg) * RADIO_FRAME_SAMPLES))
+        while (dec->avail >= (dec->avg * RADIO_FRAME_SAMPLES))
         {
-            output_advance_push(st, i);
-            dec->avail -= ((dec->avg) * RADIO_FRAME_SAMPLES);
+            output_advance_avg_push(st, i);
+            dec->avail -= (dec->avg * RADIO_FRAME_SAMPLES);
+            sent = 1;
+        }
+
+        // Deal with back-pressure. There is a huge ratio to produce frames.
+        // Add another frame for good measure.
+        if (dec->avail > 0 && sent)
+        {
+            int16_t *audio;
+            unsigned int samples;
+
+            output_decode_buffer(st, dec, &audio, &samples);
+            nrsc5_report_audio(st->radio, i, audio, samples);
+
+            dec->extra = 1;
         }
     }
 }
@@ -257,14 +269,20 @@ void output_reset(output_t *st)
 #ifdef USE_FAAD2
     for (int i = 0; i < MAX_PROGRAMS; i++)
     {
-        if (st->decoder[i].aacdec)
-            NeAACDecClose(st->decoder[i].aacdec);
-        st->decoder[i].aacdec = NULL;
-        if (st->decoder[i].buffer)
-            free(st->decoder[i].buffer);
-        st->decoder[i].buffer = NULL;
-        st->decoder[i].avail = 0;
-        st->decoder[i].write = st->decoder[i].read = 0;
+        decoder_t *dec = &st->decoder[i];
+
+        if (dec->aacdec)
+            NeAACDecClose(dec->aacdec);
+        dec->aacdec = NULL;
+
+        dec->write = 0;
+        dec->read = 0;
+        dec->avail = 0;
+        dec->extra = 0;
+
+        if (dec->buffer)
+            free(dec->buffer);
+        dec->buffer = NULL;
     }
 
     memset(st->silence, 0, sizeof(st->silence));
@@ -274,10 +292,6 @@ void output_reset(output_t *st)
 void output_init(output_t *st, nrsc5_t *radio)
 {
     st->radio = radio;
-#ifdef USE_FAAD2
-    for (int i = 0; i < MAX_PROGRAMS; i++)
-        st->decoder[i].aacdec = NULL;
-#endif
 
     memset(st->ports, 0, sizeof(st->ports));
     memset(st->services, 0, sizeof(st->services));

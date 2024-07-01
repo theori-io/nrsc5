@@ -47,6 +47,7 @@ typedef struct buffer_t {
     struct buffer_t *next;
     // The samples are signed 16-bit integers, but ao_play requires a char buffer.
     char data[AUDIO_DATA_LENGTH];
+    size_t count;
 } audio_buffer_t;
 
 typedef struct {
@@ -142,8 +143,9 @@ static void push_audio_buffer(state_t *st, unsigned int program, const int16_t *
     st->free = b->next;
     pthread_mutex_unlock(&st->mutex);
 
-    assert(AUDIO_DATA_LENGTH == count * sizeof(data[0]));
+    //assert(AUDIO_DATA_LENGTH == count * sizeof(data[0]));
     memcpy(b->data, data, count * sizeof(data[0]));
+    b->count = count;
 
     pthread_mutex_lock(&st->mutex);
     if (program != st->program)
@@ -815,7 +817,7 @@ int main(int argc, char *argv[])
             st->tail = NULL;
         pthread_mutex_unlock(&st->mutex);
 
-        ao_play(st->dev, b->data, sizeof(b->data));
+        ao_play(st->dev, b->data, b->count * sizeof(int16_t));
 
         pthread_mutex_lock(&st->mutex);
         // add to free list

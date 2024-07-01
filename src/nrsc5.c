@@ -164,7 +164,7 @@ static void *worker_thread(void *arg)
 
             if (st->dev)
             {
-                err = rtlsdr_read_async(st->dev, worker_cb, st, 8, 512 * 1024);
+                err = rtlsdr_read_async(st->dev, worker_cb, st, 64, 4 * 32 * 512);
             }
             else if (st->rtltcp)
             {

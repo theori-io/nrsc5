@@ -8,6 +8,6 @@ Build-Depends: debhelper (>= 12), build-essential, autoconf, cmake, libtool, lib
 
 Package: nrsc5
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, libao, libfftw3, librtlsdr
+Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: NRSC5 decoder
  Command-line NRSC5 decoder, with a library.

@@ -1,0 +1,13 @@
+Source: nrsc5
+Maintainer: Marat Fayzullin <luarvique@gmail.com>
+Section: hamradio
+Priority: optional
+Rules-Requires-Root: no
+Standards-Version: 4.3.0
+Build-Depends: debhelper (>= 12), build-essential, autoconf, cmake, libtool, libao-dev, libfftw3-dev, librtlsdr-dev
+
+Package: nrsc5
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, libao, libfftw3, librtlsdr
+Description: NRSC5 decoder
+ Command-line NRSC5 decoder, with a library.

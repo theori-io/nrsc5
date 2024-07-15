@@ -7,7 +7,7 @@ jobs:
     name: Ubuntu CI
     strategy:
       matrix:
-        os: [ubuntu-20.04, ubuntu-22.04]
+        os: [ubuntu-20.04, ubuntu-22.04, ubuntu-24.04]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Install dependencies
@@ -46,13 +46,13 @@ jobs:
     name: MacOS CI
     strategy:
       matrix:
-        os: [macos-11, macos-12]
+        os: [macos-12, macos-13, macos-14]
     runs-on: ${{ matrix.os }}
     steps:
       - name: Install dependencies
         run: |
-          brew install autoconf automake libao fftw librtlsdr portaudio
-          pip3 install --global-option=build_ext --global-option="-I/usr/local/include/" --global-option="-L/usr/local/lib" pyaudio
+          brew install autoconf automake libtool libao fftw librtlsdr portaudio
+          # pip3 install --global-option=build_ext --global-option="-I/usr/local/include/" --global-option="-L/usr/local/lib" pyaudio
       - name: Checkout code
         uses: actions/checkout@v4
       - name: Configure
@@ -65,7 +65,7 @@ jobs:
         run: make -j3
       - name: Install
         working-directory: build
-        run: make install
+        run: sudo make install
       - name: Test
         run: |
           xz -d < support/sample.xz > sample

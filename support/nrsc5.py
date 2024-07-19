@@ -29,10 +29,9 @@ class EventType(enum.Enum):
     PACKET = 13
 
 
-class SampleRates(float, enum.Enum):
-    CU8 = 1488375
-    CS16 = 744187.5
-    AUDIO = 44100
+SAMPLE_RATE_CU8 = 1488375
+SAMPLE_RATE_CS16 = 744187.5
+SAMPLE_RATE_AUDIO = 44100
 
 
 class ServiceType(enum.Enum):

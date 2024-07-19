@@ -64,7 +64,7 @@ static int do_auto_gain(nrsc5_t *st)
         {
             // there is no good way to wait for samples after the new gain was applied
             // dump 250ms of samples and hope for the best
-            rtltcp_reset_buffer(st->rtltcp, (SAMPLE_RATE / 4) * 2);
+            rtltcp_reset_buffer(st->rtltcp, (NRSC5_SAMPLE_RATE_CU8 / 4) * 2);
         }
 
         st->auto_gain_snr_ready = 0;
@@ -309,7 +309,7 @@ NRSC5_API int nrsc5_open(nrsc5_t **result, int device_index)
     if (rtlsdr_open(&st->dev, device_index) != 0)
         goto error_init;
 
-    err = rtlsdr_set_sample_rate(st->dev, SAMPLE_RATE);
+    err = rtlsdr_set_sample_rate(st->dev, NRSC5_SAMPLE_RATE_CU8);
     if (err) goto error;
     err = rtlsdr_set_tuner_gain_mode(st->dev, 1);
     if (err) goto error;
@@ -358,7 +358,7 @@ NRSC5_API int nrsc5_open_rtltcp(nrsc5_t **result, int socket)
     if (st->rtltcp == NULL)
         goto error;
 
-    err = rtltcp_set_sample_rate(st->rtltcp, SAMPLE_RATE);
+    err = rtltcp_set_sample_rate(st->rtltcp, NRSC5_SAMPLE_RATE_CU8);
     if (err) goto error;
     err = rtltcp_set_tuner_gain_mode(st->rtltcp, 1);
     if (err) goto error;

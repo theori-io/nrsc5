@@ -48,16 +48,6 @@
 #define NRSC5_SAMPLE_RATE_CS16  744187.5
 #define NRSC5_SAMPLE_RATE_AUDIO 44100
 
-#ifdef NRSC5_EXPORTS
-#ifdef __MINGW32__
-#define NRSC5_API __declspec(dllexport)
-#else
-#define NRSC5_API
-#endif
-#else
-#define NRSC5_API
-#endif
-
 enum
 {
     NRSC5_MODE_FM,
@@ -395,7 +385,7 @@ typedef struct nrsc5_t nrsc5_t;
  * @param[out] version character pointer that will reference the version string.
  * @return Nothing is returned
  */
-NRSC5_API void nrsc5_get_version(const char **version);
+void nrsc5_get_version(const char **version);
 
 /**
  * Retrieves a string corresponding to a service data type.
@@ -406,7 +396,7 @@ NRSC5_API void nrsc5_get_version(const char **version);
  * This name will be quite short, e.g. "News" or "Weather". If the type is
  * not recognized, it will the string "Unknown".
  */
-NRSC5_API void nrsc5_service_data_type_name(unsigned int type, const char **name);
+void nrsc5_service_data_type_name(unsigned int type, const char **name);
 
 /**
  * Retrieves a string corresponding to a program type.
@@ -417,7 +407,7 @@ NRSC5_API void nrsc5_service_data_type_name(unsigned int type, const char **name
  * This name will be quite short, e.g. "News" or "Rock". If the type is
  * not recognized, it will the string "Unknown".
  */
-NRSC5_API void nrsc5_program_type_name(unsigned int type, const char **name);
+void nrsc5_program_type_name(unsigned int type, const char **name);
 
 /**
  * Initializes a session for a particular RTLSDR radio dongle.
@@ -439,7 +429,7 @@ NRSC5_API void nrsc5_program_type_name(unsigned int type, const char **name);
  * Other session options are initialized to defaults, e.g. mode to FM.
  * It creates (but does not start) a worker thread.
  */
-NRSC5_API int nrsc5_open(nrsc5_t **st, int device_index);
+int nrsc5_open(nrsc5_t **st, int device_index);
 
 /**
  * Initializes a session given an open `FILE` pointer.
@@ -448,7 +438,7 @@ NRSC5_API int nrsc5_open(nrsc5_t **st, int device_index);
  * @return 0 on success, nonzero on error
  *
  */
-NRSC5_API int nrsc5_open_file(nrsc5_t **st, FILE *fp);
+int nrsc5_open_file(nrsc5_t **st, FILE *fp);
 
 /**
  * Initializes a session for use with a pipe.
@@ -456,7 +446,7 @@ NRSC5_API int nrsc5_open_file(nrsc5_t **st, FILE *fp);
  * @return 0 on success, nonzero on error
  *
  */
-NRSC5_API int nrsc5_open_pipe(nrsc5_t **st );
+int nrsc5_open_pipe(nrsc5_t **st );
 
 /**
  * Initializes a session given a TCP socket file descriptor.
@@ -465,7 +455,7 @@ NRSC5_API int nrsc5_open_pipe(nrsc5_t **st );
  * @return 0 on success, nonzero on error
  *
  */
-NRSC5_API int nrsc5_open_rtltcp(nrsc5_t **, int socket);
+int nrsc5_open_rtltcp(nrsc5_t **, int socket);
 
 /**
  * Closes an nrsc5 session.
@@ -475,7 +465,7 @@ NRSC5_API int nrsc5_open_rtltcp(nrsc5_t **, int socket);
  * Any worker thread is signalled to exit, files and sockets are closed,
  * and I/O buffers are freed.
  */
-NRSC5_API void nrsc5_close(nrsc5_t *);
+void nrsc5_close(nrsc5_t *);
 
 /**
  * Signals the worker to *start* demodulation.
@@ -483,7 +473,7 @@ NRSC5_API void nrsc5_close(nrsc5_t *);
  * @return Nothing is returned.
  *
  */
-NRSC5_API void nrsc5_start(nrsc5_t *);
+void nrsc5_start(nrsc5_t *);
 
 /**
  * Signals the worker to *stop* demodulation.
@@ -492,7 +482,7 @@ NRSC5_API void nrsc5_start(nrsc5_t *);
  *
  * This function will block until the worker is stopped.
  */
-NRSC5_API void nrsc5_stop(nrsc5_t *);
+void nrsc5_stop(nrsc5_t *);
 
 /**
  * Set the session mode to AM or FM.
@@ -501,7 +491,7 @@ NRSC5_API void nrsc5_stop(nrsc5_t *);
  * @return 0 on success or nonzero on error.
  *
  */
-NRSC5_API int nrsc5_set_mode(nrsc5_t *, int mode);
+int nrsc5_set_mode(nrsc5_t *, int mode);
 
 /**
  * Enable or disable the bias-T for the radio.
@@ -514,7 +504,7 @@ NRSC5_API int nrsc5_set_mode(nrsc5_t *, int mode);
  * DC on the antenna cable. Do not enable this unless you know you
  * have an LNA and compatible antenna.
  */
-NRSC5_API int nrsc5_set_bias_tee(nrsc5_t *, int on);
+int nrsc5_set_bias_tee(nrsc5_t *, int on);
 
 /**
  * Enable or disable direct sampling.
@@ -524,7 +514,7 @@ NRSC5_API int nrsc5_set_bias_tee(nrsc5_t *, int on);
  *
  * This works with both a local SDR and over a TCP connection.
  */
-NRSC5_API int nrsc5_set_direct_sampling(nrsc5_t *, int on);
+int nrsc5_set_direct_sampling(nrsc5_t *, int on);
 
 /**
  * Adjust the radio frequency correction.
@@ -534,7 +524,7 @@ NRSC5_API int nrsc5_set_direct_sampling(nrsc5_t *, int on);
  *
  * This works with both a local SDR and over a TCP connection.
  */
-NRSC5_API int nrsc5_set_freq_correction(nrsc5_t *st, int ppm_error);
+int nrsc5_set_freq_correction(nrsc5_t *st, int ppm_error);
 
 /**
  * Retrieve the frequency to which the device is currently tuned
@@ -544,7 +534,7 @@ NRSC5_API int nrsc5_set_freq_correction(nrsc5_t *st, int ppm_error);
  * @param[out] freq  frequency in Hz
  * @return Nothing is returned.
  */
-NRSC5_API void nrsc5_get_frequency(nrsc5_t *st, float *freq);
+void nrsc5_get_frequency(nrsc5_t *st, float *freq);
 
 /**
  * Sets the frequency to which the receiver is tuned.
@@ -557,7 +547,7 @@ NRSC5_API void nrsc5_get_frequency(nrsc5_t *st, float *freq);
  * Input, output are reset. Gain is reset if auto-gain is enabled.
  * Works with both a local SDR and over a TCP connection.
  */
-NRSC5_API int nrsc5_set_frequency(nrsc5_t *st, float freq);
+int nrsc5_set_frequency(nrsc5_t *st, float freq);
 
 /**
  * Retrieve the actual receiver gain.
@@ -567,7 +557,7 @@ NRSC5_API int nrsc5_set_frequency(nrsc5_t *st, float freq);
  * @return 0 on success or nonzero on error
  *
  */
-NRSC5_API void nrsc5_get_gain(nrsc5_t *st, float *gain);
+void nrsc5_get_gain(nrsc5_t *st, float *gain);
 
 /**
  * Set the receiver gain.
@@ -577,7 +567,7 @@ NRSC5_API void nrsc5_get_gain(nrsc5_t *st, float *gain);
  * @return 0 on success or nonzero on error
  *
  */
-NRSC5_API int nrsc5_set_gain(nrsc5_t *st, float gain);
+int nrsc5_set_gain(nrsc5_t *st, float gain);
 
 /**
  * Enable or disable receiver auto-gain control.
@@ -587,7 +577,7 @@ NRSC5_API int nrsc5_set_gain(nrsc5_t *st, float gain);
  * @return Nothing is returned.
  *
  */
-NRSC5_API void nrsc5_set_auto_gain(nrsc5_t *st, int enabled);
+void nrsc5_set_auto_gain(nrsc5_t *st, int enabled);
 
 /**
  * Establish a callback function.
@@ -598,7 +588,7 @@ NRSC5_API void nrsc5_set_auto_gain(nrsc5_t *st, int enabled);
  * @return Nothing is returned.
  *
  */
-NRSC5_API void nrsc5_set_callback(nrsc5_t *st, nrsc5_callback_t callback, void *opaque);
+void nrsc5_set_callback(nrsc5_t *st, nrsc5_callback_t callback, void *opaque);
 
 
 /**
@@ -611,7 +601,7 @@ NRSC5_API void nrsc5_set_callback(nrsc5_t *st, nrsc5_callback_t callback, void *
  * @return 0 on success, nonzero on error
  *
  */
-NRSC5_API int nrsc5_pipe_samples_cu8(nrsc5_t *st, const uint8_t *samples, unsigned int length);
+int nrsc5_pipe_samples_cu8(nrsc5_t *st, const uint8_t *samples, unsigned int length);
 
 
 /**
@@ -624,6 +614,6 @@ NRSC5_API int nrsc5_pipe_samples_cu8(nrsc5_t *st, const uint8_t *samples, unsign
  * @return 0 on success, nonzero on error
  *
  */
-NRSC5_API int nrsc5_pipe_samples_cs16(nrsc5_t *st, const int16_t *samples, unsigned int length);
+int nrsc5_pipe_samples_cs16(nrsc5_t *st, const int16_t *samples, unsigned int length);
 
 #endif /* NRSC5_H_ */

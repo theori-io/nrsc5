@@ -100,7 +100,7 @@ static int do_auto_gain(nrsc5_t *st)
     set_tuner_gain(st, best_gain);
     ret = 0;
 
-    error:
+error:
     free(gain_list);
     input_set_snr_callback(&st->input, NULL, NULL);
     return ret;
@@ -321,10 +321,10 @@ NRSC5_API int nrsc5_open(nrsc5_t **result, int device_index)
     *result = st;
     return 0;
 
-    error:
+error:
     log_error("nrsc5_open error: %d", err);
     rtlsdr_close(st->dev);
-    error_init:
+error_init:
     free(st);
     *result = NULL;
     return 1;
@@ -369,7 +369,7 @@ NRSC5_API int nrsc5_open_rtltcp(nrsc5_t **result, int socket)
 
     *result = st;
     return 0;
-    error:
+error:
     free(st);
     *result = NULL;
     return 1;

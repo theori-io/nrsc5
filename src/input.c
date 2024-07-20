@@ -38,28 +38,32 @@ static float decim_taps[] = {
     -0.00410953676328063
 };
 
-static void input_push_to_acquire(input_t *st)
+static unsigned int input_push_to_acquire(input_t *st)
 {
+    unsigned int used = 0;
+
     if (st->skip)
     {
         if (st->skip > st->avail - st->used)
         {
+            used += st->avail - st->used;
             st->skip -= st->avail - st->used;
             st->used = st->avail;
         }
         else
         {
+            used += st->skip;
             st->used += st->skip;
             st->skip = 0;
         }
     }
 
-    st->used += acquire_push(&st->acq, &st->buffer[st->used], st->avail - st->used);
-}
+    unsigned int needed = acquire_push(&st->acq, &st->buffer[st->used], st->avail - st->used);
 
-void input_pdu_push(input_t *st, uint8_t *pdu, unsigned int len, unsigned int program, unsigned int stream_id)
-{
-    output_push(st->output, pdu, len, program, stream_id);
+    st->used += needed;
+    used += needed;
+
+    return used;
 }
 
 void input_set_skip(input_t *st, unsigned int skip)
@@ -93,12 +97,13 @@ int input_shift(input_t *st, unsigned int cnt)
     return 0;
 }
 
-void input_push(input_t *st)
+void input_push(input_t *st, unsigned int pos)
 {
     while (st->avail - st->used >= (st->radio->mode == NRSC5_MODE_FM ? FFTCP_FM : FFTCP_AM))
     {
-        input_push_to_acquire(st);
+        unsigned int pushed = input_push_to_acquire(st);
         acquire_process(&st->acq);
+        output_advance_elastic(st->output, (int)st->used - (int)pushed - (int)pos, pushed);
     }
 }
 
@@ -111,6 +116,8 @@ void input_push_cu8(input_t *st, const uint8_t *buf, uint32_t len)
 
     if (input_shift(st, len / 4) != 0)
         return;
+
+    unsigned int pos = st->avail;
 
     for (i = 0; i < len; i += 4)
     {
@@ -149,7 +156,8 @@ void input_push_cu8(input_t *st, const uint8_t *buf, uint32_t len)
         }
     }
 
-    input_push(st);
+    input_push(st, pos);
+    output_advance(st->output, len / 4);
 }
 
 void input_push_cs16(input_t *st, const int16_t *buf, uint32_t len)
@@ -159,10 +167,13 @@ void input_push_cs16(input_t *st, const int16_t *buf, uint32_t len)
     if (input_shift(st, len / 2) != 0)
         return;
 
+    unsigned int pos = st->avail;
+
     memcpy(&st->buffer[st->avail], buf, len * sizeof(int16_t));
     st->avail += len / 2;
 
-    input_push(st);
+    input_push(st, pos);
+    output_advance(st->output, len / 2);
 }
 
 void input_reset(input_t *st)
@@ -227,9 +238,4 @@ void input_set_sync_state(input_t *st, unsigned int new_state)
     }
 
     st->sync_state = new_state;
-}
-
-void input_aas_push(input_t *st, uint8_t *psd, unsigned int len)
-{
-    output_aas_push(st->output, psd, len);
 }

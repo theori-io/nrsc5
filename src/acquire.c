@@ -266,7 +266,7 @@ void acquire_cfo_adjust(acquire_t *st, int cfo)
         return;
 
     st->cfo += cfo;
-    hz = (float) st->cfo * SAMPLE_RATE / st->fft;
+    hz = (float) st->cfo * NRSC5_SAMPLE_RATE_CU8 / st->fft;
     hz /= (st->mode == NRSC5_MODE_FM ? DECIMATION_FACTOR_FM : DECIMATION_FACTOR_AM);
 
     log_info("CFO: %f Hz", hz);

@@ -8,8 +8,6 @@
 #include <complex.h>
 #include <math.h>
 
-// Sample rate before decimation
-#define SAMPLE_RATE 1488375
 // FFT length in samples
 #define FFT_FM 2048
 #define FFT_AM 256

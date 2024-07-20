@@ -29,6 +29,12 @@ class EventType(enum.Enum):
     PACKET = 13
 
 
+SAMPLE_RATE_CU8 = 1488375
+SAMPLE_RATE_CS16_FM = 744187.5
+SAMPLE_RATE_CS16_AM = 46511.71875
+SAMPLE_RATE_AUDIO = 44100
+
+
 class ServiceType(enum.Enum):
     AUDIO = 0
     DATA = 1

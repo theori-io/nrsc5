@@ -44,6 +44,13 @@
 #define NRSC5_MIME_TTN_STM_TRAFFIC  0xFF8422D7
 #define NRSC5_MIME_TTN_STM_WEATHER  0xEF042E96
 
+#define NRSC5_AUDIO_FRAME_SAMPLES  2048
+
+#define NRSC5_SAMPLE_RATE_CU8      1488375
+#define NRSC5_SAMPLE_RATE_CS16_FM  744187.5
+#define NRSC5_SAMPLE_RATE_CS16_AM  46511.71875
+#define NRSC5_SAMPLE_RATE_AUDIO    44100
+
 enum
 {
     NRSC5_MODE_FM,
@@ -593,6 +600,7 @@ void nrsc5_set_callback(nrsc5_t *st, nrsc5_callback_t callback, void *opaque);
  * @param[in] st  pointer to an `nrsc5_t` session object
  * @param[in] samples  pointer to an array 8-bit unsigned samples
  * @param[in] length   the number of samples in the array
+ * @see NRSC5_SAMPLE_RATE_CU8 for required sample rate
  * @return 0 on success, nonzero on error
  *
  */
@@ -605,6 +613,7 @@ int nrsc5_pipe_samples_cu8(nrsc5_t *st, const uint8_t *samples, unsigned int len
  * @param[in] st  pointer to an `nrsc5_t` session object
  * @param[in] samples  pointer to an array 16-bit signed samples
  * @param[in] length   the number of samples in the array
+ * @see NRSC5_SAMPLE_RATE_CS16_FM & NRSC5_SAMPLE_RATE_CS16_AM for required sample rate
  * @return 0 on success, nonzero on error
  *
  */

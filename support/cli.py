@@ -92,7 +92,7 @@ class NRSC5CLI:
             self.wav_output = wave.open(self.args.o, "wb")
             self.wav_output.setnchannels(2)
             self.wav_output.setsampwidth(2)
-            self.wav_output.setframerate(44100)
+            self.wav_output.setframerate(nrsc5.SAMPLE_RATE_AUDIO)
         else:
             audio_thread = threading.Thread(target=self.audio_worker)
             audio_thread.start()
@@ -145,7 +145,7 @@ class NRSC5CLI:
             index = audio.get_default_output_device_info()["index"]
             stream = audio.open(format=pyaudio.paInt16,
                                 channels=2,
-                                rate=44100,
+                                rate=nrsc5.SAMPLE_RATE_AUDIO,
                                 output_device_index=index,
                                 output=True)
         except OSError:

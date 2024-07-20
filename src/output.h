@@ -1,6 +1,7 @@
 #pragma once
 
 #include "config.h"
+#include "frame.h"
 
 #include <nrsc5.h>
 
@@ -8,7 +9,6 @@
 #include <neaacdec.h>
 #endif
 
-#define AUDIO_FRAME_BYTES 8192
 #define MAX_PORTS 32
 #define MAX_SIG_SERVICES 8
 #define MAX_SIG_COMPONENTS 8
@@ -16,6 +16,11 @@
 #define LOT_FRAGMENT_SIZE 256
 #define MAX_FILE_BYTES 65536
 #define MAX_LOT_FRAGMENTS (MAX_FILE_BYTES / LOT_FRAGMENT_SIZE)
+
+#define AUDIO_FRAME_CHANNELS 2
+#define AUDIO_FRAME_LENGTH (NRSC5_AUDIO_FRAME_SAMPLES * AUDIO_FRAME_CHANNELS)
+
+#define OUTPUT_BUFFER_LENGTH (64 * AUDIO_FRAME_LENGTH)
 
 #define AAS_TYPE_STREAM 0
 #define AAS_TYPE_PACKET 1
@@ -87,15 +92,48 @@ typedef struct
 
 typedef struct
 {
+    unsigned int seq;
+    unsigned int size;
+    uint8_t data[MAX_PDU_LEN];
+} packet_t;
+
+typedef struct
+{
+    packet_t *ptr;
+
+    unsigned int size, read, write;
+    unsigned int latency, avg, delay;
+
+    unsigned int clock;
+    int pos;
+} elastic_buffer_t;
+
+typedef struct
+{
+    NeAACDecHandle aacdec;
+    elastic_buffer_t elastic_buffer;
+
+    int16_t* output_buffer;
+    unsigned int write, read, leftover, delay;
+} decoder_t;
+
+typedef struct
+{
     nrsc5_t *radio;
-#ifdef HAVE_FAAD2
-    NeAACDecHandle aacdec[MAX_PROGRAMS];
-#endif
     aas_port_t ports[MAX_PORTS];
     sig_service_t services[MAX_SIG_SERVICES];
+
+#ifdef HAVE_FAAD2
+    decoder_t decoder[MAX_PROGRAMS];
+
+    int16_t silence[AUDIO_FRAME_LENGTH];
+#endif
 } output_t;
 
-void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int program, unsigned int stream_id);
+void output_align(output_t *st, unsigned int program, unsigned int stream_id, unsigned int pdu_seq, unsigned int latency, unsigned int avg, unsigned int seq, unsigned int nop);
+void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int program, unsigned int stream_id, unsigned int seq);
+void output_advance_elastic(output_t *st, int pos, unsigned int used);
+void output_advance(output_t *st, unsigned int len);
 void output_begin(output_t *st);
 void output_reset(output_t *st);
 void output_init(output_t *st, nrsc5_t *);

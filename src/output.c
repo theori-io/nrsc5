@@ -289,7 +289,8 @@ void output_advance(output_t *st, unsigned int len)
 
         unsigned int iq_upper = (hd_samples * 8) + dec->leftover;
         unsigned int audio_frames = (iq_upper / 135) * AUDIO_FRAME_CHANNELS;
-        unsigned int silence_frames = (delay_samples * 8 / 135) * AUDIO_FRAME_CHANNELS;
+        unsigned int silence_upper = (delay_samples * 8);
+        unsigned int silence_frames = (silence_upper / 135) * AUDIO_FRAME_CHANNELS;
         unsigned int frame_len = audio_frames + silence_frames;
 
         int16_t* audio_frame = malloc(frame_len * sizeof(*audio_frame));
@@ -312,7 +313,7 @@ void output_advance(output_t *st, unsigned int len)
 
         // Reset
         elastic->pos = -1;
-        dec->leftover = iq_upper % 135;
+        dec->leftover = (iq_upper % 135) + (silence_upper % 135);
     }
 }
 

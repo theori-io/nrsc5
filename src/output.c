@@ -28,7 +28,7 @@
 #include "unicode.h"
 
 #define RADIO_FRAME_SAMPLES_FM (NRSC5_AUDIO_FRAME_SAMPLES * 135 / 8)
-#define RADIO_FRAME_SAMPLES_AM (NRSC5_AUDIO_FRAME_SAMPLES * 135 / 256)
+#define RADIO_FRAME_SAMPLES_AM (NRSC5_AUDIO_FRAME_SAMPLES * 135 / 128)
 
 static unsigned int average_acquire_samples(output_t *st, elastic_buffer_t *dec)
 {

@@ -158,7 +158,10 @@ void output_align(output_t *st, unsigned int program, unsigned int stream_id, un
         memset(dec->output_buffer, 0, OUTPUT_BUFFER_LENGTH * sizeof(*dec->output_buffer));
 
         // FFT decode delay
-        dec->write = ((st->radio->mode == NRSC5_MODE_FM ? FFTCP_FM : FFTCP_AM) * 8 / 135) * AUDIO_FRAME_CHANNELS;
+        if (st->radio->mode == NRSC5_MODE_FM)
+            dec->write = (FFTCP_FM * 8 / 135) * AUDIO_FRAME_CHANNELS;
+        else
+            dec->write = (FFTCP_AM * 256 / 135) * AUDIO_FRAME_CHANNELS;
     }
 
     // Re-sync (lost-synchronization with reader and writer)
@@ -303,7 +306,8 @@ void output_advance(output_t *st, unsigned int len)
         {
             hd_samples = (len - elastic->pos);
             delay_samples = (len - hd_samples);
-        } else
+        }
+        else
         {
             hd_samples = len;
             delay_samples = 0;

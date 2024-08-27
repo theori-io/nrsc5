@@ -560,7 +560,7 @@ void frame_process(frame_t *st, size_t length, logical_channel_t lc)
             offset += parse_hef(st->buffer + offset, audio_end - offset, &hef);
         prog = hef.prog_num;
         avg = calc_avg_packets(&hdr);
-        seq = (hdr.seq - hdr.pfirst) % MAX_AUDIO_PACKETS;
+        seq = (MAX_AUDIO_PACKETS + hdr.seq - hdr.pfirst) % MAX_AUDIO_PACKETS;
 
         output_align(st->input->output, prog, hdr.stream_id, hdr.pdu_seq, hdr.latency, avg, seq, hdr.nop);
 

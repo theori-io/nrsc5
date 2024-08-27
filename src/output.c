@@ -37,7 +37,7 @@ static unsigned int average_acquire_samples(output_t *st, elastic_buffer_t *dec)
 
 static unsigned int compute_forward_sequence_position(elastic_buffer_t *elastic, unsigned int seq)
 {
-    return (seq - elastic->ptr[elastic->write].seq) % MAX_AUDIO_PACKETS;
+    return (MAX_AUDIO_PACKETS + seq - elastic->ptr[elastic->write].seq) % MAX_AUDIO_PACKETS;
 }
 
 static void elastic_realign_forward(elastic_buffer_t *elastic, unsigned int forward, unsigned int pdu_seq, unsigned int avg, unsigned int seq)

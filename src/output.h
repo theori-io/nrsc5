@@ -108,6 +108,7 @@ typedef struct
     int pos;
 } elastic_buffer_t;
 
+#ifdef HAVE_FAAD2
 typedef struct
 {
     NeAACDecHandle aacdec;
@@ -116,6 +117,7 @@ typedef struct
     int16_t* output_buffer;
     unsigned int write, read, leftover, delay;
 } decoder_t;
+#endif
 
 typedef struct
 {
@@ -125,7 +127,6 @@ typedef struct
 
 #ifdef HAVE_FAAD2
     decoder_t decoder[MAX_PROGRAMS];
-
     int16_t silence[AUDIO_FRAME_LENGTH];
 #endif
 } output_t;

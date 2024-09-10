@@ -1,7 +1,6 @@
 #pragma once
 
 #include "config.h"
-#include "frame.h"
 
 #include <nrsc5.h>
 

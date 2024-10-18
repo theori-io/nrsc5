@@ -253,9 +253,6 @@ void output_align(output_t *st, unsigned int program, unsigned int stream_id, un
             dec->write = (FFTCP_AM * 256 / 135) * AUDIO_FRAME_CHANNELS;
     }
 #endif
-
-    log_debug("program: %d seq: %d nop: %d", program, seq, nop);
-    log_debug("writeable length: %d", elastic_write_available(elastic));
 }
 
 void output_advance_elastic(output_t *st, int pos, unsigned int used)

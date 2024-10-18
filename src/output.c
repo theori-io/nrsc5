@@ -52,12 +52,9 @@ static void elastic_realign_forward(elastic_buffer_t *elastic, unsigned int forw
     elastic->read = (elastic->write - elastic->delay - seq + offset) % elastic->size;
 }
 
-static unsigned int elastic_writable(elastic_buffer_t *elastic)
+static unsigned int elastic_write_available(elastic_buffer_t *elastic)
 {
-    if (elastic->read > elastic->write)
-        return (elastic->read - elastic->write) - 1;
-    else
-        return elastic->size - (elastic->write - elastic->read) - 1;
+    return elastic->size - elastic->write + elastic->read - 1;
 }
 
 #ifdef USE_FAAD2
@@ -247,9 +244,12 @@ void output_align(output_t *st, unsigned int program, unsigned int stream_id, un
     }
 #endif
 
+    log_debug("program: %d seq: %d nop: %d", program, seq, nop);
+    log_debug("writeable length: %d", elastic_write_available(elastic));
+
     // Re-sync (lost-synchronization with reader and writer)
     forward = compute_forward_sequence_position(elastic, seq);
-    if (elastic_writable(elastic) < forward + nop)
+    if (elastic_write_available(elastic) < forward + nop)
     {
         elastic_realign_forward(elastic, forward, pdu_seq, avg, seq);
         log_debug("Elastic buffer realigned. Program: %d, Read %d pos, Write: %d pos", program, elastic->read, elastic->write);
@@ -352,7 +352,7 @@ void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int prog
     if (stream_id != 0)
         return; // TODO: Process enhanced stream
 
-    if (elastic_writable(elastic) == 0)
+    if (elastic_write_available(elastic) == 0)
     {
         log_error("elastic buffer full. skipped packet. bug?");
         return;

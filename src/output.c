@@ -210,7 +210,7 @@ void output_align(output_t *st, unsigned int program, unsigned int stream_id, un
         elastic->size  = (elastic->delay * 2) + MAX_AUDIO_PACKETS;
         elastic->ptr   = malloc(elastic->size * sizeof(*elastic->ptr));
 
-        for (int i = 0; i < elastic->size; i++)
+        for (unsigned int i = 0; i < elastic->size; i++)
         {
             elastic->ptr[i].size = 0;
             elastic->ptr[i].seq = -1;
@@ -271,22 +271,22 @@ void output_advance_elastic(output_t *st, int pos, unsigned int used)
             elastic->iq_pos = pos;
 
         // Packet clock
-        elastic->clock += (int)used;
+        elastic->clock += used;
 
         // Decode packets based on average
-        while (elastic->clock >= (int)sample_avg)
+        while (elastic->clock >= sample_avg)
         {
             int16_t *audio;
             unsigned int decoded_frames;
 
-            for (int j = 0; j < elastic->avg; j++)
+            for (unsigned int j = 0; j < elastic->avg; j++)
             {
                 elastic_decode_packet(st, i, &audio, &decoded_frames);
 #ifdef USE_FAAD2
                 decoder_buffer_write(&elastic->decoder, audio, decoded_frames);
 #endif
             }
-            elastic->clock -= (int)sample_avg;
+            elastic->clock -= sample_avg;
         }
 
     }

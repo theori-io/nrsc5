@@ -227,6 +227,16 @@ void output_align(output_t *st, unsigned int program, unsigned int stream_id, un
 
         log_debug("Elastic buffer created. Program: %d, Size %d bytes, Read %d pos, Write: %d pos", program, elastic->size, elastic->read, elastic->write);
     }
+    else
+    {
+        // Re-sync (lost-synchronization with reader and writer)
+        forward = compute_forward_sequence_position(elastic, seq);
+        if (elastic_write_available(elastic) < forward + nop)
+        {
+            elastic_realign_forward(elastic, forward, pdu_seq, avg, seq);
+            log_debug("Elastic buffer realigned. Program: %d, Read %d pos, Write: %d pos", program, elastic->read, elastic->write);
+        }
+    }
 
 #ifdef USE_FAAD2
     decoder_t *dec = &elastic->decoder;
@@ -246,14 +256,6 @@ void output_align(output_t *st, unsigned int program, unsigned int stream_id, un
 
     log_debug("program: %d seq: %d nop: %d", program, seq, nop);
     log_debug("writeable length: %d", elastic_write_available(elastic));
-
-    // Re-sync (lost-synchronization with reader and writer)
-    forward = compute_forward_sequence_position(elastic, seq);
-    if (elastic_write_available(elastic) < forward + nop)
-    {
-        elastic_realign_forward(elastic, forward, pdu_seq, avg, seq);
-        log_debug("Elastic buffer realigned. Program: %d, Read %d pos, Write: %d pos", program, elastic->read, elastic->write);
-    }
 }
 
 void output_advance_elastic(output_t *st, int pos, unsigned int used)

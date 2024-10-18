@@ -30,12 +30,12 @@
 #define RADIO_FRAME_SAMPLES_FM (NRSC5_AUDIO_FRAME_SAMPLES * 135 / 8)
 #define RADIO_FRAME_SAMPLES_AM (NRSC5_AUDIO_FRAME_SAMPLES * 135 / 128)
 
-static unsigned int average_acquire_samples(output_t *st, elastic_buffer_t *dec)
+static unsigned int average_acquire_samples(const output_t *st, const elastic_buffer_t *dec)
 {
     return dec->avg * (st->radio->mode == NRSC5_MODE_FM ? RADIO_FRAME_SAMPLES_FM : RADIO_FRAME_SAMPLES_AM);
 }
 
-static unsigned int compute_forward_sequence_position(elastic_buffer_t *elastic, unsigned int seq)
+static unsigned int compute_forward_sequence_position(const elastic_buffer_t *elastic, unsigned int seq)
 {
     return (MAX_AUDIO_PACKETS + seq - elastic->ptr[elastic->write].seq) % MAX_AUDIO_PACKETS;
 }
@@ -52,13 +52,13 @@ static void elastic_realign_forward(elastic_buffer_t *elastic, unsigned int forw
     elastic->read = (elastic->write - elastic->delay - seq + offset) % elastic->size;
 }
 
-static unsigned int elastic_write_available(elastic_buffer_t *elastic)
+static unsigned int elastic_write_available(const elastic_buffer_t *elastic)
 {
     return elastic->size - elastic->write + elastic->read - 1;
 }
 
 #ifdef USE_FAAD2
-static unsigned int decoder_buffer_write_available(decoder_t *st)
+static unsigned int decoder_buffer_write_available(const decoder_t *st)
 {
     if (st->read > st->write)
         return (st->read - st->write) - 1;
@@ -66,7 +66,7 @@ static unsigned int decoder_buffer_write_available(decoder_t *st)
         return OUTPUT_BUFFER_LENGTH - (st->write - st->read) - 1;
 }
 
-static unsigned int decoder_buffer_read_available(decoder_t *st)
+static unsigned int decoder_buffer_read_available(const decoder_t *st)
 {
     if (st->write >= st->read)
         return st->write - st->read;
@@ -74,7 +74,7 @@ static unsigned int decoder_buffer_read_available(decoder_t *st)
         return OUTPUT_BUFFER_LENGTH - (st->read - st->write);
 }
 
-static void decoder_buffer_write(decoder_t *dec, int16_t *buffer, unsigned int samples)
+static void decoder_buffer_write(decoder_t *dec, const int16_t *buffer, unsigned int samples)
 {
     if (decoder_buffer_write_available(dec) < samples)
     {

@@ -4,6 +4,23 @@ Date: Thu, 3 Sep 2020 22:08:07 -0400
 Subject: [PATCH] Support for HDC variant
 
 ---
+ CMakeLists.txt       |  10 +-
+ frontend/main.c      |   3 +-
+ include/neaacdec.h   |   4 +
+ libfaad/bits.c       |   2 +-
+ libfaad/bits.h       |   2 +-
+ libfaad/common.c     |   5 +
+ libfaad/common.h     |   6 ++
+ libfaad/decoder.c    |  42 ++++++++
+ libfaad/drm_dec.c    | 108 ++++++++++++++++-----
+ libfaad/drm_dec.h    |   5 +-
+ libfaad/sbr_dec.c    |  10 +-
+ libfaad/sbr_dec.h    |   4 +
+ libfaad/sbr_syntax.c |  20 +++-
+ libfaad/syntax.c     | 224 +++++++++++++++++++++++++++++++++++++++++--
+ libfaad/syntax.h     |   1 +
+ 15 files changed, 402 insertions(+), 44 deletions(-)
+
 diff --git a/CMakeLists.txt b/CMakeLists.txt
 index 97b61cc..5956418 100644
 --- a/CMakeLists.txt
@@ -11,7 +28,7 @@ index 97b61cc..5956418 100644
 @@ -146,7 +146,7 @@ endif()  # GCC
  file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/include/neaacdec.h
       DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/include)
- 
+
 -foreach(LIB faad faad_drm faad_fixed faad_drm_fixed)
 +foreach(LIB faad faad_drm faad_hdc faad_fixed faad_drm_fixed)
    add_library(${LIB} ${LIBFAAD_SOURCES})
@@ -20,7 +37,7 @@ index 97b61cc..5956418 100644
 @@ -171,6 +171,12 @@ target_compile_definitions(${LIB} PRIVATE
  )
  endforeach()
- 
+
 +foreach(LIB faad_hdc)
 +  target_compile_definitions(${LIB} PRIVATE
 +          HDC_SUPPORT
@@ -33,7 +50,7 @@ index 97b61cc..5956418 100644
 @@ -271,7 +277,7 @@ if(NOT FAAD_BUNDLED_MODE)
    install(FILES "${CMAKE_CURRENT_BINARY_DIR}/faad2.pc"
      DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig")
- 
+
 -  set(INSTALL_TARGETS faad faad_drm)
 +  set(INSTALL_TARGETS faad faad_drm faad_hdc)
    if (FAAD_BUILD_CLI)
@@ -62,18 +79,18 @@ index f7d5f67..b4f36da 100644
  #define LD        23
  #define DRM_ER_LC 27 /* special object type for DRM */
 +#define HDC_LC    127 /* non standard type for HDC */
- 
+
  /* header types */
  #define RAW        0
 @@ -227,6 +228,9 @@ NEAACDECAPI char NeAACDecInit2(NeAACDecHandle hDecoder,
  NEAACDECAPI char NeAACDecInitDRM(NeAACDecHandle *hDecoder, unsigned long samplerate,
                                   unsigned char channels);
- 
+
 +/* Init the library for HDC */
 +NEAACDECAPI char NeAACDecInitHDC(NeAACDecHandle *hDecoder, unsigned long *samplerate);
 +
  NEAACDECAPI void NeAACDecPostSeekReset(NeAACDecHandle hDecoder, long frame);
- 
+
  NEAACDECAPI void NeAACDecClose(NeAACDecHandle hDecoder);
 diff --git a/libfaad/bits.c b/libfaad/bits.c
 index 110c9dc..ee37aff 100644
@@ -82,7 +99,7 @@ index 110c9dc..ee37aff 100644
 @@ -244,7 +244,7 @@ uint8_t *faad_getbitbuffer(bitfile *ld, uint32_t bits
      return buffer;
  }
- 
+
 -#ifdef DRM
 +#if defined(DRM) || defined(HDC)
  /* return the original data buffer */
@@ -102,7 +119,7 @@ index c01c54e..44ea3fa 100644
  uint32_t faad_origbitbuffer_size(bitfile *ld);
  #endif
 diff --git a/libfaad/common.c b/libfaad/common.c
-index 1f4a7d1..41df268 100644
+index 1f4a7d1..70d83a4 100644
 --- a/libfaad/common.c
 +++ b/libfaad/common.c
 @@ -165,6 +165,11 @@ int8_t can_decode_ot(const uint8_t object_type)
@@ -116,7 +133,7 @@ index 1f4a7d1..41df268 100644
 +        return 0;
  #endif
      }
- 
+
 diff --git a/libfaad/common.h b/libfaad/common.h
 index aba8e90..d6a5c59 100644
 --- a/libfaad/common.h
@@ -131,7 +148,7 @@ index aba8e90..d6a5c59 100644
 +#define DRM_PS
 +#define HDC
 +#endif
- 
+
  /* LD can't do without LTP */
  #ifdef LD_DEC
 diff --git a/libfaad/decoder.c b/libfaad/decoder.c
@@ -141,7 +158,7 @@ index de3b169..80897ec 100644
 @@ -350,6 +350,13 @@ long NeAACDecInit(NeAACDecHandle hpDecoder,
      if (!*samplerate)
          return -1;
- 
+
 +#ifdef HDC
 +    if (hDecoder->config.defObjectType == HDC_LC)
 +    {
@@ -155,7 +172,7 @@ index de3b169..80897ec 100644
 @@ -529,6 +536,41 @@ char NeAACDecInitDRM(NeAACDecHandle *hpDecoder,
  }
  #endif
- 
+
 +#ifdef HDC
 +char NeAACDecInitHDC(NeAACDecHandle *hpDecoder,
 +                                 unsigned long *samplerate)
@@ -201,17 +218,17 @@ index 1a24aca..5cea492 100644
 @@ -44,6 +44,9 @@
  #define DECAY_CUTOFF         3
  #define DECAY_SLOPE          0.05f
- 
+
 +/* macros */
 +#define IS_HDC(num_subsamples) ((num_subsamples) == 32)
 +
  /* type definitaions */
  typedef const int8_t (*drm_ps_huff_tab)[2];
- 
+
 @@ -225,6 +228,30 @@ static const real_t pan_pow_2_30_neg[8][5] = {
      { COEF_CONST(0.969764715), COEF_CONST(0.947691892), COEF_CONST(0.922571949), COEF_CONST(0.898117847), COEF_CONST(0.874311936) }
  };
- 
+
 +/* 2^(pan_quant[x][y]/32) */
 +static const real_t pan_pow_2_32_pos[8][5] = {
 +    { COEF_CONST(1),           COEF_CONST(1),           COEF_CONST(1),           COEF_CONST(1),           COEF_CONST(1)           },
@@ -242,7 +259,7 @@ index 1a24aca..5cea492 100644
 @@ -635,7 +662,7 @@ static void drm_ps_delta_decode(drm_ps_info *ps)
      }
  }
- 
+
 -static void drm_calc_sa_side_signal(drm_ps_info *ps, qmf_t X[38][64])
 +static void drm_calc_sa_side_signal(drm_ps_info *ps, qmf_t X[38][64], int num_subsamples)
  {
@@ -251,7 +268,7 @@ index 1a24aca..5cea492 100644
 @@ -659,7 +686,7 @@ static void drm_calc_sa_side_signal(drm_ps_info *ps, qmf_t X[38][64])
          RE(Phi_Fract) = RE(Phi_Fract_Qmf[b]);
          IM(Phi_Fract) = IM(Phi_Fract_Qmf[b]);
- 
+
 -        for (s = 0; s < NUM_OF_SUBSAMPLES; s++)
 +        for (s = 0; s < num_subsamples; s++)
          {
@@ -260,7 +277,7 @@ index 1a24aca..5cea492 100644
 @@ -750,19 +777,21 @@ static void drm_calc_sa_side_signal(drm_ps_info *ps, qmf_t X[38][64])
          ps->delay_buf_index_ser[k] = temp_delay_ser[k];
  }
- 
+
 -static void drm_add_ambiance(drm_ps_info *ps, qmf_t X_left[38][64], qmf_t X_right[38][64])
 +static void drm_add_ambiance(drm_ps_info *ps, qmf_t X_left[38][64], qmf_t X_right[38][64], int num_subsamples)
  {
@@ -268,7 +285,7 @@ index 1a24aca..5cea492 100644
 +    uint8_t s, b, ifreq, qclass, is_hdc;
      real_t sa_map[MAX_SA_BAND], sa_dir_map[MAX_SA_BAND], k_sa_map[MAX_SA_BAND], k_sa_dir_map[MAX_SA_BAND];
      real_t new_dir_map, new_sa_map;
- 
+
 +    is_hdc = IS_HDC(num_subsamples);
 +
      if (ps->bs_enable_sa)
@@ -279,13 +296,13 @@ index 1a24aca..5cea492 100644
          {
 -            const real_t inv_f_num_of_subsamples = FRAC_CONST(0.03333333333);
 +            const real_t inv_f_num_of_subsamples = is_hdc ? FRAC_CONST(0.03125) : FRAC_CONST(0.03333333333);
- 
+
              ifreq = sa_inv_freq[b];
              qclass = (b != 0);
 @@ -779,7 +808,7 @@ static void drm_add_ambiance(drm_ps_info *ps, qmf_t X_left[38][64], qmf_t X_righ
- 
+
          }
- 
+
 -        for (s = 0; s < NUM_OF_SUBSAMPLES; s++)
 +        for (s = 0; s < num_subsamples; s++)
          {
@@ -303,7 +320,7 @@ index 1a24aca..5cea492 100644
 @@ -810,14 +839,16 @@ static void drm_add_ambiance(drm_ps_info *ps, qmf_t X_left[38][64], qmf_t X_righ
      }
  }
- 
+
 -static void drm_add_pan(drm_ps_info *ps, qmf_t X_left[38][64], qmf_t X_right[38][64])
 +static void drm_add_pan(drm_ps_info *ps, qmf_t X_left[38][64], qmf_t X_right[38][64], int num_subsamples)
  {
@@ -313,7 +330,7 @@ index 1a24aca..5cea492 100644
      real_t pan_base[MAX_PAN_BAND];
      real_t pan_delta[MAX_PAN_BAND];
      qmf_t temp_l, temp_r;
- 
+
 +    is_hdc = IS_HDC(num_subsamples);
 +
      if (ps->bs_enable_pan)
@@ -322,7 +339,7 @@ index 1a24aca..5cea492 100644
 @@ -834,31 +865,56 @@ static void drm_add_pan(drm_ps_info *ps, qmf_t X_left[38][64], qmf_t X_right[38]
                  pan_base[b] = pan_pow_2_neg[-ps->g_prev_pan_index[ifreq]][qclass];
              }
- 
+
 -            /* 2^((a-b)/30) = 2^(a/30) * 1/(2^(b/30)) */
 +            /* 2^((a-b)/32) = 2^(a/32) * 1/(2^(b/32)) if HDC */
 +            /* 2^((a-b)/30) = 2^(a/30) * 1/(2^(b/30)) if regular DRM */
@@ -380,7 +397,7 @@ index 1a24aca..5cea492 100644
                  }
              }
          }
- 
+
 -        for (s = 0; s < NUM_OF_SUBSAMPLES; s++)
 +        for (s = 0; s < num_subsamples; s++)
          {
@@ -388,7 +405,7 @@ index 1a24aca..5cea492 100644
              for (b = 0; b < NUM_OF_QMF_CHANNELS; b++)
 @@ -901,17 +957,19 @@ void drm_ps_free(drm_ps_info *ps)
  }
- 
+
  /* main DRM PS decoding function */
 -uint8_t drm_ps_decode(drm_ps_info *ps, uint8_t guess, qmf_t X_left[38][64], qmf_t X_right[38][64])
 +uint8_t drm_ps_decode(drm_ps_info *ps, uint8_t guess, qmf_t X_left[38][64], qmf_t X_right[38][64], uint8_t hdc_sbr)
@@ -401,7 +418,7 @@ index 1a24aca..5cea492 100644
 +        memcpy(X_right, X_left, sizeof(qmf_t)*num_subsamples*64);
          return 0;
      }
- 
+
      if (!ps->drm_ps_data_available && !guess)
      {
 -        memcpy(X_right, X_left, sizeof(qmf_t)*30*64);
@@ -410,25 +427,25 @@ index 1a24aca..5cea492 100644
          memset(ps->g_prev_pan_index, 0, sizeof(ps->g_prev_pan_index));
          return 0;
 @@ -933,8 +991,8 @@ uint8_t drm_ps_decode(drm_ps_info *ps, uint8_t guess, qmf_t X_left[38][64], qmf_
- 
+
      ps->drm_ps_data_available = 0;
- 
+
 -    drm_calc_sa_side_signal(ps, X_left);
 -    drm_add_ambiance(ps, X_left, X_right);
 +    drm_calc_sa_side_signal(ps, X_left, num_subsamples);
 +    drm_add_ambiance(ps, X_left, X_right, num_subsamples);
- 
+
      if (ps->bs_enable_sa)
      {
 @@ -948,7 +1006,7 @@ uint8_t drm_ps_decode(drm_ps_info *ps, uint8_t guess, qmf_t X_left[38][64], qmf_
- 
+
      if (ps->bs_enable_pan)
      {
 -        drm_add_pan(ps, X_left, X_right);
 +        drm_add_pan(ps, X_left, X_right, num_subsamples);
- 
+
          ps->g_last_had_pan = 1;
- 
+
 diff --git a/libfaad/drm_dec.h b/libfaad/drm_dec.h
 index 62276a9..56a4b3d 100644
 --- a/libfaad/drm_dec.h
@@ -442,21 +459,21 @@ index 62276a9..56a4b3d 100644
  #define MAX_PAN_BAND            64
  #define MAX_DELAY                5
 @@ -75,7 +76,7 @@ typedef struct
- 
+
      uint8_t delay_buf_index_ser[NUM_OF_LINKS];
- 
+
 -    qmf_t SA[NUM_OF_SUBSAMPLES][MAX_SA_BAND];
 +    qmf_t SA[NUM_OF_HDC_SUBSAMPLES][MAX_SA_BAND];
- 
+
      complex_t d_buff[2][MAX_SA_BAND];
      complex_t d2_buff[NUM_OF_LINKS][MAX_DELAY][MAX_SA_BAND];
 @@ -91,7 +92,7 @@ uint16_t drm_ps_data(drm_ps_info *ps, bitfile *ld);
  drm_ps_info *drm_ps_init(void);
  void drm_ps_free(drm_ps_info *ps);
- 
+
 -uint8_t drm_ps_decode(drm_ps_info *ps, uint8_t guess, qmf_t X_left[38][64], qmf_t X_right[38][64]);
 +uint8_t drm_ps_decode(drm_ps_info *ps, uint8_t guess, qmf_t X_left[38][64], qmf_t X_right[38][64], uint8_t hdc_sdr);
- 
+
  #ifdef __cplusplus
  }
 diff --git a/libfaad/sbr_dec.c b/libfaad/sbr_dec.c
@@ -464,7 +481,7 @@ index d301e66..99463aa 100644
 --- a/libfaad/sbr_dec.c
 +++ b/libfaad/sbr_dec.c
 @@ -656,9 +656,17 @@ uint8_t sbrDecodeSingleFramePS(sbr_info *sbr, real_t *left_channel, real_t *righ
- 
+
      /* perform parametric stereo */
  #ifdef DRM_PS
 +#ifdef HDC
@@ -489,7 +506,7 @@ index 40e53ae..ce85feb 100644
 @@ -176,6 +176,10 @@ typedef struct
      ps_info *ps;
  #endif
- 
+
 +#ifdef HDC
 +    uint8_t Is_HDC_SBR;
 +#endif
@@ -498,12 +515,12 @@ index 40e53ae..ce85feb 100644
      uint8_t numTimeSlots;
      uint8_t tHFGen;
 diff --git a/libfaad/sbr_syntax.c b/libfaad/sbr_syntax.c
-index e27980f..6b8c050 100644
+index e27980f..c5d3bdb 100644
 --- a/libfaad/sbr_syntax.c
 +++ b/libfaad/sbr_syntax.c
 @@ -153,7 +153,11 @@ uint8_t sbr_extension_data(bitfile *ld, sbr_info *sbr, uint16_t cnt,
  #endif
- 
+
  #ifdef DRM
 +#ifdef HDC
 +    if (!sbr->Is_DRM_SBR && !sbr->Is_HDC_SBR)
@@ -515,13 +532,12 @@ index e27980f..6b8c050 100644
          uint8_t bs_extension_type = (uint8_t)faad_getbits(ld, 4
 @@ -246,7 +250,11 @@ uint8_t sbr_extension_data(bitfile *ld, sbr_info *sbr, uint16_t cnt,
      }
- 
+
  #ifdef DRM
--    if (!sbr->Is_DRM_SBR)
 +#ifdef HDC
 +    if (!sbr->Is_DRM_SBR && !sbr->Is_HDC_SBR)
 +#else
-+    if (!sbr->Is_DRM_SBR)
+     if (!sbr->Is_DRM_SBR)
 +#endif
  #endif
      {
@@ -536,7 +552,7 @@ index e27980f..6b8c050 100644
 +        faad_get1bit(ld);
 +    }
 +#endif
- 
+
      if ((result = sbr_grid(ld, sbr, 0)) > 0)
          return result;
 @@ -899,9 +913,9 @@ static uint16_t sbr_extension(bitfile *ld, sbr_info *sbr,
@@ -551,9 +567,9 @@ index e27980f..6b8c050 100644
 +        return num_bits_left;
      }
  }
- 
+
 diff --git a/libfaad/syntax.c b/libfaad/syntax.c
-index 56ae310..8982947 100644
+index 56ae310..987264c 100644
 --- a/libfaad/syntax.c
 +++ b/libfaad/syntax.c
 @@ -86,7 +86,7 @@ static void gain_control_data(bitfile *ld, ic_stream *ics);
@@ -568,7 +584,7 @@ index 56ae310..8982947 100644
 @@ -446,6 +446,102 @@ static void decode_cpe(NeAACDecStruct *hDecoder, NeAACDecFrameInfo *hInfo, bitfi
      hDecoder->fr_ch_ele++;
  }
- 
+
 +#ifdef HDC
 +static void hdc_data_block(NeAACDecStruct *hDecoder, NeAACDecFrameInfo *hInfo,
 +                           bitfile *ld, program_config *pce, drc_info *drc)
@@ -671,7 +687,7 @@ index 56ae310..8982947 100644
 @@ -457,6 +553,14 @@ void raw_data_block(NeAACDecStruct *hDecoder, NeAACDecFrameInfo *hInfo,
      hDecoder->first_syn_ele = 25;
      hDecoder->has_lfe = 0;
- 
+
 +#ifdef HDC
 +    if (hDecoder->object_type == HDC_LC)
 +    {
@@ -686,7 +702,7 @@ index 56ae310..8982947 100644
 @@ -657,13 +761,33 @@ static uint8_t single_lfe_channel_element(NeAACDecStruct *hDecoder, bitfile *ld,
      ic_stream *ics = &(sce.ics1);
      ALIGN int16_t spec_data[1024] = {0};
- 
+
 +#ifdef HDC
 +    if (hDecoder->object_type == HDC_LC) {
 +        sce.element_instance_tag = 0;
@@ -697,11 +713,11 @@ index 56ae310..8982947 100644
 +#ifdef HDC
 +    }
 +#endif
- 
+
      *tag = sce.element_instance_tag;
      sce.channel = channel;
      sce.paired_channel = -1;
- 
+
 +#ifdef HDC
 +    if (hDecoder->object_type == HDC_LC)
 +    {
@@ -720,7 +736,7 @@ index 56ae310..8982947 100644
 @@ -679,6 +803,17 @@ static uint8_t single_lfe_channel_element(NeAACDecStruct *hDecoder, bitfile *ld,
      {
          faad_flushbits(ld, LEN_SE_ID);
- 
+
 +#ifdef HDC
 +        if (hDecoder->object_type == HDC_LC)
 +        {
@@ -738,7 +754,7 @@ index 56ae310..8982947 100644
 @@ -709,12 +844,27 @@ static uint8_t channel_pair_element(NeAACDecStruct *hDecoder, bitfile *ld,
      cpe.channel        = channels;
      cpe.paired_channel = channels+1;
- 
+
 +#ifdef HDC
 +    if (hDecoder->object_type == HDC_LC) {
 +        cpe.element_instance_tag = 0;
@@ -750,7 +766,7 @@ index 56ae310..8982947 100644
 +    }
 +#endif
      *tag = cpe.element_instance_tag;
- 
+
 -    if ((cpe.common_window = faad_get1bit(ld
 -        DEBUGVAR(1,40,"channel_pair_element(): common_window"))) & 1)
 +#ifdef HDC
@@ -768,7 +784,7 @@ index 56ae310..8982947 100644
 @@ -766,6 +916,18 @@ static uint8_t channel_pair_element(NeAACDecStruct *hDecoder, bitfile *ld,
          ics1->ms_mask_present = 0;
      }
- 
+
 +#ifdef HDC
 +    if (hDecoder->object_type == HDC_LC)
 +    {
@@ -787,7 +803,7 @@ index 56ae310..8982947 100644
 @@ -807,6 +969,16 @@ static uint8_t channel_pair_element(NeAACDecStruct *hDecoder, bitfile *ld,
      {
          faad_flushbits(ld, LEN_SE_ID);
- 
+
 +#ifdef HDC
 +        if (hDecoder->object_type == HDC_LC)
 +        {
@@ -820,13 +836,13 @@ index 56ae310..8982947 100644
 +#ifdef HDC
 +    }
 +#endif
- 
+
  #ifdef LD_DEC
      /* No block switching in LD */
 @@ -868,6 +1051,9 @@ static uint8_t ics_info(NeAACDecStruct *hDecoder, ic_stream *ics, bitfile *ld,
      if (ics->max_sfb > ics->num_swb)
          return 16;
- 
+
 +#ifdef HDC
 +    if (hDecoder->object_type != HDC_LC)
 +#endif
@@ -861,12 +877,12 @@ index 56ae310..8982947 100644
 -            tns_data(ics2, &(ics2->tns), ld);
 +            tns_data(hDecoder, ics1, &(ics1->tns), ld);
      }
- 
+
  #ifdef DRM
 @@ -1583,6 +1777,9 @@ static uint8_t side_info(NeAACDecStruct *hDecoder, element *ele,
      ics->global_gain = (uint8_t)faad_getbits(ld, 8
          DEBUGVAR(1,67,"individual_channel_stream(): global_gain"));
- 
+
 +#ifdef HDC
 +    if (hDecoder->object_type != HDC_LC)
 +#endif
@@ -876,7 +892,7 @@ index 56ae310..8982947 100644
 @@ -1595,6 +1792,9 @@ static uint8_t side_info(NeAACDecStruct *hDecoder, element *ele,
      if ((result = scale_factor_data(hDecoder, ics, ld)) > 0)
          return result;
- 
+
 +#ifdef HDC
 +    if (hDecoder->object_type != HDC_LC)
 +#endif
@@ -890,12 +906,12 @@ index 56ae310..8982947 100644
 -                tns_data(ics, &(ics->tns), ld);
 +                tns_data(hDecoder, ics, &(ics->tns), ld);
          }
- 
+
          /* get gain control data */
 @@ -1678,10 +1878,13 @@ static uint8_t individual_channel_stream(NeAACDecStruct *hDecoder, element *ele,
      if (result > 0)
          return result;
- 
+
 +#ifdef HDC
 +    if (hDecoder->object_type != HDC_LC)
 +#endif
@@ -905,11 +921,11 @@ index 56ae310..8982947 100644
 -            tns_data(ics, &(ics->tns), ld);
 +            tns_data(hDecoder, ics, &(ics->tns), ld);
      }
- 
+
  #ifdef DRM
 @@ -2016,7 +2219,7 @@ static uint8_t scale_factor_data(NeAACDecStruct *hDecoder, ic_stream *ics, bitfi
  }
- 
+
  /* Table 4.4.27 */
 -static void tns_data(ic_stream *ics, tns_info *tns, bitfile *ld)
 +static void tns_data(NeAACDecStruct *hDecoder, ic_stream *ics, tns_info *tns, bitfile *ld)
@@ -937,7 +953,7 @@ index b6311ed..cabe1d3 100644
  #define ER_LTP    19
  #define DRM_ER_LC 27 /* special object type for DRM */
 +#define HDC_LC    127 /* special object type for HDC */
- 
+
  /* header types */
  #define RAW        0
 --

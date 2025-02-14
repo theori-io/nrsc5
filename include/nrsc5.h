@@ -460,7 +460,7 @@ NRSC5_API int nrsc5_open_pipe(nrsc5_t **st );
 
 /**
  * Initializes a session given a TCP socket file descriptor.
- * @param[out] result  handle for an `nrsc5_t`
+ * @param[out] st  handle for an `nrsc5_t`
  * @param[in]  socket  the TCP socket with nrsc5 data
  * @return 0 on success, nonzero on error
  *

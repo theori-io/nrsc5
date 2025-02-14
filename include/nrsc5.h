@@ -465,7 +465,7 @@ NRSC5_API int nrsc5_open_pipe(nrsc5_t **st );
  * @return 0 on success, nonzero on error
  *
  */
-NRSC5_API int nrsc5_open_rtltcp(nrsc5_t **, int socket);
+NRSC5_API int nrsc5_open_rtltcp(nrsc5_t **st, int socket);
 
 /**
  * Closes an nrsc5 session.
@@ -474,14 +474,14 @@ NRSC5_API int nrsc5_open_rtltcp(nrsc5_t **, int socket);
  * Any worker thread is signalled to exit, files and sockets are closed,
  * and I/O buffers are freed.
  */
-NRSC5_API void nrsc5_close(nrsc5_t *);
+NRSC5_API void nrsc5_close(nrsc5_t *st);
 
 /**
  * Signals the worker to *start* demodulation.
  * @param[in] st  pointer to an `nrsc5_t` session object
  *
  */
-NRSC5_API void nrsc5_start(nrsc5_t *);
+NRSC5_API void nrsc5_start(nrsc5_t *st);
 
 /**
  * Signals the worker to *stop* demodulation.
@@ -489,7 +489,7 @@ NRSC5_API void nrsc5_start(nrsc5_t *);
  *
  * This function will block until the worker is stopped.
  */
-NRSC5_API void nrsc5_stop(nrsc5_t *);
+NRSC5_API void nrsc5_stop(nrsc5_t *st);
 
 /**
  * Set the session mode to AM or FM.
@@ -498,7 +498,7 @@ NRSC5_API void nrsc5_stop(nrsc5_t *);
  * @return 0 on success or nonzero on error.
  *
  */
-NRSC5_API int nrsc5_set_mode(nrsc5_t *, int mode);
+NRSC5_API int nrsc5_set_mode(nrsc5_t *st, int mode);
 
 /**
  * Enable or disable the bias-T for the radio.
@@ -511,7 +511,7 @@ NRSC5_API int nrsc5_set_mode(nrsc5_t *, int mode);
  * DC on the antenna cable. Do not enable this unless you know you
  * have an LNA and compatible antenna.
  */
-NRSC5_API int nrsc5_set_bias_tee(nrsc5_t *, int on);
+NRSC5_API int nrsc5_set_bias_tee(nrsc5_t *st, int on);
 
 /**
  * Enable or disable direct sampling.
@@ -521,7 +521,7 @@ NRSC5_API int nrsc5_set_bias_tee(nrsc5_t *, int on);
  *
  * This works with both a local SDR and over a TCP connection.
  */
-NRSC5_API int nrsc5_set_direct_sampling(nrsc5_t *, int on);
+NRSC5_API int nrsc5_set_direct_sampling(nrsc5_t *st, int on);
 
 /**
  * Adjust the radio frequency correction.

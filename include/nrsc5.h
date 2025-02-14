@@ -396,7 +396,6 @@ typedef struct nrsc5_t nrsc5_t;
 /**
  * Retrieves the version string of the library.
  * @param[out] version character pointer that will reference the version string.
- * @return Nothing is returned
  */
 NRSC5_API void nrsc5_get_version(const char **version);
 
@@ -404,7 +403,6 @@ NRSC5_API void nrsc5_get_version(const char **version);
  * Retrieves a string corresponding to a service data type.
  * @param[in]  type  a service data type integer.
  * @param[out] name  character pointer to a string naming the service type
- * @return Nothing is returned
  *
  * This name will be quite short, e.g. "News" or "Weather". If the type is
  * not recognized, it will the string "Unknown".
@@ -415,7 +413,6 @@ NRSC5_API void nrsc5_service_data_type_name(unsigned int type, const char **name
  * Retrieves a string corresponding to a program type.
  * @param[in]  type  a protram data type integer.
  * @param[out] name  character pointer to a string naming the service type
- * @return Nothing is returned
  *
  * This name will be quite short, e.g. "News" or "Rock". If the type is
  * not recognized, it will the string "Unknown".
@@ -473,7 +470,6 @@ NRSC5_API int nrsc5_open_rtltcp(nrsc5_t **, int socket);
 /**
  * Closes an nrsc5 session.
  * @param[in] st  pointer to an `nrsc5_t`
- * @return Nothing is returned.
  *
  * Any worker thread is signalled to exit, files and sockets are closed,
  * and I/O buffers are freed.
@@ -483,7 +479,6 @@ NRSC5_API void nrsc5_close(nrsc5_t *);
 /**
  * Signals the worker to *start* demodulation.
  * @param[in] st  pointer to an `nrsc5_t` session object
- * @return Nothing is returned.
  *
  */
 NRSC5_API void nrsc5_start(nrsc5_t *);
@@ -491,7 +486,6 @@ NRSC5_API void nrsc5_start(nrsc5_t *);
 /**
  * Signals the worker to *stop* demodulation.
  * @param[in] st  pointer to an `nrsc5_t` session object
- * @return Nothing is returned.
  *
  * This function will block until the worker is stopped.
  */
@@ -545,7 +539,6 @@ NRSC5_API int nrsc5_set_freq_correction(nrsc5_t *st, int ppm_error);
  *
  * @param[in] st  pointer to an `nrsc5_t` session object
  * @param[out] freq  frequency in Hz
- * @return Nothing is returned.
  */
 NRSC5_API void nrsc5_get_frequency(nrsc5_t *st, float *freq);
 
@@ -567,7 +560,6 @@ NRSC5_API int nrsc5_set_frequency(nrsc5_t *st, float freq);
  *
  * @param[in] st  pointer to an `nrsc5_t` session object
  * @param[out] gain in dB
- * @return 0 on success or nonzero on error
  *
  */
 NRSC5_API void nrsc5_get_gain(nrsc5_t *st, float *gain);
@@ -587,7 +579,6 @@ NRSC5_API int nrsc5_set_gain(nrsc5_t *st, float gain);
  *
  * @param[in] st  pointer to an `nrsc5_t` session object
  * @param[in] enabled  set to 1 to enable auto gain, 0 to disable
- * @return Nothing is returned.
  *
  */
 NRSC5_API void nrsc5_set_auto_gain(nrsc5_t *st, int enabled);
@@ -598,7 +589,6 @@ NRSC5_API void nrsc5_set_auto_gain(nrsc5_t *st, int enabled);
  * @param[in] st  pointer to an `nrsc5_t` session object
  * @param[in] callback  pointer to an event handling function of two arguments
  * @param[in] opaque    pointer to the function's intended 2nd argument
- * @return Nothing is returned.
  *
  */
 NRSC5_API void nrsc5_set_callback(nrsc5_t *st, nrsc5_callback_t callback, void *opaque);

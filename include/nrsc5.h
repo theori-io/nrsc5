@@ -28,28 +28,28 @@
 #define NRSC5_SCAN_END   107.9e6
 #define NRSC5_SCAN_SKIP    0.2e6
 
-#define NRSC5_MIME_PRIMARY_IMAGE    0xBE4B7536
-#define NRSC5_MIME_STATION_LOGO     0xD9C72536
+#define NRSC5_MIME_PRIMARY_IMAGE    0xBE4B7536 /**< MIME type for album art */
+#define NRSC5_MIME_STATION_LOGO     0xD9C72536 /**< MIME type for station logo */
 #define NRSC5_MIME_NAVTEQ           0x2D42AC3E
 #define NRSC5_MIME_HERE_TPEG        0x82F03DFC
 #define NRSC5_MIME_HERE_IMAGE       0xB7F03DFC
 #define NRSC5_MIME_HD_TMC           0xEECB55B6
-#define NRSC5_MIME_HDC              0x4DC66C5A /**< High Defn Coding audio */
-#define NRSC5_MIME_TEXT             0xBB492AAC
-#define NRSC5_MIME_JPEG             0x1E653E9C
-#define NRSC5_MIME_PNG              0x4F328CA0
+#define NRSC5_MIME_HDC              0x4DC66C5A /**< MIME type for HD Codec audio */
+#define NRSC5_MIME_TEXT             0xBB492AAC /**< MIME type for text file */
+#define NRSC5_MIME_JPEG             0x1E653E9C /**< MIME type for JPEG image */
+#define NRSC5_MIME_PNG              0x4F328CA0 /**< MIME type for PNG image */
 #define NRSC5_MIME_TTN_TPEG_1       0xB39EBEB2
 #define NRSC5_MIME_TTN_TPEG_2       0x4EB03469
 #define NRSC5_MIME_TTN_TPEG_3       0x52103469
 #define NRSC5_MIME_TTN_STM_TRAFFIC  0xFF8422D7
 #define NRSC5_MIME_TTN_STM_WEATHER  0xEF042E96
 
-#define NRSC5_AUDIO_FRAME_SAMPLES  2048
+#define NRSC5_AUDIO_FRAME_SAMPLES  2048        /**< Number of audio samples per HDC frame */
 
-#define NRSC5_SAMPLE_RATE_CU8      1488375
-#define NRSC5_SAMPLE_RATE_CS16_FM  744187.5
-#define NRSC5_SAMPLE_RATE_CS16_AM  46511.71875
-#define NRSC5_SAMPLE_RATE_AUDIO    44100
+#define NRSC5_SAMPLE_RATE_CU8      1488375     /**< Sample rate at which nrsc5_pipe_samples_cu8() expects samples (FM or AM) */
+#define NRSC5_SAMPLE_RATE_CS16_FM  744187.5    /**< Sample rate at which nrsc5_pipe_samples_cs16() expects samples (FM only) */
+#define NRSC5_SAMPLE_RATE_CS16_AM  46511.71875 /**< Sample rate at which nrsc5_pipe_samples_cs16() expects samples (AM only) */
+#define NRSC5_SAMPLE_RATE_AUDIO    44100       /**< Sample rate of outgoing audio */
 
 #ifdef NRSC5_EXPORTS
 #ifdef __MINGW32__

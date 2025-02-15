@@ -210,7 +210,7 @@ struct nrsc5_sis_asd_t
     struct nrsc5_sis_asd_t *next; /**< Pointer to next element or NULL */
     unsigned int program;     /**< program number 0, 1, ..., 7 */
     unsigned int access;      /**< NRSC5_ACCESS_PUBLIC or NRSC5_ACCESS_RESTRICTED */
-    unsigned int type;        /**< audio service, e.g. NRSC5_PROGRAM_TYPE_JAZZ  */
+    unsigned int type;        /**< audio service, e.g. NRSC5_PROGRAM_TYPE_JAZZ */
     unsigned int sound_exp;   /**< 0 is none, 2 is Dolby Pro Logic II Surround */
 };
 /**
@@ -273,7 +273,7 @@ struct nrsc5_event_t
  * - `NRSC5_EVENT_LOST_DEVICE` : signal is over
  * - `NRSC5_EVENT_BER` : Bit Error Ratio data, see the `ber` union member
  * - `NRSC5_EVENT_MER` : modulation error ratio, see the `mer` union member,
- *   and NRSC5 document SY_TN_2646s
+ *    and NRSC5 document SY_TN_2646s
  * - `NRSC5_EVENT_IQ` : IQ data, see the `iq` union member
  * - `NRSC5_EVENT_HDC` : HDC audio packet, see the `hdc` union member
  * - `NRSC5_EVENT_AUDIO` : audio buffer, see the `audio` union member
@@ -384,7 +384,7 @@ typedef void (*nrsc5_callback_t)(const nrsc5_event_t *evt, void *opaque);
 /**
  * An opaque data type used by API functions to represent session information.
  * Applications should acquire a pointer to one via the `open_` functions:
- * nrsc5_open(), nrsc5_open_file(), nrsc5_open_pipe(),  or nrsc5_open_rtltcp().
+ * nrsc5_open(), nrsc5_open_file(), nrsc5_open_pipe(), or nrsc5_open_rtltcp().
  */
 typedef struct nrsc5_t nrsc5_t;
 
@@ -444,7 +444,7 @@ NRSC5_API int nrsc5_open(nrsc5_t **st, int device_index);
 /**
  * Initializes a session given an open `FILE` pointer.
  * @param[out] st  handle for an `nrsc5_t`
- * @param[in]  fp   FILE pointer handle with nrsc5 data
+ * @param[in]  fp  FILE pointer handle with nrsc5 data
  * @return 0 on success, nonzero on error
  *
  */
@@ -456,7 +456,7 @@ NRSC5_API int nrsc5_open_file(nrsc5_t **st, FILE *fp);
  * @return 0 on success, nonzero on error
  *
  */
-NRSC5_API int nrsc5_open_pipe(nrsc5_t **st );
+NRSC5_API int nrsc5_open_pipe(nrsc5_t **st);
 
 /**
  * Initializes a session given a TCP socket file descriptor.
@@ -593,7 +593,6 @@ NRSC5_API void nrsc5_set_auto_gain(nrsc5_t *st, int enabled);
  */
 NRSC5_API void nrsc5_set_callback(nrsc5_t *st, nrsc5_callback_t callback, void *opaque);
 
-
 /**
  * Push an IQ array of 8-bit unsigned samples into the demodulator.
  *
@@ -605,7 +604,6 @@ NRSC5_API void nrsc5_set_callback(nrsc5_t *st, nrsc5_callback_t callback, void *
  *
  */
 NRSC5_API int nrsc5_pipe_samples_cu8(nrsc5_t *st, const uint8_t *samples, unsigned int length);
-
 
 /**
  * Push an IQ input array of 16-bit signed samples into the demodulator.

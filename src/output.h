@@ -103,6 +103,8 @@ typedef struct
 
     int16_t* output_buffer;
     unsigned int write, read, leftover, delay;
+
+    int input_start_pos;
 } decoder_t;
 #endif
 
@@ -114,11 +116,6 @@ typedef struct
     unsigned int latency, avg, delay;
 
     unsigned int clock;
-    int iq_pos;
-
-#ifdef HAVE_FAAD2
-    decoder_t decoder;
-#endif
 } elastic_buffer_t;
 
 typedef struct
@@ -126,9 +123,10 @@ typedef struct
     nrsc5_t *radio;
     aas_port_t ports[MAX_PORTS];
     sig_service_t services[MAX_SIG_SERVICES];
+    elastic_buffer_t elastic[MAX_PROGRAMS][MAX_STREAMS];
 
-    elastic_buffer_t elastic[MAX_PROGRAMS];
 #ifdef HAVE_FAAD2
+    decoder_t decoder[MAX_PROGRAMS];
     int16_t silence[AUDIO_FRAME_LENGTH];
 #endif
 } output_t;

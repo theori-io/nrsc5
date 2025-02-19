@@ -23,6 +23,8 @@ class NRSC5CLI:
         self.iq_output = None
         self.wav_output = None
         self.hdc_output = None
+        self.audio_packets = 0
+        self.audio_bytes = 0
 
     def parse_args(self):
         parser = argparse.ArgumentParser(description="Receive NRSC-5 signals.")
@@ -194,10 +196,18 @@ class NRSC5CLI:
         elif evt_type == nrsc5.EventType.BER:
             logging.info("BER: %.6f", evt.cber)
         elif evt_type == nrsc5.EventType.HDC:
-            if self.args.dump_hdc:
-                if evt.program == self.args.program:
+            if evt.program == self.args.program:
+                if self.args.dump_hdc:
                     self.hdc_output.write(self.adts_header(len(evt.data)))
                     self.hdc_output.write(evt.data)
+
+                self.audio_packets += 1
+                self.audio_bytes += len(evt.data)
+                if self.audio_packets >= 32:
+                    logging.info("Audio bit rate: %.1f kbps", self.audio_bytes * 8 * nrsc5.SAMPLE_RATE_AUDIO
+                                 / nrsc5.AUDIO_FRAME_SAMPLES / self.audio_packets / 1000)
+                    self.audio_packets = 0
+                    self.audio_bytes = 0
         elif evt_type == nrsc5.EventType.AUDIO:
             if evt.program == self.args.program:
                 if self.args.o:

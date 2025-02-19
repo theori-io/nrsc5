@@ -86,10 +86,12 @@ static int decoder_buffer_write(decoder_t *dec, const int16_t *buffer, unsigned 
 
     if (dec->write + samples > OUTPUT_BUFFER_LENGTH)
     {
-        unsigned int len = OUTPUT_BUFFER_LENGTH - dec->write;
-        memcpy(dec->output_buffer + dec->write, buffer, len * sizeof(*buffer));
-        memcpy(dec->output_buffer, buffer + len, (samples - len) * sizeof(*buffer));
-        dec->write = samples - len;
+        const unsigned int available = OUTPUT_BUFFER_LENGTH - dec->write;
+        const unsigned int remaining = samples - available;
+
+        memcpy(dec->output_buffer + dec->write, buffer, available * sizeof(*buffer));
+        memcpy(dec->output_buffer, buffer + available, remaining * sizeof(*buffer));
+        dec->write = remaining;
     }
     else
     {
@@ -107,10 +109,12 @@ static int decoder_buffer_read(decoder_t *dec, int16_t *buffer, unsigned int sam
 
     if (dec->read + samples > OUTPUT_BUFFER_LENGTH)
     {
-        unsigned int first = OUTPUT_BUFFER_LENGTH - dec->read;
-        memcpy(buffer, &dec->output_buffer[dec->read], first * sizeof(*buffer));
-        memcpy(&buffer[first], dec->output_buffer, (samples - first) * sizeof(*buffer));
-        dec->read = samples - first;
+        const unsigned int available = OUTPUT_BUFFER_LENGTH - dec->read;
+        const unsigned int remaining = samples - available;
+
+        memcpy(buffer, &dec->output_buffer[dec->read], available * sizeof(*buffer));
+        memcpy(&buffer[available], dec->output_buffer, remaining * sizeof(*buffer));
+        dec->read = remaining;
     }
     else
     {
@@ -133,12 +137,12 @@ static unsigned int output_align_source(decoder_t *dec, unsigned int input, int 
     if(!round)
         iq_num += dec->leftover;
 
-    frames = iq_num / 135;
+    frames = iq_num / RADIO_NUM;
 
-    if (round && iq_num % 135 > 0)
+    if (round && iq_num % RADIO_NUM > 0)
         frames += 1;
-    else if (round)
-        dec->leftover = iq_num % 135;
+    else if (!round)
+        dec->leftover = iq_num % RADIO_NUM;
 
     return frames * AUDIO_FRAME_CHANNELS;
 }
@@ -234,7 +238,7 @@ void output_align(output_t *st, unsigned int program, unsigned int stream_id, un
         // Align Writer (buffer->delay + seq) & Reader
         elastic_realign_forward(elastic, seq, pdu_seq, avg, seq);
 
-        log_debug("Elastic buffer created. Program: %d, Size %d bytes, Read %d pos, Write: %d pos", program, elastic->size, elastic->read, elastic->write);
+        log_debug("Elastic buffer created. Program: %d, Size %d bytes, Read %d pos, Write: %d pos, Delay: %d, Average: %d", program, elastic->size, elastic->read, elastic->write, elastic->delay, elastic->avg);
     }
     else
     {
@@ -261,9 +265,9 @@ void output_align(output_t *st, unsigned int program, unsigned int stream_id, un
 
         // FFT decode delay
         if (st->radio->mode == NRSC5_MODE_FM)
-            dec->write = (FFTCP_FM * 8 / 135) * AUDIO_FRAME_CHANNELS;
+            dec->write = FFTCP_FM * RADIO_FM_DEM / RADIO_NUM * AUDIO_FRAME_CHANNELS;
         else
-            dec->write = (FFTCP_AM * 256 / 135) * AUDIO_FRAME_CHANNELS;
+            dec->write = FFTCP_AM * RADIO_AM_DEM / RADIO_NUM * AUDIO_FRAME_CHANNELS;
     }
 #endif
 }

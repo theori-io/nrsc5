@@ -27,8 +27,12 @@
 #include "private.h"
 #include "unicode.h"
 
-#define RADIO_FRAME_SAMPLES_FM (NRSC5_AUDIO_FRAME_SAMPLES * 135 / 8)
-#define RADIO_FRAME_SAMPLES_AM (NRSC5_AUDIO_FRAME_SAMPLES * 135 / 128)
+#define RADIO_NUM 135
+#define RADIO_FM_DEM 8
+#define RADIO_AM_DEM 128
+
+#define RADIO_FRAME_SAMPLES_FM (NRSC5_AUDIO_FRAME_SAMPLES * RADIO_NUM / RADIO_FM_DEM)
+#define RADIO_FRAME_SAMPLES_AM (NRSC5_AUDIO_FRAME_SAMPLES * RADIO_NUM / RADIO_AM_DEM)
 
 static unsigned int elastic_average_samples(const output_t *st, const elastic_buffer_t *dec)
 {
@@ -117,24 +121,24 @@ static int decoder_buffer_read(decoder_t *dec, int16_t *buffer, unsigned int sam
     return 0;
 }
 
-static unsigned int output_align_source(decoder_t *dec, unsigned int input, int all_round)
+static unsigned int output_align_source(const output_t *st, decoder_t *dec, unsigned int input, int round)
 {
-    unsigned int iq_upper, frames;
+    unsigned int iq_num, frames;
 
-    iq_upper = (input * 8);
-    if(!all_round)
-        iq_upper += dec->leftover;
-    frames = (iq_upper / 135);
-
-    if (all_round)
-    {
-        if (iq_upper % 135 > 0)
-            frames += 1;
-    }
+    if (st->radio->mode == NRSC5_MODE_FM)
+        iq_num = input * RADIO_FM_DEM;
     else
-    {
-        dec->leftover = (iq_upper % 135);
-    }
+        iq_num = input * RADIO_AM_DEM;
+
+    if(!round)
+        iq_num += dec->leftover;
+
+    frames = (iq_num / 135);
+
+    if (round && iq_num % 135 > 0)
+        frames += 1;
+    else
+        dec->leftover = (iq_num % 135);
 
     return frames * AUDIO_FRAME_CHANNELS;
 }
@@ -313,7 +317,7 @@ void output_advance(output_t *st, unsigned int len)
         decoder_t *dec = &st->decoder[i];
 
         int16_t *audio_frame;
-        unsigned int hd_samples, delay_samples;
+        unsigned int iq_hd_samples, iq_delay_samples;
         unsigned int audio_frames, silence_frames, frames_len;
 
         // Skip if no buffer
@@ -324,17 +328,17 @@ void output_advance(output_t *st, unsigned int len)
         // Insert silence to makeup for it. It takes time to generate samples
         if (dec->input_start_pos > 0)
         {
-            hd_samples = (len - dec->input_start_pos);
-            delay_samples = (len - hd_samples);
+            iq_hd_samples = (len - dec->input_start_pos);
+            iq_delay_samples = (len - iq_hd_samples);
         }
         else
         {
-            hd_samples = len;
-            delay_samples = 0;
+            iq_hd_samples = len;
+            iq_delay_samples = 0;
         }
 
-        audio_frames = output_align_source(dec, hd_samples, 0);
-        silence_frames = output_align_source(dec, delay_samples, 1);
+        audio_frames = output_align_source(st, dec, iq_hd_samples, 0);
+        silence_frames = output_align_source(st, dec, iq_delay_samples, 1);
         frames_len = audio_frames + silence_frames;
 
         audio_frame = malloc(frames_len * sizeof(*audio_frame));

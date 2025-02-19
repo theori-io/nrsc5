@@ -134,7 +134,7 @@ typedef struct
 void output_align(output_t *st, unsigned int program, unsigned int stream_id, unsigned int pdu_seq, unsigned int latency, unsigned int avg, unsigned int seq, unsigned int nop);
 void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int program, unsigned int stream_id, unsigned int seq);
 void output_advance_elastic(output_t *st, int pos, unsigned int used);
-void output_advance(output_t *st, unsigned int len);
+void output_advance(output_t *st, unsigned int len, int mode);
 void output_begin(output_t *st);
 void output_reset(output_t *st);
 void output_init(output_t *st, nrsc5_t *);

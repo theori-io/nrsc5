@@ -30,12 +30,12 @@
 #define RADIO_FRAME_SAMPLES_FM (NRSC5_AUDIO_FRAME_SAMPLES * 135 / 8)
 #define RADIO_FRAME_SAMPLES_AM (NRSC5_AUDIO_FRAME_SAMPLES * 135 / 128)
 
-static unsigned int average_acquire_samples(const output_t *st, const elastic_buffer_t *dec)
+static unsigned int elastic_average_samples(const output_t *st, const elastic_buffer_t *dec)
 {
     return dec->avg * (st->radio->mode == NRSC5_MODE_FM ? RADIO_FRAME_SAMPLES_FM : RADIO_FRAME_SAMPLES_AM);
 }
 
-static unsigned int compute_forward_sequence_position(const elastic_buffer_t *elastic, unsigned int seq)
+static unsigned int elastic_compute_sequence_position(const elastic_buffer_t *elastic, unsigned int seq)
 {
     return (MAX_AUDIO_PACKETS + seq - elastic->ptr[elastic->write].seq) % MAX_AUDIO_PACKETS;
 }
@@ -46,6 +46,7 @@ static void elastic_realign_forward(elastic_buffer_t *elastic, unsigned int forw
     elastic->ptr[elastic->write].seq = seq;
 
     unsigned int offset = pdu_seq * avg;
+
     if (((offset + 64 - seq) % MAX_AUDIO_PACKETS) < 32)
         offset = (offset + 32) % MAX_AUDIO_PACKETS;
 
@@ -74,13 +75,10 @@ static unsigned int decoder_buffer_read_available(const decoder_t *st)
         return OUTPUT_BUFFER_LENGTH - (st->read - st->write);
 }
 
-static void decoder_buffer_write(decoder_t *dec, const int16_t *buffer, unsigned int samples)
+static int decoder_buffer_write(decoder_t *dec, const int16_t *buffer, unsigned int samples)
 {
     if (decoder_buffer_write_available(dec) < samples)
-    {
-        log_error("Internal writer clock bug. Full of samples");
-        return;
-    }
+        return -1;
 
     if (dec->write + samples > OUTPUT_BUFFER_LENGTH)
     {
@@ -94,10 +92,15 @@ static void decoder_buffer_write(decoder_t *dec, const int16_t *buffer, unsigned
         memcpy(dec->output_buffer + dec->write, buffer, samples * sizeof(*buffer));
         dec->write = (dec->write + samples) % OUTPUT_BUFFER_LENGTH;
     }
+
+    return 0;
 }
 
-static void decoder_buffer_read(decoder_t *dec, int16_t *buffer, unsigned int samples)
+static int decoder_buffer_read(decoder_t *dec, int16_t *buffer, unsigned int samples)
 {
+    if (decoder_buffer_read_available(dec) < samples)
+        return -1;
+
     if (dec->read + samples > OUTPUT_BUFFER_LENGTH)
     {
         unsigned int first = OUTPUT_BUFFER_LENGTH - dec->read;
@@ -110,6 +113,8 @@ static void decoder_buffer_read(decoder_t *dec, int16_t *buffer, unsigned int sa
         memcpy(buffer, &dec->output_buffer[dec->read], samples * sizeof(*buffer));
         dec->read = (dec->read + samples) % OUTPUT_BUFFER_LENGTH;
     }
+
+    return 0;
 }
 
 static unsigned int output_align_source(decoder_t *dec, unsigned int input, int all_round)
@@ -137,9 +142,9 @@ static unsigned int output_align_source(decoder_t *dec, unsigned int input, int 
 
 static void elastic_decode_packet(output_t *st, unsigned int program, int16_t **audio, unsigned int *frames)
 {
-    elastic_buffer_t *elastic = &st->elastic[program];
+    elastic_buffer_t *elastic = &st->elastic[program][0];
 #ifdef USE_FAAD2
-    decoder_t *dec = &elastic->decoder;
+    decoder_t *dec = &st->decoder[program];
 #endif
 
     if (elastic->ptr[elastic->read].size != 0)
@@ -193,7 +198,7 @@ static void elastic_decode_packet(output_t *st, unsigned int program, int16_t **
 
 void output_align(output_t *st, unsigned int program, unsigned int stream_id, unsigned int pdu_seq, unsigned int latency, unsigned int avg, unsigned int seq, unsigned int nop)
 {
-    elastic_buffer_t *elastic = &st->elastic[program];
+    elastic_buffer_t *elastic = &st->elastic[program][stream_id];
     unsigned int forward;
 
     if (stream_id != 0)
@@ -220,7 +225,7 @@ void output_align(output_t *st, unsigned int program, unsigned int stream_id, un
         elastic->write = elastic->delay;
 
         // Startup the clock
-        elastic->clock = average_acquire_samples(st, elastic);
+        elastic->clock = elastic_average_samples(st, elastic);
 
         // Align Writer (buffer->delay + seq) & Reader
         elastic_realign_forward(elastic, seq, pdu_seq, avg, seq);
@@ -229,8 +234,12 @@ void output_align(output_t *st, unsigned int program, unsigned int stream_id, un
     }
     else
     {
+        // FIXME: Figure out a better way to design the buffer to avoid needing to re-sync
+        //  This is due to "lag" that could happen.
+        //  We are relying on reader to have the correct sequence number to delay the writer
+
         // Re-sync (lost-synchronization with reader and writer)
-        forward = compute_forward_sequence_position(elastic, seq);
+        forward = elastic_compute_sequence_position(elastic, seq);
         if (elastic_write_available(elastic) < forward + nop)
         {
             elastic_realign_forward(elastic, forward, pdu_seq, avg, seq);
@@ -239,7 +248,7 @@ void output_align(output_t *st, unsigned int program, unsigned int stream_id, un
     }
 
 #ifdef USE_FAAD2
-    decoder_t *dec = &elastic->decoder;
+    decoder_t *dec = &st->decoder[program];
 
     if (!dec->output_buffer)
     {
@@ -259,15 +268,16 @@ void output_advance_elastic(output_t *st, int pos, unsigned int used)
 {
     for (int i = 0; i < MAX_PROGRAMS; i++)
     {
-        elastic_buffer_t *elastic = &st->elastic[i];
-        unsigned int sample_avg = average_acquire_samples(st, elastic);
+        elastic_buffer_t *elastic = &st->elastic[i][0];
+        decoder_t *dec = &st->decoder[i];
+        unsigned int sample_avg = elastic_average_samples(st, elastic);
 
         // Skip if no buffer
         if (!elastic->ptr)
             continue;
 
-        if (elastic->iq_pos == -1)
-            elastic->iq_pos = pos;
+        if (dec->input_start_pos == -1)
+            dec->input_start_pos = pos;
 
         // Packet clock
         elastic->clock += used;
@@ -282,7 +292,10 @@ void output_advance_elastic(output_t *st, int pos, unsigned int used)
             {
                 elastic_decode_packet(st, i, &audio, &decoded_frames);
 #ifdef USE_FAAD2
-                decoder_buffer_write(&elastic->decoder, audio, decoded_frames);
+                if (decoder_buffer_write(dec, audio, decoded_frames) < 0)
+                {
+                    log_debug("Decoder buffer full for program: %d. Skipped samples. bug?", i);
+                }
 #endif
             }
             elastic->clock -= sample_avg;
@@ -297,21 +310,21 @@ void output_advance(output_t *st, unsigned int len)
     // Output audio samples
     for (int i = 0; i < MAX_PROGRAMS; i++)
     {
-        elastic_buffer_t *elastic = &st->elastic[i];
-        decoder_t *dec = &elastic->decoder;
+        decoder_t *dec = &st->decoder[i];
+
         int16_t *audio_frame;
         unsigned int hd_samples, delay_samples;
         unsigned int audio_frames, silence_frames, frames_len;
 
         // Skip if no buffer
-        if (elastic->write == 0)
+        if (st->elastic[i][0].write == 0)
             continue;
 
         // Program started in the middle of the sample.
         // Insert silence to makeup for it. It takes time to generate samples
-        if (elastic->iq_pos > 0)
+        if (dec->input_start_pos > 0)
         {
-            hd_samples = (len - elastic->iq_pos);
+            hd_samples = (len - dec->input_start_pos);
             delay_samples = (len - hd_samples);
         }
         else
@@ -339,14 +352,14 @@ void output_advance(output_t *st, unsigned int len)
         free(audio_frame);
 
         // Reset
-        elastic->iq_pos = -1;
+        dec->input_start_pos = -1;
     }
 #endif
 }
 
 void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int program, unsigned int stream_id, unsigned int seq)
 {
-    elastic_buffer_t *elastic = &st->elastic[program];
+    elastic_buffer_t *elastic = &st->elastic[program][stream_id];
 
     if (stream_id != 0)
         return; // TODO: Process enhanced stream
@@ -357,7 +370,7 @@ void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int prog
         return;
     }
 
-    unsigned int forward = compute_forward_sequence_position(elastic, seq);
+    unsigned int forward = elastic_compute_sequence_position(elastic, seq);
     unsigned int pos = (elastic->write + forward) % elastic->size;
 
     memcpy(elastic->ptr[pos].data, pkt, len);
@@ -408,10 +421,21 @@ void output_reset(output_t *st)
 
     for (int i = 0; i < MAX_PROGRAMS; i++)
     {
-        elastic_buffer_t *buffer = &st->elastic[i];
+        for (int j = 0; j < MAX_STREAMS; j++)
+        {
+            elastic_buffer_t *buffer = &st->elastic[i][j];
+
+            buffer->write = 0;
+            buffer->read = 0;
+            buffer->clock = 0;
+
+            if (buffer->ptr)
+                free(buffer->ptr);
+            buffer->ptr = NULL;
+        }
 
 #ifdef USE_FAAD2
-        decoder_t *dec = &buffer->decoder;
+        decoder_t *dec = &st->decoder[i];
         if (dec->aacdec)
             NeAACDecClose(dec->aacdec);
         dec->aacdec = NULL;
@@ -420,20 +444,12 @@ void output_reset(output_t *st)
         dec->write = 0;
         dec->read = 0;
         dec->delay = 0;
+        dec->input_start_pos = -1;
 
         if (dec->output_buffer)
             free(dec->output_buffer);
         dec->output_buffer = NULL;
 #endif
-
-        buffer->write = 0;
-        buffer->read = 0;
-        buffer->clock = 0;
-        buffer->iq_pos = -1;
-
-        if (buffer->ptr)
-            free(buffer->ptr);
-        buffer->ptr = NULL;
     }
 }
 
@@ -441,18 +457,18 @@ void output_init(output_t *st, nrsc5_t *radio)
 {
     st->radio = radio;
 
+    memset(st->ports, 0, sizeof(st->ports));
+    memset(st->services, 0, sizeof(st->services));
+
 #ifdef USE_FAAD2
     for (int i = 0; i < MAX_PROGRAMS; i++)
     {
-        st->elastic[i].decoder.aacdec = NULL;
-        st->elastic[i].decoder.leftover = 0;
+        st->decoder[i].aacdec = NULL;
+        st->decoder[i].leftover = 0;
     }
 
     memset(st->silence, 0, sizeof(st->silence));
 #endif
-
-    memset(st->ports, 0, sizeof(st->ports));
-    memset(st->services, 0, sizeof(st->services));
 
     output_reset(st);
 }

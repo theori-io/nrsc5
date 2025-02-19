@@ -157,7 +157,7 @@ void input_push_cu8(input_t *st, const uint8_t *buf, uint32_t len)
     }
 
     input_push(st, pos);
-    output_advance(st->output, len / 4);
+    output_advance(st->output, len / 4, NRSC5_MODE_FM);
 }
 
 void input_push_cs16(input_t *st, const int16_t *buf, uint32_t len)
@@ -173,7 +173,7 @@ void input_push_cs16(input_t *st, const int16_t *buf, uint32_t len)
     st->avail += len / 2;
 
     input_push(st, pos);
-    output_advance(st->output, len / 2);
+    output_advance(st->output, len / 2, st->radio->mode);
 }
 
 void input_reset(input_t *st)

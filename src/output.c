@@ -121,11 +121,11 @@ static int decoder_buffer_read(decoder_t *dec, int16_t *buffer, unsigned int sam
     return 0;
 }
 
-static unsigned int output_align_source(const output_t *st, decoder_t *dec, unsigned int input, int round)
+static unsigned int output_align_source(decoder_t *dec, unsigned int input, int round, int mode)
 {
     unsigned int iq_num, frames;
 
-    if (st->radio->mode == NRSC5_MODE_FM)
+    if (mode == NRSC5_MODE_FM)
         iq_num = input * RADIO_FM_DEM;
     else
         iq_num = input * RADIO_AM_DEM;
@@ -133,12 +133,12 @@ static unsigned int output_align_source(const output_t *st, decoder_t *dec, unsi
     if(!round)
         iq_num += dec->leftover;
 
-    frames = (iq_num / 135);
+    frames = iq_num / 135;
 
     if (round && iq_num % 135 > 0)
         frames += 1;
-    else
-        dec->leftover = (iq_num % 135);
+    else if (round)
+        dec->leftover = iq_num % 135;
 
     return frames * AUDIO_FRAME_CHANNELS;
 }
@@ -308,7 +308,7 @@ void output_advance_elastic(output_t *st, int pos, unsigned int used)
     }
 }
 
-void output_advance(output_t *st, unsigned int len)
+void output_advance(output_t *st, unsigned int len, int mode)
 {
 #ifdef USE_FAAD2
     // Output audio samples
@@ -337,8 +337,8 @@ void output_advance(output_t *st, unsigned int len)
             iq_delay_samples = 0;
         }
 
-        audio_frames = output_align_source(st, dec, iq_hd_samples, 0);
-        silence_frames = output_align_source(st, dec, iq_delay_samples, 1);
+        audio_frames = output_align_source(dec, iq_hd_samples, 0, mode);
+        silence_frames = output_align_source(dec, iq_delay_samples, 1, mode);
         frames_len = audio_frames + silence_frames;
 
         audio_frame = malloc(frames_len * sizeof(*audio_frame));

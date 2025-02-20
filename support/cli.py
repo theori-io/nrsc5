@@ -94,10 +94,11 @@ class NRSC5CLI:
 
         if self.args.o:
             if self.args.t == "wav":
-                self.wav_output = wave.open(self.args.o, "wb")
+                self.wav_output = wave.open(sys.stdout.buffer if self.args.o == "-" else self.args.o, "wb")
                 self.wav_output.setnchannels(2)
                 self.wav_output.setsampwidth(2)
                 self.wav_output.setframerate(nrsc5.SAMPLE_RATE_AUDIO)
+                self.wav_output.setnframes((1 << 30) - 64)
             elif self.args.t == "raw":
                 self.raw_output = sys.stdout.buffer if self.args.o == "-" else open(self.args.o, "wb")
         else:
@@ -220,7 +221,10 @@ class NRSC5CLI:
             if evt.program == self.args.program:
                 if self.args.o:
                     if self.args.t == "wav":
-                        self.wav_output.writeframes(evt.data)
+                        try:
+                            self.wav_output.writeframes(evt.data)
+                        except OSError:
+                            pass
                     elif self.args.t == "raw":
                         self.raw_output.write(evt.data)
                 else:

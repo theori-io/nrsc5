@@ -99,7 +99,7 @@ class NRSC5CLI:
                 self.wav_output.setsampwidth(2)
                 self.wav_output.setframerate(nrsc5.SAMPLE_RATE_AUDIO)
             elif self.args.t == "raw":
-                self.raw_output = open(self.args.o, "wb")
+                self.raw_output = sys.stdout.buffer if self.args.o == "-" else open(self.args.o, "wb")
         else:
             audio_thread = threading.Thread(target=self.audio_worker)
             audio_thread.start()

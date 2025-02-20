@@ -22,6 +22,7 @@ class NRSC5CLI:
         self.device_condition = threading.Condition()
         self.iq_output = None
         self.wav_output = None
+        self.raw_output = None
         self.hdc_output = None
         self.audio_packets = 0
         self.audio_bytes = 0
@@ -40,7 +41,8 @@ class NRSC5CLI:
         input_group.add_argument("-r", metavar="iq-input")
         parser.add_argument("--iq-input-format", choices=["cu8", "cs16"], default="cu8")
         parser.add_argument("-w", metavar="iq-output")
-        parser.add_argument("-o", metavar="wav-output")
+        parser.add_argument("-o", metavar="audio-output")
+        parser.add_argument("-t", choices=["wav", "raw"], default="wav")
         parser.add_argument("-T", action="store_true")
         parser.add_argument("-D", metavar="direct-sampling-mode", type=int, default=-1)
         parser.add_argument("--dump-hdc", metavar="hdc-output")
@@ -91,10 +93,13 @@ class NRSC5CLI:
             self.iq_output = sys.stdout.buffer if self.args.w == "-" else open(self.args.w, "wb")
 
         if self.args.o:
-            self.wav_output = wave.open(self.args.o, "wb")
-            self.wav_output.setnchannels(2)
-            self.wav_output.setsampwidth(2)
-            self.wav_output.setframerate(nrsc5.SAMPLE_RATE_AUDIO)
+            if self.args.t == "wav":
+                self.wav_output = wave.open(self.args.o, "wb")
+                self.wav_output.setnchannels(2)
+                self.wav_output.setsampwidth(2)
+                self.wav_output.setframerate(nrsc5.SAMPLE_RATE_AUDIO)
+            elif self.args.t == "raw":
+                self.raw_output = open(self.args.o, "wb")
         else:
             audio_thread = threading.Thread(target=self.audio_worker)
             audio_thread.start()
@@ -133,7 +138,10 @@ class NRSC5CLI:
             self.iq_output.close()
 
         if self.args.o:
-            self.wav_output.close()
+            if self.args.t == "wav":
+                self.wav_output.close()
+            elif self.args.t == "raw":
+                self.raw_output.close()
         else:
             self.audio_queue.put(None)
             audio_thread.join()
@@ -211,7 +219,10 @@ class NRSC5CLI:
         elif evt_type == nrsc5.EventType.AUDIO:
             if evt.program == self.args.program:
                 if self.args.o:
-                    self.wav_output.writeframes(evt.data)
+                    if self.args.t == "wav":
+                        self.wav_output.writeframes(evt.data)
+                    elif self.args.t == "raw":
+                        self.raw_output.write(evt.data)
                 else:
                     self.audio_queue.put(evt.data)
         elif evt_type == nrsc5.EventType.ID3:

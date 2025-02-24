@@ -1,4 +1,4 @@
-add_compile_options (--std=gnu11 -O3 -Wall)
+add_compile_options (--std=gnu11 -O3 -Wall -Wextra)
 
 add_definitions (-D_GNU_SOURCE)
 set (THREAD_LIBRARY pthread)

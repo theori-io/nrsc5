@@ -99,9 +99,9 @@ void acquire_process(acquire_t *st)
     float complex max_v = 0, phase_increment;
     float angle, angle_diff, angle_factor, max_mag = -1.0f;
     int samperr = 0;
-    unsigned int i, j, keep;
+    int i, j, keep;
 
-    if (st->idx != st->fftcp * (ACQUIRE_SYMBOLS + 1))
+    if (st->idx != (unsigned int)st->fftcp * (ACQUIRE_SYMBOLS + 1))
         return;
 
     if (st->input->sync_state == SYNC_STATE_FINE)

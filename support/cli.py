@@ -4,6 +4,7 @@ import argparse
 import logging
 import os
 import queue
+import signal
 import sys
 import threading
 import wave
@@ -20,12 +21,20 @@ class NRSC5CLI:
         self.parse_args()
         self.audio_queue = queue.Queue(maxsize=64)
         self.device_condition = threading.Condition()
+        self.interrupted = False
         self.iq_output = None
         self.wav_output = None
         self.raw_output = None
         self.hdc_output = None
         self.audio_packets = 0
         self.audio_bytes = 0
+        signal.signal(signal.SIGINT, self._signal_handler)
+
+    def _signal_handler(self, sig, frame):
+        logging.info("Stopping...")
+        self.interrupted = True
+        with self.device_condition:
+            self.device_condition.notify()
 
     def parse_args(self):
         parser = argparse.ArgumentParser(description="Receive NRSC-5 signals.")
@@ -112,7 +121,7 @@ class NRSC5CLI:
 
         try:
             if self.args.r:
-                while True:
+                while not self.interrupted:
                     data = iq_input.read(32768)
                     if not data:
                         break
@@ -123,8 +132,6 @@ class NRSC5CLI:
             else:
                 with self.device_condition:
                     self.device_condition.wait()
-        except KeyboardInterrupt:
-            logging.info("Stopping...")
         except nrsc5.NRSC5Error as err:
             logging.error(err)
 

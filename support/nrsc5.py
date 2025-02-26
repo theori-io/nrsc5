@@ -512,12 +512,13 @@ class NRSC5:
             evt = SIS(self._decode(sis.country_code), sis.fcc_facility_id, self._decode(sis.name),
                       self._decode(sis.slogan), self._decode(sis.message), self._decode(sis.alert),
                       latitude, longitude, altitude, audio_services, data_services)
-        self.callback(evt_type, evt)
+        self.callback(evt_type, evt, *self.callback_args)
 
-    def __init__(self, callback):
+    def __init__(self, callback, callback_args=()):
         self._load_library()
         self.radio = ctypes.c_void_p()
         self.callback = callback
+        self.callback_args = callback_args
 
     @staticmethod
     def get_version():

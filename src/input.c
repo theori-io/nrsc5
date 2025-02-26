@@ -252,7 +252,10 @@ void input_init(input_t *st, nrsc5_t *radio, output_t *output)
 
     for (int i = 0; i < AM_DECIM_STAGES; i++)
         st->decim[i] = firdecim_q15_create(decim_taps, sizeof(decim_taps) / sizeof(decim_taps[0]));
+
+    pthread_mutex_lock(&fftw_mutex);
     st->snr_fft = fftwf_plan_dft_1d(SNR_FFT_LEN, st->snr_fft_in, st->snr_fft_out, FFTW_FORWARD, 0);
+    pthread_mutex_unlock(&fftw_mutex);
 
     acquire_init(&st->acq, st);
     decode_init(&st->decode, st);
@@ -275,7 +278,10 @@ void input_free(input_t *st)
 
     for (int i = 0; i < AM_DECIM_STAGES; i++)
         firdecim_q15_free(st->decim[i]);
+
+    pthread_mutex_lock(&fftw_mutex);
     fftwf_destroy_plan(st->snr_fft);
+    pthread_mutex_unlock(&fftw_mutex);
 }
 
 void input_set_sync_state(input_t *st, unsigned int new_state)

@@ -12,6 +12,8 @@
 #include "output.h"
 #include "rtltcp.h"
 
+extern pthread_mutex_t fftw_mutex;
+
 struct nrsc5_t
 {
     rtlsdr_dev_t *dev;

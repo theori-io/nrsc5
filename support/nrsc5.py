@@ -556,55 +556,72 @@ class NRSC5:
         if result != 0:
             raise NRSC5Error("Failed to open rtl_tcp.")
         self._set_callback()
+    
+    def _check_session(self):
+        if not self.radio:
+            raise NRSC5Error("No session opened. Call open(), open_pipe(), or open_rtltcp() first.")
 
     def close(self):
+        self._check_session()
         NRSC5.libnrsc5.nrsc5_close(self.radio)
+        self.radio = ctypes.c_void_p()
 
     def start(self):
+        self._check_session()
         NRSC5.libnrsc5.nrsc5_start(self.radio)
 
     def stop(self):
+        self._check_session()
         NRSC5.libnrsc5.nrsc5_stop(self.radio)
 
     def set_mode(self, mode):
+        self._check_session()
         NRSC5.libnrsc5.nrsc5_set_mode(self.radio, mode.value)
 
     def set_bias_tee(self, on):
+        self._check_session()
         result = NRSC5.libnrsc5.nrsc5_set_bias_tee(self.radio, on)
         if result != 0:
             raise NRSC5Error("Failed to set bias-T.")
 
     def set_direct_sampling(self, on):
+        self._check_session()
         result = NRSC5.libnrsc5.nrsc5_set_direct_sampling(self.radio, on)
         if result != 0:
             raise NRSC5Error("Failed to set direct sampling.")
 
     def set_freq_correction(self, ppm_error):
+        self._check_session()
         result = NRSC5.libnrsc5.nrsc5_set_freq_correction(self.radio, ppm_error)
         if result != 0:
             raise NRSC5Error("Failed to set frequency correction.")
 
     def get_frequency(self):
+        self._check_session()
         frequency = ctypes.c_float()
         NRSC5.libnrsc5.nrsc5_get_frequency(self.radio, ctypes.byref(frequency))
         return frequency.value
 
     def set_frequency(self, freq):
+        self._check_session()
         result = NRSC5.libnrsc5.nrsc5_set_frequency(self.radio, ctypes.c_float(freq))
         if result != 0:
             raise NRSC5Error("Failed to set frequency.")
 
     def get_gain(self):
+        self._check_session()
         gain = ctypes.c_float()
         NRSC5.libnrsc5.nrsc5_get_gain(self.radio, ctypes.byref(gain))
         return gain.value
 
     def set_gain(self, gain):
+        self._check_session()
         result = NRSC5.libnrsc5.nrsc5_set_gain(self.radio, ctypes.c_float(gain))
         if result != 0:
             raise NRSC5Error("Failed to set gain.")
 
     def set_auto_gain(self, enabled):
+        self._check_session()
         NRSC5.libnrsc5.nrsc5_set_auto_gain(self.radio, int(enabled))
 
     def _set_callback(self):

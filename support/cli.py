@@ -250,31 +250,31 @@ class NRSC5CLI:
                     logging.info("Unique file identifier: %s %s", evt.ufid.owner, evt.ufid.id)
                 if evt.xhdr:
                     logging.info("XHDR: param=%s mime=%s lot=%s",
-                                 evt.xhdr.param, evt.xhdr.mime, evt.xhdr.lot)
+                                 evt.xhdr.param, evt.xhdr.mime.name, evt.xhdr.lot)
         elif evt_type == nrsc5.EventType.SIG:
             for service in evt:
                 logging.info("SIG Service: type=%s number=%s name=%s",
-                             service.type, service.number, service.name)
+                             service.type.name, service.number, service.name)
                 for component in service.components:
                     if component.type == nrsc5.ComponentType.AUDIO:
                         logging.info("  Audio component: id=%s port=%04X type=%s mime=%s",
                                      component.id, component.audio.port,
-                                     component.audio.type, component.audio.mime)
+                                     component.audio.type.name, component.audio.mime.name)
                     elif component.type == nrsc5.ComponentType.DATA:
                         logging.info("  Data component: id=%s port=%04X service_data_type=%s type=%s mime=%s",
                                      component.id, component.data.port,
-                                     component.data.service_data_type,
-                                     component.data.type, component.data.mime)
+                                     component.data.service_data_type.name,
+                                     component.data.type, component.data.mime.name)
         elif evt_type == nrsc5.EventType.STREAM:
             logging.info("Stream data: port=%04X seq=%04X mime=%s size=%s",
-                         evt.port, evt.seq, evt.mime, len(evt.data))
+                         evt.port, evt.seq, evt.mime.name, len(evt.data))
         elif evt_type == nrsc5.EventType.PACKET:
             logging.info("Packet data: port=%04X seq=%04X mime=%s size=%s",
-                         evt.port, evt.seq, evt.mime, len(evt.data))
+                         evt.port, evt.seq, evt.mime.name, len(evt.data))
         elif evt_type == nrsc5.EventType.LOT:
             time_str = evt.expiry_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
             logging.info("LOT file: port=%04X lot=%s name=%s size=%s mime=%s expiry=%s",
-                         evt.port, evt.lot, evt.name, len(evt.data), evt.mime, time_str)
+                         evt.port, evt.lot, evt.name, len(evt.data), evt.mime.name, time_str)
             if self.args.dump_aas_files:
                 path = os.path.join(self.args.dump_aas_files, evt.name)
                 with open(path, "wb") as file:
@@ -297,12 +297,12 @@ class NRSC5CLI:
             for audio_service in evt.audio_services:
                 logging.info("Audio program %s: %s, type: %s, sound experience %s",
                              audio_service.program,
-                             "public" if audio_service.access == nrsc5.Access.PUBLIC else "restricted",
+                             audio_service.access.name,
                              self.radio.program_type_name(audio_service.type),
                              audio_service.sound_exp)
             for data_service in evt.data_services:
                 logging.info("Data service: %s, type: %s, MIME type %03x",
-                             "public" if data_service.access == nrsc5.Access.PUBLIC else "restricted",
+                             data_service.access.name,
                              self.radio.service_data_type_name(data_service.type),
                              data_service.mime_type)
 

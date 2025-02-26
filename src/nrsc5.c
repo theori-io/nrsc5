@@ -3,6 +3,8 @@
 
 #include "private.h"
 
+pthread_mutex_t fftw_mutex = PTHREAD_MUTEX_INITIALIZER;
+
 static int snr_callback(void *arg, float snr)
 {
     nrsc5_t *st = arg;

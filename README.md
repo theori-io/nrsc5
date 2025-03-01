@@ -32,6 +32,13 @@ Follow the Ubuntu instructions above, but replace the first command with the fol
 
     $ sudo dnf install make patch cmake autoconf libtool libao-devel fftw-devel rtl-sdr-devel libusb-devel
 
+## Building on openSUSE
+
+Follow the Ubuntu instructions above, but replace the first command with the following:
+
+    $ zypper install -t pattern devel_C_C++
+    $ zypper install git cmake libao-devel fftw3-devel rtl-sdr-devel libusb-1_0-devel
+
 ## Building on macOS using [Homebrew](https://brew.sh)
 
     $ curl https://raw.githubusercontent.com/theori-io/nrsc5/master/nrsc5.rb > /tmp/nrsc5.rb

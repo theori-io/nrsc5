@@ -292,7 +292,7 @@ class NRSC5CLI:
             if evt.alert:
                 logging.info("Alert: %s", evt.alert)
             if evt.latitude:
-                logging.info("Station location: %s, %s, %sm",
+                logging.info("Station location: %.4f, %.4f, %dm",
                              evt.latitude, evt.longitude, evt.altitude)
             for audio_service in evt.audio_services:
                 logging.info("Audio program %s: %s, type: %s, sound experience %s",

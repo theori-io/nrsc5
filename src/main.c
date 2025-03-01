@@ -389,7 +389,7 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
         if (evt->sis.alert)
             log_info("Alert: %s", evt->sis.alert);
         if (!isnan(evt->sis.latitude))
-            log_info("Station location: %f, %f, %dm", evt->sis.latitude, evt->sis.longitude, evt->sis.altitude);
+            log_info("Station location: %.4f, %.4f, %dm", evt->sis.latitude, evt->sis.longitude, evt->sis.altitude);
         for (audio_service = evt->sis.audio_services; audio_service != NULL; audio_service = audio_service->next)
         {
             const char *name = NULL;

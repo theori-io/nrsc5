@@ -4,15 +4,15 @@ This program receives NRSC-5 digital radio stations using an RTL-SDR dongle. It 
 
 ## Building on Ubuntu, Debian or Raspbian
 
-    $ sudo apt install git build-essential cmake autoconf libtool libao-dev libfftw3-dev librtlsdr-dev
-    $ git clone https://github.com/theori-io/nrsc5.git
-    $ cd nrsc5
-    $ mkdir build
-    $ cd build
-    $ cmake [options] ..
-    $ make
-    $ sudo make install
-    $ sudo ldconfig
+    sudo apt install git build-essential cmake autoconf libtool libao-dev libfftw3-dev librtlsdr-dev
+    git clone https://github.com/theori-io/nrsc5.git
+    cd nrsc5
+    mkdir build
+    cd build
+    cmake [options] ..
+    make
+    sudo make install
+    sudo ldconfig
 
 Available build options:
 
@@ -24,25 +24,25 @@ Available build options:
 
 You can test the program using the included sample capture:
 
-    $ xz -d < ../support/sample.xz | src/nrsc5 -r - 0
+    xz -d < ../support/sample.xz | src/nrsc5 -r - 0
 
 ## Building on Fedora
 
 Follow the Ubuntu instructions above, but replace the first command with the following:
 
-    $ sudo dnf install make patch cmake autoconf libtool libao-devel fftw-devel rtl-sdr-devel libusb-devel
+    sudo dnf install make patch cmake autoconf libtool libao-devel fftw-devel rtl-sdr-devel libusb-devel
 
 ## Building on openSUSE
 
 Follow the Ubuntu instructions above, but replace the first command with the following:
 
-    $ zypper install -t pattern devel_C_C++
-    $ zypper install git cmake libao-devel fftw3-devel rtl-sdr-devel libusb-1_0-devel
+    zypper install -t pattern devel_C_C++
+    zypper install git cmake libao-devel fftw3-devel rtl-sdr-devel libusb-1_0-devel
 
 ## Building on macOS using [Homebrew](https://brew.sh)
 
-    $ curl https://raw.githubusercontent.com/theori-io/nrsc5/master/nrsc5.rb > /tmp/nrsc5.rb
-    $ brew install --HEAD -s /tmp/nrsc5.rb
+    curl https://raw.githubusercontent.com/theori-io/nrsc5/master/nrsc5.rb > /tmp/nrsc5.rb
+    brew install --HEAD -s /tmp/nrsc5.rb
 
 ## Building for Windows
 
@@ -52,20 +52,20 @@ To build the program for Windows, you can either use [MSYS2](http://www.msys2.or
 
 Install [MSYS2](http://www.msys2.org). Open a terminal using the "MSYS2 MinGW 32-bit" shortcut. (Or use the 64-bit shortcut if you prefer a 64-bit build.)
 
-    $ pacman -Syu
+    pacman -Syu
 
 If this is the first time running pacman, you will be told to close the terminal window. After doing so, reopen using the same shortcut as before.
 
-    $ pacman -Su
-    $ pacman -S git
-    $ git clone https://github.com/theori-io/nrsc5.git
-    $ nrsc5/support/msys2-build
+    pacman -Su
+    pacman -S git
+    git clone https://github.com/theori-io/nrsc5.git
+    nrsc5/support/msys2-build
 
 You can test your installation using the included sample file:
 
-    $ cd ~/nrsc5/support
-    $ xz -d sample.xz
-    $ nrsc5.exe -r sample 0
+    cd ~/nrsc5/support
+    xz -d sample.xz
+    nrsc5.exe -r sample 0
 
 If the sample file does not work, make sure you followed all of the instructions. If it still doesn't work, file an issue with the error message. Please put "[Windows]" in the title of the issue.
 
@@ -76,15 +76,15 @@ Once everything is built, you can run nrsc5 independently of MSYS2. Copy the fol
 
 ### Cross-compiling for Windows from Ubuntu / Debian
 
-    $ sudo apt install mingw-w64
-    $ support/win-cross-compile 32
+    sudo apt install mingw-w64
+    support/win-cross-compile 32
 
 Replace `32` with `64` if you want a 64-bit build. Once the build is complete, copy `*.dll` and `nrsc5.exe` from the `build-win32/bin` (or `build-win64/bin`) folder to your Windows machine.
 
 ### Cross-compiling for Windows from macOS
 
-    $ brew install mingw-w64
-    $ support/win-cross-compile 32
+    brew install mingw-w64
+    support/win-cross-compile 32
 
 Replace `32` with `64` if you want a 64-bit build. Once the build is complete, copy `*.dll` and `nrsc5.exe` from the `build-win32/bin` (or `build-win64/bin`) folder to your Windows machine.
 
@@ -125,19 +125,19 @@ Replace `32` with `64` if you want a 64-bit build. Once the build is complete, c
 
 Tune to 107.1 MHz and play audio program 0:
 
-    $ nrsc5 107.1 0
+    nrsc5 107.1 0
 
 Tune to 107.1 MHz and play audio program 0. Manually set gain to 49.0 dB and save raw IQ samples to a file:
 
-    $ nrsc5 -g 49.0 -w samples1071 107.1 0
+    nrsc5 -g 49.0 -w samples1071 107.1 0
 
 Read raw IQ samples from a file and play back audio program 0:
 
-    $ nrsc5 -r samples1071 0
+    nrsc5 -r samples1071 0
 
 Tune to 90.5 MHz and convert audio program 0 to WAV format for playback in an external media player:
 
-    $ nrsc5 -o - 90.5 0 | mplayer -
+    nrsc5 -o - 90.5 0 | mplayer -
 
 ### Keyboard commands:
 

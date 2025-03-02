@@ -67,52 +67,6 @@ void input_set_skip(input_t *st, unsigned int skip)
     st->skip += skip;
 }
 
-static void measure_snr(input_t *st, const uint8_t *buf, uint32_t len)
-{
-    unsigned int i, j;
-
-    // use a small FFT to calculate magnitude of frequency ranges
-    for (j = 0; j + SNR_FFT_LEN <= len / 2; j += SNR_FFT_LEN)
-    {
-        for (i = 0; i < SNR_FFT_LEN; i++)
-            st->snr_fft_in[i] = CMPLXF(U8_F(buf[(i+j) * 2]), U8_F(buf[(i+j) * 2 + 1])) * pow(sinf(M_PI*i/(SNR_FFT_LEN-1)), 2);
-        fftwf_execute(st->snr_fft);
-        fftshift(st->snr_fft_out, SNR_FFT_LEN);
-
-        for (i = 0; i < SNR_FFT_LEN; i++)
-            st->snr_power[i] += normf(st->snr_fft_out[i]);
-        st->snr_cnt++;
-    }
-
-    if (st->snr_cnt >= SNR_FFT_COUNT)
-    {
-        // noise bands are the frequncies near our signal
-        float noise = 0;
-        for (i = SNR_NOISE_START; i < SNR_NOISE_START + SNR_NOISE_LEN; i++)
-        {
-            noise += st->snr_power[i];
-            noise += st->snr_power[SNR_FFT_LEN - i];
-        }
-        noise /= SNR_NOISE_LEN * 2;
-
-        // signal bands are the frequencies in our signal
-        float signal = 0;
-        for (i = SNR_SIGNAL_START; i < SNR_SIGNAL_START + SNR_SIGNAL_LEN; i++)
-        {
-            signal += st->snr_power[i];
-            signal += st->snr_power[SNR_FFT_LEN - i];
-        }
-        signal /= SNR_SIGNAL_LEN * 2;
-
-        if (st->snr_cb(st->snr_cb_arg, signal / noise) == 0)
-            st->snr_cb = NULL;
-
-        st->snr_cnt = 0;
-        for (i = 0; i < SNR_FFT_LEN; ++i)
-            st->snr_power[i] = 0;
-    }
-}
-
 int input_shift(input_t *st, unsigned int cnt)
 {
     if (cnt + st->avail > INPUT_BUF_LEN)
@@ -152,12 +106,6 @@ void input_push_cu8(input_t *st, const uint8_t *buf, uint32_t len)
 {
     unsigned int i;
     assert(len % 4 == 0);
-
-    if (st->snr_cb)
-    {
-        measure_snr(st, buf, len);
-        return;
-    }
 
     nrsc5_report_iq(st->radio, buf, len);
 
@@ -217,21 +165,12 @@ void input_push_cs16(input_t *st, const int16_t *buf, uint32_t len)
     input_push(st);
 }
 
-void input_set_snr_callback(input_t *st, input_snr_cb_t cb, void *arg)
-{
-    st->snr_cb = cb;
-    st->snr_cb_arg = arg;
-}
-
 void input_reset(input_t *st)
 {
     st->avail = 0;
     st->used = 0;
     st->skip = 0;
     st->offset = 0;
-    for (int i = 0; i < SNR_FFT_LEN; ++i)
-        st->snr_power[i] = 0;
-    st->snr_cnt = 0;
 
     input_set_sync_state(st, SYNC_STATE_NONE);
     for (int i = 0; i < AM_DECIM_STAGES; i++)
@@ -246,16 +185,10 @@ void input_init(input_t *st, nrsc5_t *radio, output_t *output)
 {
     st->radio = radio;
     st->output = output;
-    st->snr_cb = NULL;
-    st->snr_cb_arg = NULL;
     st->sync_state = SYNC_STATE_NONE;
 
     for (int i = 0; i < AM_DECIM_STAGES; i++)
         st->decim[i] = firdecim_q15_create(decim_taps, sizeof(decim_taps) / sizeof(decim_taps[0]));
-
-    pthread_mutex_lock(&fftw_mutex);
-    st->snr_fft = fftwf_plan_dft_1d(SNR_FFT_LEN, st->snr_fft_in, st->snr_fft_out, FFTW_FORWARD, 0);
-    pthread_mutex_unlock(&fftw_mutex);
 
     acquire_init(&st->acq, st);
     decode_init(&st->decode, st);
@@ -278,10 +211,6 @@ void input_free(input_t *st)
 
     for (int i = 0; i < AM_DECIM_STAGES; i++)
         firdecim_q15_free(st->decim[i]);
-
-    pthread_mutex_lock(&fftw_mutex);
-    fftwf_destroy_plan(st->snr_fft);
-    pthread_mutex_unlock(&fftw_mutex);
 }
 
 void input_set_sync_state(input_t *st, unsigned int new_state)

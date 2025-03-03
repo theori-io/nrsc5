@@ -27,30 +27,323 @@
 #include "private.h"
 #include "unicode.h"
 
-void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int program, unsigned int stream_id)
+#define RADIO_NUM 135
+#define RADIO_FM_DEM 8
+#define RADIO_AM_DEM 128
+
+#define RADIO_FRAME_SAMPLES_FM (NRSC5_AUDIO_FRAME_SAMPLES * RADIO_NUM / RADIO_FM_DEM)
+#define RADIO_FRAME_SAMPLES_AM (NRSC5_AUDIO_FRAME_SAMPLES * RADIO_NUM / RADIO_AM_DEM)
+
+static unsigned int elastic_average_samples(const output_t *st, const elastic_buffer_t *dec)
 {
-    nrsc5_report_hdc(st->radio, program, pkt, len);
+    return dec->avg * (st->radio->mode == NRSC5_MODE_FM ? RADIO_FRAME_SAMPLES_FM : RADIO_FRAME_SAMPLES_AM);
+}
+
+static unsigned int elastic_write_available(const elastic_buffer_t *elastic)
+{
+    return elastic->size - elastic->write + elastic->read - 1;
+}
+
+#ifdef USE_FAAD2
+static unsigned int decoder_buffer_write_available(const decoder_t *st)
+{
+    if (st->read > st->write)
+        return (st->read - st->write) - 1;
+    else
+        return OUTPUT_BUFFER_LENGTH - (st->write - st->read) - 1;
+}
+
+static unsigned int decoder_buffer_read_available(const decoder_t *st)
+{
+    if (st->write >= st->read)
+        return st->write - st->read;
+    else
+        return OUTPUT_BUFFER_LENGTH - (st->read - st->write);
+}
+
+static int decoder_buffer_write(decoder_t *dec, const int16_t *buffer, unsigned int samples)
+{
+    if (decoder_buffer_write_available(dec) < samples)
+        return -1;
+
+    if (dec->write + samples > OUTPUT_BUFFER_LENGTH)
+    {
+        const unsigned int available = OUTPUT_BUFFER_LENGTH - dec->write;
+        const unsigned int remaining = samples - available;
+
+        memcpy(dec->output_buffer + dec->write, buffer, available * sizeof(*buffer));
+        memcpy(dec->output_buffer, buffer + available, remaining * sizeof(*buffer));
+        dec->write = remaining;
+    }
+    else
+    {
+        memcpy(dec->output_buffer + dec->write, buffer, samples * sizeof(*buffer));
+        dec->write = (dec->write + samples) % OUTPUT_BUFFER_LENGTH;
+    }
+
+    return 0;
+}
+
+static int decoder_buffer_read(decoder_t *dec, int16_t *buffer, unsigned int samples)
+{
+    if (decoder_buffer_read_available(dec) < samples)
+        return -1;
+
+    if (dec->read + samples > OUTPUT_BUFFER_LENGTH)
+    {
+        const unsigned int available = OUTPUT_BUFFER_LENGTH - dec->read;
+        const unsigned int remaining = samples - available;
+
+        memcpy(buffer, &dec->output_buffer[dec->read], available * sizeof(*buffer));
+        memcpy(&buffer[available], dec->output_buffer, remaining * sizeof(*buffer));
+        dec->read = remaining;
+    }
+    else
+    {
+        memcpy(buffer, &dec->output_buffer[dec->read], samples * sizeof(*buffer));
+        dec->read = (dec->read + samples) % OUTPUT_BUFFER_LENGTH;
+    }
+
+    return 0;
+}
+
+static unsigned int output_align_source(decoder_t *dec, unsigned int input, int round, int mode)
+{
+    unsigned int iq_num, frames;
+
+    if (mode == NRSC5_MODE_FM)
+        iq_num = input * RADIO_FM_DEM;
+    else
+        iq_num = input * RADIO_AM_DEM;
+
+    if(!round)
+        iq_num += dec->leftover;
+
+    frames = iq_num / RADIO_NUM;
+
+    if (round && iq_num % RADIO_NUM > 0)
+        frames += 1;
+    else if (!round)
+        dec->leftover = iq_num % RADIO_NUM;
+
+    return frames * AUDIO_FRAME_CHANNELS;
+}
+#endif
+
+static void elastic_decode_packet(output_t *st, unsigned int program, int16_t **audio, unsigned int *frames)
+{
+    elastic_buffer_t *elastic = &st->elastic[program][0];
+#ifdef USE_FAAD2
+    decoder_t *dec = &st->decoder[program];
+#endif
+
+    if (elastic->ptr[elastic->read].size != 0)
+    {
+        nrsc5_report_hdc(st->radio, program, elastic->ptr[elastic->read].data, elastic->ptr[elastic->read].size);
+
+#ifdef USE_FAAD2
+        NeAACDecFrameInfo info;
+        void *buffer;
+
+        if (!dec->aacdec)
+        {
+            unsigned long samprate = 22050;
+            NeAACDecInitHDC(&dec->aacdec, &samprate);
+        }
+
+        buffer = NeAACDecDecode(dec->aacdec, &info, elastic->ptr[elastic->read].data,
+                                elastic->ptr[elastic->read].size);
+        if (info.error > 0)
+            log_error("Decode error: %s", NeAACDecGetErrorMessage(info.error));
+
+        if (info.error > 0 || info.samples == 0)
+        {
+            *audio = st->silence;
+            *frames = AUDIO_FRAME_LENGTH;
+        }
+        else
+        {
+            assert(info.samples == AUDIO_FRAME_LENGTH);
+            *audio = buffer;
+            *frames = info.samples;
+        }
+    }
+    else
+    {
+        *audio = st->silence;
+        *frames = AUDIO_FRAME_LENGTH;
+
+        // Reset decoder. Missing packets.
+        if (dec->aacdec)
+        {
+            NeAACDecClose(dec->aacdec);
+            dec->aacdec = NULL;
+        }
+#endif
+    }
+
+    elastic->ptr[elastic->read].size = 0;
+    elastic->read = (elastic->read + 1) % elastic->size;
+}
+
+void output_align(output_t *st, unsigned int program, unsigned int stream_id, unsigned int pdu_seq, unsigned int latency, unsigned int avg, unsigned int seq, unsigned int nop)
+{
+    elastic_buffer_t *elastic = &st->elastic[program][stream_id];
 
     if (stream_id != 0)
         return; // TODO: Process enhanced stream
 
-#ifdef USE_FAAD2
-    void *buffer;
-    NeAACDecFrameInfo info;
+    elastic->latency = latency * 2;
+    elastic->avg = avg;
 
-    if (!st->aacdec[program])
+    if (!elastic->ptr)
     {
-        unsigned long samprate = 22050;
-        NeAACDecInitHDC(&st->aacdec[program], &samprate);
+        elastic->delay = elastic->latency;
+        elastic->size  = MAX_AUDIO_PACKETS;
+        elastic->ptr   = malloc(elastic->size * sizeof(*elastic->ptr));
+
+        for (unsigned int i = 0; i < elastic->size; i++)
+        {
+            elastic->ptr[i].size = 0;
+            elastic->ptr[i].seq = -1;
+        }
+
+        elastic->clock = st->radio->mode == NRSC5_MODE_FM ? FFT_FM : FFT_AM;
+        elastic->write = seq;
+        elastic->ptr[elastic->write].seq = seq;
+
+        // TODO: Calculate current delay based on sequence number
+        elastic->read = (seq - elastic->latency) % elastic->size;
     }
 
-    buffer = NeAACDecDecode(st->aacdec[program], &info, pkt, len);
-    if (info.error > 0)
-        log_error("Decode error: %s", NeAACDecGetErrorMessage(info.error));
+#ifdef USE_FAAD2
+    decoder_t *dec = &st->decoder[program];
 
-    if (info.error == 0 && info.samples > 0)
-        nrsc5_report_audio(st->radio, program, buffer, info.samples);
+    if (!dec->output_buffer)
+    {
+        dec->output_buffer = malloc(OUTPUT_BUFFER_LENGTH * sizeof(*dec->output_buffer));
+        memset(dec->output_buffer, 0, OUTPUT_BUFFER_LENGTH * sizeof(*dec->output_buffer));
+
+        // FFT decode delay
+        if (st->radio->mode == NRSC5_MODE_FM)
+            dec->write = FFTCP_FM * RADIO_FM_DEM / RADIO_NUM * AUDIO_FRAME_CHANNELS;
+        else
+            dec->write = FFTCP_AM * RADIO_AM_DEM / RADIO_NUM * AUDIO_FRAME_CHANNELS;
+    }
 #endif
+}
+
+void output_advance_elastic(output_t *st, int pos, unsigned int used)
+{
+    // TODO maybe add resync here based on OFDM sequence numbers?
+
+    for (int i = 0; i < MAX_PROGRAMS; i++)
+    {
+        elastic_buffer_t *elastic = &st->elastic[i][0];
+        decoder_t *dec = &st->decoder[i];
+        unsigned int sample_avg = elastic_average_samples(st, elastic);
+
+        // Skip if no buffer
+        if (!elastic->ptr)
+            continue;
+
+        if (dec->input_start_pos == -1)
+            dec->input_start_pos = pos;
+
+        // Packet clock
+        elastic->clock += used;
+
+        // Decode packets based on average
+        while (elastic->clock >= sample_avg)
+        {
+            int16_t *audio;
+            unsigned int decoded_frames;
+
+            for (unsigned int j = 0; j < elastic->avg; j++)
+            {
+                elastic_decode_packet(st, i, &audio, &decoded_frames);
+#ifdef USE_FAAD2
+                if (decoder_buffer_write(dec, audio, decoded_frames) < 0)
+                {
+                    log_debug("Decoder buffer full for program: %d. Skipped samples. bug?", i);
+                }
+                dec->started = 1;
+#endif
+            }
+            elastic->clock -= sample_avg;
+        }
+
+    }
+}
+
+void output_advance(output_t *st, unsigned int len, int mode)
+{
+#ifdef USE_FAAD2
+    // Output audio samples
+    for (int i = 0; i < MAX_PROGRAMS; i++)
+    {
+        decoder_t *dec = &st->decoder[i];
+
+        int16_t *audio_frame;
+        unsigned int iq_hd_samples, iq_delay_samples;
+        unsigned int audio_frames, silence_frames, frames_len;
+
+        // Skip if no buffer
+        if (!dec->started)
+            continue;
+
+        // Program started in the middle of the sample.
+        // Insert silence to makeup for it. It takes time to generate samples
+        if (dec->input_start_pos > 0)
+        {
+            iq_hd_samples = len - dec->input_start_pos;
+            iq_delay_samples = len - iq_hd_samples;
+        }
+        else
+        {
+            iq_hd_samples = len;
+            iq_delay_samples = 0;
+        }
+
+        audio_frames = output_align_source(dec, iq_hd_samples, 0, mode);
+        silence_frames = output_align_source(dec, iq_delay_samples, 1, mode);
+        frames_len = audio_frames + silence_frames;
+
+        audio_frame = malloc(frames_len * sizeof(*audio_frame));
+        memset(audio_frame, 0, silence_frames * sizeof(*audio_frame));
+
+        if (decoder_buffer_read_available(dec) < audio_frames)
+        {
+            log_error("Missing output samples for program %d. Requested: %d Available: %d", i, audio_frames, decoder_buffer_read_available(dec));
+            audio_frames = decoder_buffer_read_available(dec);
+        }
+
+        decoder_buffer_read(dec, audio_frame + silence_frames, audio_frames);
+        nrsc5_report_audio(st->radio, i, audio_frame, frames_len);
+
+        free(audio_frame);
+
+        // Reset
+        dec->input_start_pos = -1;
+    }
+#endif
+}
+
+void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int program, unsigned int stream_id, unsigned int seq)
+{
+    elastic_buffer_t *elastic = &st->elastic[program][stream_id];
+
+    if (stream_id != 0)
+        return; // TODO: Process enhanced stream
+
+    if (elastic->ptr[seq].size != 0)
+        log_warn("Packet %d already exists in elastic buffer for program %d. Overwriting.", seq, program);
+
+    memcpy(elastic->ptr[seq].data, pkt, len);
+    elastic->ptr[seq].size = len;
+    elastic->ptr[seq].seq = seq;
+
+    elastic->write = seq;
 }
 
 static void aas_free_lot(aas_file_t *file)
@@ -92,26 +385,53 @@ void output_reset(output_t *st)
 {
     aas_reset(st);
 
-#ifdef USE_FAAD2
     for (int i = 0; i < MAX_PROGRAMS; i++)
     {
-        if (st->aacdec[i])
-            NeAACDecClose(st->aacdec[i]);
-        st->aacdec[i] = NULL;
-    }
+        for (int j = 0; j < MAX_STREAMS; j++)
+        {
+            elastic_buffer_t *buffer = &st->elastic[i][j];
+
+            buffer->write = 0;
+            buffer->read = 0;
+            buffer->clock = 0;
+
+            if (buffer->ptr)
+                free(buffer->ptr);
+            buffer->ptr = NULL;
+        }
+
+#ifdef USE_FAAD2
+        decoder_t *dec = &st->decoder[i];
+        if (dec->aacdec)
+            NeAACDecClose(dec->aacdec);
+        dec->aacdec = NULL;
+
+        dec->leftover = 0;
+        dec->write = 0;
+        dec->read = 0;
+        dec->delay = 0;
+        dec->started = 0;
+        dec->input_start_pos = -1;
+
+        if (dec->output_buffer)
+            free(dec->output_buffer);
+        dec->output_buffer = NULL;
 #endif
+    }
 }
 
 void output_init(output_t *st, nrsc5_t *radio)
 {
     st->radio = radio;
-#ifdef USE_FAAD2
-    for (int i = 0; i < MAX_PROGRAMS; i++)
-        st->aacdec[i] = NULL;
-#endif
 
     memset(st->ports, 0, sizeof(st->ports));
     memset(st->services, 0, sizeof(st->services));
+
+#ifdef USE_FAAD2
+    memset(st->decoder, 0, sizeof(st->decoder));
+    memset(st->elastic, 0, sizeof(st->elastic));
+    memset(st->silence, 0, sizeof(st->silence));
+#endif
 
     output_reset(st);
 }

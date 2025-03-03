@@ -105,6 +105,7 @@ typedef struct
     unsigned int write, read, leftover, delay;
 
     int input_start_pos;
+    int started;
 } decoder_t;
 #endif
 

@@ -39,24 +39,6 @@ static unsigned int elastic_average_samples(const output_t *st, const elastic_bu
     return dec->avg * (st->radio->mode == NRSC5_MODE_FM ? RADIO_FRAME_SAMPLES_FM : RADIO_FRAME_SAMPLES_AM);
 }
 
-static unsigned int elastic_compute_sequence_position(const elastic_buffer_t *elastic, unsigned int seq)
-{
-    return (MAX_AUDIO_PACKETS + seq - elastic->ptr[elastic->write].seq) % MAX_AUDIO_PACKETS;
-}
-
-static void elastic_realign_forward(elastic_buffer_t *elastic, unsigned int forward, unsigned int pdu_seq, unsigned int avg, unsigned int seq)
-{
-    elastic->write = (elastic->write + forward) % elastic->size;
-    elastic->ptr[elastic->write].seq = seq;
-
-    unsigned int offset = pdu_seq * avg;
-
-    if (((offset + 64 - seq) % MAX_AUDIO_PACKETS) < 32)
-        offset = (offset + 32) % MAX_AUDIO_PACKETS;
-
-    elastic->read = (elastic->write - elastic->delay - seq + offset) % elastic->size;
-}
-
 static unsigned int elastic_write_available(const elastic_buffer_t *elastic)
 {
     return elastic->size - elastic->write + elastic->read - 1;
@@ -207,7 +189,6 @@ static void elastic_decode_packet(output_t *st, unsigned int program, int16_t **
 void output_align(output_t *st, unsigned int program, unsigned int stream_id, unsigned int pdu_seq, unsigned int latency, unsigned int avg, unsigned int seq, unsigned int nop)
 {
     elastic_buffer_t *elastic = &st->elastic[program][stream_id];
-    unsigned int forward;
 
     if (stream_id != 0)
         return; // TODO: Process enhanced stream
@@ -215,12 +196,10 @@ void output_align(output_t *st, unsigned int program, unsigned int stream_id, un
     elastic->latency = latency * 2;
     elastic->avg = avg;
 
-    // Create Elastic buffer
     if (!elastic->ptr)
     {
-        // Buffer Diagram: ||delay|| + ||64|| + ||delay||
         elastic->delay = elastic->latency;
-        elastic->size  = (elastic->delay * 2) + MAX_AUDIO_PACKETS;
+        elastic->size  = MAX_AUDIO_PACKETS;
         elastic->ptr   = malloc(elastic->size * sizeof(*elastic->ptr));
 
         for (unsigned int i = 0; i < elastic->size; i++)
@@ -229,30 +208,12 @@ void output_align(output_t *st, unsigned int program, unsigned int stream_id, un
             elastic->ptr[i].seq = -1;
         }
 
-        // Startup the buffer
-        elastic->write = elastic->delay;
+        elastic->clock = st->radio->mode == NRSC5_MODE_FM ? FFT_FM : FFT_AM;
+        elastic->write = seq;
+        elastic->ptr[elastic->write].seq = seq;
 
-        // Startup the clock
-        elastic->clock = elastic_average_samples(st, elastic);
-
-        // Align Writer (buffer->delay + seq) & Reader
-        elastic_realign_forward(elastic, seq, pdu_seq, avg, seq);
-
-        log_debug("Elastic buffer created. Program: %d, Size %d bytes, Read %d pos, Write: %d pos, Delay: %d, Average: %d", program, elastic->size, elastic->read, elastic->write, elastic->delay, elastic->avg);
-    }
-    else
-    {
-        // FIXME: Figure out a better way to design the buffer to avoid needing to re-sync
-        //  This is due to "lag" that could happen.
-        //  We are relying on reader to have the correct sequence number to delay the writer
-
-        // Re-sync (lost-synchronization with reader and writer)
-        forward = elastic_compute_sequence_position(elastic, seq);
-        if (elastic_write_available(elastic) < forward + nop)
-        {
-            elastic_realign_forward(elastic, forward, pdu_seq, avg, seq);
-            log_debug("Elastic buffer realigned. Program: %d, Read %d pos, Write: %d pos", program, elastic->read, elastic->write);
-        }
+        // TODO: Calculate current delay based on sequence number
+        elastic->read = (seq - elastic->latency) % elastic->size;
     }
 
 #ifdef USE_FAAD2
@@ -274,6 +235,8 @@ void output_align(output_t *st, unsigned int program, unsigned int stream_id, un
 
 void output_advance_elastic(output_t *st, int pos, unsigned int used)
 {
+    // TODO maybe add resync here based on OFDM sequence numbers?
+
     for (int i = 0; i < MAX_PROGRAMS; i++)
     {
         elastic_buffer_t *elastic = &st->elastic[i][0];
@@ -304,6 +267,7 @@ void output_advance_elastic(output_t *st, int pos, unsigned int used)
                 {
                     log_debug("Decoder buffer full for program: %d. Skipped samples. bug?", i);
                 }
+                dec->started = 1;
 #endif
             }
             elastic->clock -= sample_avg;
@@ -325,15 +289,15 @@ void output_advance(output_t *st, unsigned int len, int mode)
         unsigned int audio_frames, silence_frames, frames_len;
 
         // Skip if no buffer
-        if (st->elastic[i][0].write == 0)
+        if (!dec->started)
             continue;
 
         // Program started in the middle of the sample.
         // Insert silence to makeup for it. It takes time to generate samples
         if (dec->input_start_pos > 0)
         {
-            iq_hd_samples = (len - dec->input_start_pos);
-            iq_delay_samples = (len - iq_hd_samples);
+            iq_hd_samples = len - dec->input_start_pos;
+            iq_delay_samples = len - iq_hd_samples;
         }
         else
         {
@@ -350,7 +314,7 @@ void output_advance(output_t *st, unsigned int len, int mode)
 
         if (decoder_buffer_read_available(dec) < audio_frames)
         {
-            log_error("Missing output samples. Requested: %d Available: %d", audio_frames, decoder_buffer_read_available(dec));
+            log_error("Missing output samples for program %d. Requested: %d Available: %d", i, audio_frames, decoder_buffer_read_available(dec));
             audio_frames = decoder_buffer_read_available(dec);
         }
 
@@ -372,20 +336,14 @@ void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int prog
     if (stream_id != 0)
         return; // TODO: Process enhanced stream
 
-    if (elastic_write_available(elastic) == 0)
-    {
-        log_error("elastic buffer full. skipped packet. bug?");
-        return;
-    }
+    if (elastic->ptr[seq].size != 0)
+        log_warn("Packet %d already exists in elastic buffer for program %d. Overwriting.", seq, program);
 
-    unsigned int forward = elastic_compute_sequence_position(elastic, seq);
-    unsigned int pos = (elastic->write + forward) % elastic->size;
+    memcpy(elastic->ptr[seq].data, pkt, len);
+    elastic->ptr[seq].size = len;
+    elastic->ptr[seq].seq = seq;
 
-    memcpy(elastic->ptr[pos].data, pkt, len);
-    elastic->ptr[pos].size = len;
-    elastic->ptr[pos].seq = seq;
-
-    elastic->write = pos;
+    elastic->write = seq;
 }
 
 static void aas_free_lot(aas_file_t *file)
@@ -452,6 +410,7 @@ void output_reset(output_t *st)
         dec->write = 0;
         dec->read = 0;
         dec->delay = 0;
+        dec->started = 0;
         dec->input_start_pos = -1;
 
         if (dec->output_buffer)
@@ -469,12 +428,8 @@ void output_init(output_t *st, nrsc5_t *radio)
     memset(st->services, 0, sizeof(st->services));
 
 #ifdef USE_FAAD2
-    for (int i = 0; i < MAX_PROGRAMS; i++)
-    {
-        st->decoder[i].aacdec = NULL;
-        st->decoder[i].leftover = 0;
-    }
-
+    memset(st->decoder, 0, sizeof(st->decoder));
+    memset(st->elastic, 0, sizeof(st->elastic));
     memset(st->silence, 0, sizeof(st->silence));
 #endif
 

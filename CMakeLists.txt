@@ -219,7 +219,7 @@ if (USE_FAAD2)
         faad2_external
         TIMEOUT 120
         GIT_REPOSITORY "https://github.com/knik0/faad2.git"
-        GIT_TAG 66cfdb9059f6e1ee4a41adcf2008b29fc6267561
+        GIT_TAG 2.11.2
         PREFIX ${FAAD2_PREFIX}
 
         UPDATE_COMMAND ""

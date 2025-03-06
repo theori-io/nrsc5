@@ -30,7 +30,7 @@ You can test the program using the included sample capture:
 
 Follow the Ubuntu instructions above, but replace the first command with the following:
 
-    sudo dnf install make patch cmake autoconf libtool libao-devel fftw-devel rtl-sdr-devel libusb-devel
+    sudo dnf install git make patch cmake autoconf libtool libao-devel fftw-devel rtl-sdr-devel libusb1-devel
 
 ## Building on openSUSE
 

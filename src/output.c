@@ -39,11 +39,6 @@ static unsigned int elastic_average_samples(const output_t *st, const elastic_bu
     return dec->avg * (st->radio->mode == NRSC5_MODE_FM ? RADIO_FRAME_SAMPLES_FM : RADIO_FRAME_SAMPLES_AM);
 }
 
-static unsigned int elastic_write_available(const elastic_buffer_t *elastic)
-{
-    return elastic->size - elastic->write + elastic->read - 1;
-}
-
 #ifdef USE_FAAD2
 static unsigned int decoder_buffer_write_available(const decoder_t *st)
 {
@@ -208,12 +203,14 @@ void output_align(output_t *st, unsigned int program, unsigned int stream_id, un
             elastic->ptr[i].seq = -1;
         }
 
-        elastic->clock = st->radio->mode == NRSC5_MODE_FM ? FFT_FM : FFT_AM;
-        elastic->write = seq;
-        elastic->ptr[elastic->write].seq = seq;
+        elastic->clock = elastic_average_samples(st, elastic);
 
-        // TODO: Calculate current delay based on sequence number
-        elastic->read = (seq - elastic->latency) % elastic->size;
+        unsigned int offset = pdu_seq * avg;
+
+        if ((offset + MAX_AUDIO_PACKETS - seq) % MAX_AUDIO_PACKETS >= 32)
+            offset = (offset + 32) % MAX_AUDIO_PACKETS;
+
+        elastic->read = (offset - elastic->latency) % elastic->size;
     }
 
 #ifdef USE_FAAD2
@@ -272,8 +269,24 @@ void output_advance_elastic(output_t *st, int pos, unsigned int used)
             }
             elastic->clock -= sample_avg;
         }
-
     }
+}
+
+void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int program, unsigned int stream_id, unsigned int seq)
+{
+    elastic_buffer_t *elastic = &st->elastic[program][stream_id];
+
+    if (stream_id != 0)
+        return; // TODO: Process enhanced stream
+
+    if (elastic->ptr[seq].size != 0)
+        log_warn("Packet %d already exists in elastic buffer for program %d. Overwriting.", seq, program);
+
+    memcpy(elastic->ptr[seq].data, pkt, len);
+    elastic->ptr[seq].size = len;
+    elastic->ptr[seq].seq = seq;
+
+    elastic->last_write = seq;
 }
 
 void output_advance(output_t *st, unsigned int len, int mode)
@@ -329,23 +342,6 @@ void output_advance(output_t *st, unsigned int len, int mode)
 #endif
 }
 
-void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int program, unsigned int stream_id, unsigned int seq)
-{
-    elastic_buffer_t *elastic = &st->elastic[program][stream_id];
-
-    if (stream_id != 0)
-        return; // TODO: Process enhanced stream
-
-    if (elastic->ptr[seq].size != 0)
-        log_warn("Packet %d already exists in elastic buffer for program %d. Overwriting.", seq, program);
-
-    memcpy(elastic->ptr[seq].data, pkt, len);
-    elastic->ptr[seq].size = len;
-    elastic->ptr[seq].seq = seq;
-
-    elastic->write = seq;
-}
-
 static void aas_free_lot(aas_file_t *file)
 {
     free(file->name);
@@ -391,7 +387,6 @@ void output_reset(output_t *st)
         {
             elastic_buffer_t *buffer = &st->elastic[i][j];
 
-            buffer->write = 0;
             buffer->read = 0;
             buffer->clock = 0;
 
@@ -428,8 +423,6 @@ void output_init(output_t *st, nrsc5_t *radio)
     memset(st->services, 0, sizeof(st->services));
 
 #ifdef USE_FAAD2
-    memset(st->decoder, 0, sizeof(st->decoder));
-    memset(st->elastic, 0, sizeof(st->elastic));
     memset(st->silence, 0, sizeof(st->silence));
 #endif
 

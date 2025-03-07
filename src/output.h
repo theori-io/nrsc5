@@ -113,7 +113,7 @@ typedef struct
 {
     packet_t *ptr;
 
-    unsigned int size, read, write;
+    unsigned int size, read, last_write;
     unsigned int latency, avg, delay;
 
     unsigned int clock;

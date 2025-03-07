@@ -17,7 +17,7 @@ option (USE_SYSTEM_LIBUSB "Use system provided libusb" ON)
 option (USE_SYSTEM_LIBAO "Use system provided libao" ON)
 option (BUILD_DOC "Build API documentation" OFF)
 
-set (FAAD2_CONFIGURE_ARGS "" CACHE STRING "Extra arguments for FAAD2 configure command")
+set (FAAD2_CMAKE_ARGS "" CACHE STRING "Extra arguments for FAAD2 cmake command")
 set (LIBRARY_DEBUG_LEVEL "5" CACHE STRING "Debug logging level for libnrsc5: 1=debug, 2=info, 3=warn, 4=error, 5=none")
 set (HOST_TRIPLE "${HOST_TRIPLE_DEFAULT}" CACHE STRING "Override default host triple")
 if (HOST_TRIPLE)
@@ -219,14 +219,19 @@ if (USE_FAAD2)
         faad2_external
         TIMEOUT 120
         GIT_REPOSITORY "https://github.com/knik0/faad2.git"
-        GIT_TAG df42c6fc018552519d140e3d8ffe7046ed48b0cf
+        GIT_TAG 2.11.2
         PREFIX ${FAAD2_PREFIX}
 
         UPDATE_COMMAND ""
         PATCH_COMMAND patch -p1 -Ni "${CMAKE_SOURCE_DIR}/support/faad2-hdc-support.patch" || exit 0
-        COMMAND sh ./bootstrap
 
-        CONFIGURE_COMMAND ${FAAD2_PREFIX}/src/faad2_external/configure ${HOST_TRIPLE_ARG} ${FAAD2_CONFIGURE_ARGS} --prefix=${FAAD2_PREFIX} --libdir=${FAAD2_PREFIX}/lib "CFLAGS=-O2 -fPIC ${CMAKE_C_FLAGS}"
+        CMAKE_ARGS
+        -DBUILD_SHARED_LIBS:BOOL=OFF
+        -DCMAKE_INSTALL_PREFIX:STRING=${FAAD2_PREFIX}
+        -DCMAKE_C_COMPILER:STRING=${CMAKE_C_COMPILER}
+        -DCMAKE_SYSTEM_NAME:STRING=${CMAKE_SYSTEM_NAME}
+        "-DCMAKE_C_FLAGS=${CMAKE_C_FLAGS} -O2 -fPIC"
+        ${FAAD2_CMAKE_ARGS}
     )
 
     add_library (faad2 STATIC IMPORTED)

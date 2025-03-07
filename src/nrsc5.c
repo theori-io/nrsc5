@@ -5,14 +5,6 @@
 
 pthread_mutex_t fftw_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-static int snr_callback(void *arg, float snr)
-{
-    nrsc5_t *st = arg;
-    st->auto_gain_snr_ready = 1;
-    st->auto_gain_snr = snr;
-    return 1;
-}
-
 static int get_tuner_gains(nrsc5_t *st, int *gains)
 {
     if (st->dev)
@@ -33,9 +25,7 @@ static int do_auto_gain(nrsc5_t *st)
 {
     int gain_count, best_gain = 0, ret = 1;
     int *gain_list = NULL;
-    float best_snr = 0;
-
-    input_set_snr_callback(&st->input, snr_callback, st);
+    float best_amplitude_db = 0.0f;
 
     gain_count = get_tuner_gains(st, NULL);
     if (gain_count < 0)
@@ -63,42 +53,47 @@ static int do_auto_gain(nrsc5_t *st)
             rtltcp_reset_buffer(st->rtltcp, (NRSC5_SAMPLE_RATE_CU8 / 4) * 2);
         }
 
-        st->auto_gain_snr_ready = 0;
-        while (!st->auto_gain_snr_ready)
+        int len = sizeof(st->samples_buf);
+
+        if (st->dev)
         {
-            int len = sizeof(st->samples_buf);
-
-            if (st->dev)
-            {
-                if (rtlsdr_read_sync(st->dev, st->samples_buf, len, &len) != 0)
-                    goto error;
-            }
-            else
-            {
-                assert(st->rtltcp);
-                if (rtltcp_read(st->rtltcp, st->samples_buf, len) != len)
-                    goto error;
-            }
-
-            input_push_cu8(&st->input, st->samples_buf, len);
+            if (rtlsdr_read_sync(st->dev, st->samples_buf, len, &len) != 0)
+                goto error;
         }
-        log_debug("Gain: %.1f dB, CNR: %.1f dB", gain / 10.0f, 10 * log10f(st->auto_gain_snr));
-        if (st->auto_gain_snr > best_snr)
+        else
         {
-            best_snr = st->auto_gain_snr;
+            assert(st->rtltcp);
+            if (rtltcp_read(st->rtltcp, st->samples_buf, len) != len)
+                goto error;
+        }
+
+        uint8_t max_sample = 0;
+        uint8_t min_sample = 255;
+        for (int j = 0; j < len; j++)
+        {
+            if (st->samples_buf[j] > max_sample)
+                max_sample = st->samples_buf[j];
+            if (st->samples_buf[j] < min_sample)
+                min_sample = st->samples_buf[j];
+        }
+
+        float amplitude_db = 20 * log10f((max_sample - min_sample + 1) / 256.0f);
+        log_debug("Gain: %.1f dB, Peak amplitude: %.1f dBFS", gain / 10.0f, amplitude_db);
+
+        if ((i == 0) || (amplitude_db < -6.0f))
+        {
             best_gain = gain;
+            best_amplitude_db = amplitude_db;
         }
-        input_reset(&st->input);
     }
 
-    log_debug("Best gain: %.1f dB, CNR: %.1f dB", best_gain / 10.0f, 10 * log10f(best_snr));
+    log_debug("Best gain: %.1f dB, Peak amplitude: %.1f dBFS", best_gain / 10.0f, best_amplitude_db);
     st->gain = best_gain;
     set_tuner_gain(st, best_gain);
     ret = 0;
 
 error:
     free(gain_list);
-    input_set_snr_callback(&st->input, NULL, NULL);
     return ret;
 }
 

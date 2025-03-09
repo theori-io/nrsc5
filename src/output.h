@@ -102,7 +102,7 @@ typedef struct
     NeAACDecHandle aacdec;
 
     int16_t* output_buffer;
-    unsigned int write, read, leftover, delay;
+    unsigned int write, read, leftover;
 
     int input_start_pos;
     int started;
@@ -113,8 +113,8 @@ typedef struct
 {
     packet_t *ptr;
 
-    unsigned int size, read, last_write;
-    unsigned int latency, avg, delay;
+    unsigned int read;
+    unsigned int latency, avg;
 
     unsigned int clock;
 } elastic_buffer_t;
@@ -132,7 +132,7 @@ typedef struct
 #endif
 } output_t;
 
-void output_align(output_t *st, unsigned int program, unsigned int stream_id, unsigned int pdu_seq, unsigned int latency, unsigned int avg, unsigned int seq, unsigned int nop);
+void output_align(output_t *st, unsigned int program, unsigned int stream_id, unsigned int pdu_seq, unsigned int latency, unsigned int avg, unsigned int seq);
 void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int program, unsigned int stream_id, unsigned int seq);
 void output_advance_elastic(output_t *st, int pos, unsigned int used);
 void output_advance(output_t *st, unsigned int len, int mode);

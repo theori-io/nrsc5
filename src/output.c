@@ -178,10 +178,10 @@ static void elastic_decode_packet(output_t *st, unsigned int program, int16_t **
     }
 
     elastic->ptr[elastic->read].size = 0;
-    elastic->read = (elastic->read + 1) % elastic->size;
+    elastic->read = (elastic->read + 1) % MAX_AUDIO_PACKETS;
 }
 
-void output_align(output_t *st, unsigned int program, unsigned int stream_id, unsigned int pdu_seq, unsigned int latency, unsigned int avg, unsigned int seq, unsigned int nop)
+void output_align(output_t *st, unsigned int program, unsigned int stream_id, unsigned int pdu_seq, unsigned int latency, unsigned int avg, unsigned int seq)
 {
     elastic_buffer_t *elastic = &st->elastic[program][stream_id];
 
@@ -193,11 +193,9 @@ void output_align(output_t *st, unsigned int program, unsigned int stream_id, un
 
     if (!elastic->ptr)
     {
-        elastic->delay = elastic->latency;
-        elastic->size  = MAX_AUDIO_PACKETS;
-        elastic->ptr   = malloc(elastic->size * sizeof(*elastic->ptr));
+        elastic->ptr = malloc(MAX_AUDIO_PACKETS * sizeof(*elastic->ptr));
 
-        for (unsigned int i = 0; i < elastic->size; i++)
+        for (unsigned int i = 0; i < MAX_AUDIO_PACKETS; i++)
         {
             elastic->ptr[i].size = 0;
             elastic->ptr[i].seq = -1;
@@ -210,7 +208,7 @@ void output_align(output_t *st, unsigned int program, unsigned int stream_id, un
         if ((offset + MAX_AUDIO_PACKETS - seq) % MAX_AUDIO_PACKETS >= 32)
             offset = (offset + 32) % MAX_AUDIO_PACKETS;
 
-        elastic->read = (offset - elastic->latency) % elastic->size;
+        elastic->read = (MAX_AUDIO_PACKETS + offset - elastic->latency) % MAX_AUDIO_PACKETS;
     }
 
 #ifdef USE_FAAD2
@@ -285,8 +283,6 @@ void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int prog
     memcpy(elastic->ptr[seq].data, pkt, len);
     elastic->ptr[seq].size = len;
     elastic->ptr[seq].seq = seq;
-
-    elastic->last_write = seq;
 }
 
 void output_advance(output_t *st, unsigned int len, int mode)
@@ -404,7 +400,6 @@ void output_reset(output_t *st)
         dec->leftover = 0;
         dec->write = 0;
         dec->read = 0;
-        dec->delay = 0;
         dec->started = 0;
         dec->input_start_pos = -1;
 

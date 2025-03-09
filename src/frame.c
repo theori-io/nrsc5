@@ -562,7 +562,7 @@ void frame_process(frame_t *st, size_t length, logical_channel_t lc)
         avg = calc_avg_packets(&hdr);
         seq = (MAX_AUDIO_PACKETS + hdr.seq - hdr.pfirst) % MAX_AUDIO_PACKETS;
 
-        output_align(st->input->output, prog, hdr.stream_id, hdr.pdu_seq, hdr.latency, avg, seq, hdr.nop);
+        output_align(st->input->output, prog, hdr.stream_id, hdr.pdu_seq, hdr.latency, avg, seq);
 
         parse_hdlc(st, aas_push, st->psd_buf[prog], &st->psd_idx[prog], MAX_AAS_LEN, st->buffer + offset, start + hdr.la_location + 1 - offset, lc);
         offset = start + hdr.la_location + 1;

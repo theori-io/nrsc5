@@ -84,7 +84,7 @@ static ao_sample_format sample_format = {
     "L,R"
 };
 
-static ao_device *open_ao_live()
+static ao_device *open_ao_live(void)
 {
     return ao_open_live(ao_default_driver_id(), &sample_format, NULL);
 }

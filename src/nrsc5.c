@@ -286,7 +286,7 @@ void nrsc5_program_type_name(unsigned int type, const char **name)
     }
 }
 
-static nrsc5_t *nrsc5_alloc()
+static nrsc5_t *nrsc5_alloc(void)
 {
     nrsc5_t *st = calloc(1, sizeof(*st));
     return st;

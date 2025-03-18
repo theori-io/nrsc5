@@ -283,6 +283,7 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
     nrsc5_sig_component_t *sig_component;
     nrsc5_sis_asd_t *audio_service;
     nrsc5_sis_dsd_t *data_service;
+    nrsc5_id3_comm *comment;
 
     switch (evt->event)
     {
@@ -335,6 +336,8 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
                 log_info("Album: %s", evt->id3.album);
             if (evt->id3.genre)
                 log_info("Genre: %s", evt->id3.genre);
+            for (comment = evt->id3.comments; comment != NULL; comment = comment->next)
+                log_info("Comment: lang=%s %s %s", comment->lang, comment->short_content, comment->actual_text);
             if (evt->id3.ufid.owner)
                 log_info("Unique file identifier: %s %s", evt->id3.ufid.owner, evt->id3.ufid.id);
             if (evt->id3.xhdr.param >= 0)

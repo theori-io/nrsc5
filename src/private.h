@@ -57,6 +57,7 @@ void nrsc5_report_packet(nrsc5_t *, uint16_t port, uint16_t seq, unsigned int si
 void nrsc5_report_lot(nrsc5_t *, uint16_t port, unsigned int lot, unsigned int size, uint32_t mime, const char *name, const uint8_t *data, struct tm *expiry_utc);
 void nrsc5_report_sig(nrsc5_t *, sig_service_t *services, unsigned int count);
 void nrsc5_report_sis(nrsc5_t *, const char *country_code, int fcc_facility_id, const char *name,
-                      const char *slogan, const char *message, const char *alert,
+                      const char *slogan, const char *message, const char *alert, const uint8_t *cnt, int cnt_length,
+                      int category1, int category2, int location_format, int num_locations, const int *locations,
                       float latitude, float longitude, int altitude, nrsc5_sis_asd_t *audio_services,
                       nrsc5_sis_dsd_t *data_services);

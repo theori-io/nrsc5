@@ -3,6 +3,7 @@ LIBNRSC5_1.0 {
         nrsc5_get_version;
         nrsc5_service_data_type_name;
         nrsc5_program_type_name;
+        nrsc5_alert_category_name;
         nrsc5_open;
         nrsc5_open_file;
         nrsc5_open_pipe;

@@ -203,6 +203,30 @@ enum
     NRSC5_PROGRAM_TYPE_SPECIAL_READING_SERVICES = 76
 };
 
+enum
+{
+    NRSC5_LOCATION_FORMAT_SAME,
+    NRSC5_LOCATION_FORMAT_FIPS,
+    NRSC5_LOCATION_FORMAT_ZIP
+};
+
+enum
+{
+    NRSC5_ALERT_CATEGORY_NON_SPECIFIC = 1,
+    NRSC5_ALERT_CATEGORY_GEOPHYSICAL = 2,
+    NRSC5_ALERT_CATEGORY_WEATHER = 3,
+    NRSC5_ALERT_CATEGORY_SAFETY = 4,
+    NRSC5_ALERT_CATEGORY_SECURITY = 5,
+    NRSC5_ALERT_CATEGORY_RESCUE = 6,
+    NRSC5_ALERT_CATEGORY_FIRE = 7,
+    NRSC5_ALERT_CATEGORY_HEALTH = 8,
+    NRSC5_ALERT_CATEGORY_ENVIRONMENTAL = 9,
+    NRSC5_ALERT_CATEGORY_TRANSPORTATION = 10,
+    NRSC5_ALERT_CATEGORY_UTILITIES = 11,
+    NRSC5_ALERT_CATEGORY_HAZMAT = 12,
+    NRSC5_ALERT_CATEGORY_TEST = 30
+};
+
 /**
  * Station Information Service *Audio* service descriptor. This is a
  * linked list element that may point to further audio service
@@ -385,6 +409,13 @@ struct nrsc5_event_t
             int altitude;
             nrsc5_sis_asd_t *audio_services;
             nrsc5_sis_dsd_t *data_services;
+            const uint8_t *alert_cnt;
+            int alert_cnt_length;
+            int alert_category1;
+            int alert_category2;
+            int alert_location_format;
+            int alert_num_locations;
+            const int *alert_locations;
         } sis;
     };
 };
@@ -425,21 +456,31 @@ NRSC5_API void nrsc5_get_version(const char **version);
  * @param[out] name  character pointer to a string naming the service type
  *
  * This name will be quite short, e.g. "News" or "Weather". If the type is
- * not recognized, it will the string "Unknown".
+ * not recognized, it will be the string "Unknown".
  */
 NRSC5_API void nrsc5_service_data_type_name(unsigned int type, const char **name);
 
 /**
  * Retrieves a string corresponding to a program type.
- * @param[in]  type  a protram data type integer.
+ * @param[in]  type  a program data type integer.
  * @param[out] name  character pointer to a string naming the service type
  *
  * This name will be quite short, e.g. "News" or "Rock". If the type is
- * not recognized, it will the string "Unknown".
+ * not recognized, it will be the string "Unknown".
  */
 NRSC5_API void nrsc5_program_type_name(unsigned int type, const char **name);
 
 /**
+ * Retrieves a string corresponding to an alert category.
+ * @param[in]  type  an alert category integer.
+ * @param[out] name  character pointer to a string naming the alert category
+ *
+ * This name will be quite short, e.g. "Weather" or "Safety". If the type is
+ * not recognized, it will be the string "Unknown".
+ */
+ NRSC5_API void nrsc5_alert_category_name(unsigned int category, const char **name);
+ 
+ /**
  * Initializes a session for a particular RTLSDR radio dongle.
  * @param[out] st  handle for an nrsc5_t
  * @param[in]  device_index  the RTLSDR device index

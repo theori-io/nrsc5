@@ -142,23 +142,6 @@ static char* id3_encode_utf8(uint8_t enc, uint8_t *buf, unsigned int len)
     return text;
 }
 
-static uint8_t* id3_strlen(uint8_t enc, uint8_t *buf, unsigned int len)
-{
-    if (enc == 0)
-        return memchr(buf, 0, len);
-    else if (enc == 1)
-    {
-        unsigned int i;
-
-        for (i = 0; i < len; i += 2)
-        {
-            if (buf[i] == 0 && buf[i + 1] == 0)
-                return buf + i;
-        }
-    }
-    return NULL;
-}
-
 static char *id3_text(uint8_t *buf, unsigned int frame_len)
 {
     if (frame_len > 0)
@@ -272,8 +255,30 @@ static void output_id3(output_t *st, unsigned int program, uint8_t *buf, unsigne
             else
             {
                 uint8_t enc = data[0];
-                uint8_t *delim = id3_strlen(enc, data + 4, frame_len - 4);
+                uint8_t *delim = NULL;
+                uint8_t *text = NULL;
                 uint8_t *end = data + frame_len;
+
+                if (enc == 0)
+                {
+                    delim = memchr(data + 4, 0, frame_len - 4);
+                    if (delim)
+                        text = delim + 1;
+                }
+                else if (enc == 1)
+                {
+                    unsigned int i;
+            
+                    for (i = 0; i < len - 1; i += 2)
+                    {
+                        if (buf[i] == 0 && buf[i + 1] == 0)
+                        {
+                            delim = buf + i;
+                            text = buf + i + 2;
+                            break;
+                        }
+                    }
+                }      
 
                 if (delim)
                 {
@@ -281,8 +286,8 @@ static void output_id3(output_t *st, unsigned int program, uint8_t *buf, unsigne
 
                     comm = calloc(1, sizeof(nrsc5_id3_comment_t));
                     comm->lang = strndup((char*) data + 1, 3);
-                    comm->short_content = id3_encode_utf8(enc, data + 4, delim - data - 4);
-                    comm->actual_text = id3_encode_utf8(enc, delim + 1, end - delim);
+                    comm->short_content = id3_encode_utf8(enc, data + 4, delim - (data + 4));
+                    comm->actual_text = id3_encode_utf8(enc, text, end - text);
 
                     if (prev == NULL)
                         evt.id3.comments = comm;

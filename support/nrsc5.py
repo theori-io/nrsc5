@@ -135,10 +135,10 @@ MER = collections.namedtuple("MER", ["lower", "upper"])
 BER = collections.namedtuple("BER", ["cber"])
 HDC = collections.namedtuple("HDC", ["program", "data"])
 Audio = collections.namedtuple("Audio", ["program", "data"])
-COMM = collections.namedtuple("COMM", ["lang", "short_content", "actual_text"])
+COMMENT = collections.namedtuple("COMM", ["lang", "short_content", "actual_text"])
 UFID = collections.namedtuple("UFID", ["owner", "id"])
 XHDR = collections.namedtuple("XHDR", ["mime", "param", "lot"])
-ID3 = collections.namedtuple("ID3", ["program", "title", "artist", "album", "genre", "comments", "ufid", "xhdr"])
+ID3 = collections.namedtuple("ID3", ["program", "title", "artist", "album", "genre", "ufid", "xhdr", "comments"])
 SIGAudioComponent = collections.namedtuple("SIGAudioComponent", ["port", "type", "mime"])
 SIGDataComponent = collections.namedtuple("SIGDataComponent", ["port", "service_data_type", "type", "mime"])
 SIGComponent = collections.namedtuple("SIGComponent", ["type", "id", "audio", "data"])
@@ -188,11 +188,11 @@ class _Audio(ctypes.Structure):
         ("count", ctypes.c_size_t),
     ]
 
-class _COMM(ctypes.Structure):
+class _COMMENT(ctypes.Structure):
     pass
 
-_COMM._fields_ = [
-    ("next", ctypes.POINTER(_COMM)),
+_COMMENT._fields_ = [
+    ("next", ctypes.POINTER(_COMMENT)),
     ("lang", ctypes.c_char_p),
     ("short_content", ctypes.c_char_p),
     ("actual_text", ctypes.c_char_p),
@@ -221,9 +221,9 @@ class _ID3(ctypes.Structure):
         ("artist", ctypes.c_char_p),
         ("album", ctypes.c_char_p),
         ("genre", ctypes.c_char_p),
-        ("comments", ctypes.POINTER(_COMM)),
         ("ufid", _UFID),
         ("xhdr", _XHDR),
+        ("comments", ctypes.POINTER(_COMMENT)),
     ]
 
 
@@ -458,7 +458,7 @@ class NRSC5:
             comment_ptr = id3.comments
             while comment_ptr:
                 c = comment_ptr.contents
-                comments.append(COMM(self._decode(c.lang), self._decode(c.short_content), self._decode(c.actual_text)))
+                comments.append(COMMENT(self._decode(c.lang), self._decode(c.short_content), self._decode(c.actual_text)))
                 comment_ptr = c.next
 
             evt = ID3(id3.program, self._decode(id3.title), self._decode(id3.artist),

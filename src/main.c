@@ -283,7 +283,7 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
     nrsc5_sig_component_t *sig_component;
     nrsc5_sis_asd_t *audio_service;
     nrsc5_sis_dsd_t *data_service;
-    nrsc5_id3_comm *comment;
+    nrsc5_id3_comment_t *comment;
 
     switch (evt->event)
     {

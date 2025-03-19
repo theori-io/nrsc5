@@ -268,16 +268,16 @@ typedef struct nrsc5_sis_dsd_t nrsc5_sis_dsd_t;
 * comments via `next` member if not `NULL`.
 * Refer to HD-Radio document SY_IDD_1028s.
 */
-struct nrsc5_id3_comm {
-    struct nrsc5_id3_comm *next; /**< Pointer to next element or NULL */
+struct nrsc5_id3_comment_t {
+    struct nrsc5_id3_comment_t *next; /**< Pointer to next element or NULL */
     char *lang; /**< language code, e.g. "eng" */
     char *short_content; /**< short content description */
     char *actual_text; /**< actual text */
 };
 /**
- * Defines a typename for struct nrsc5_id3_comm_tag
+ * Defines a typename for struct nrsc5_id3_comment_t
  */
-typedef struct nrsc5_id3_comm nrsc5_id3_comm;
+typedef struct nrsc5_id3_comment_t nrsc5_id3_comment_t;
 
 /**  Incoming event from receiver.
  *
@@ -336,7 +336,6 @@ struct nrsc5_event_t
             const char *artist;
             const char *album;
             const char *genre;
-            nrsc5_id3_comm *comments;
             struct {
                 const char *owner;
                 const char *id;
@@ -346,6 +345,7 @@ struct nrsc5_event_t
                 int param;
                 int lot;
             } xhdr;
+            nrsc5_id3_comment_t *comments;
         } id3;
         struct {
             uint16_t port;

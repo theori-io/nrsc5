@@ -462,7 +462,7 @@ class NRSC5:
                 comment_ptr = c.next
 
             evt = ID3(id3.program, self._decode(id3.title), self._decode(id3.artist),
-                      self._decode(id3.album), self._decode(id3.genre), comments, ufid, xhdr)
+                      self._decode(id3.album), self._decode(id3.genre), ufid, xhdr, comments)
         elif evt_type == EventType.SIG:
             evt = []
             service_ptr = c_evt.u.sig.services

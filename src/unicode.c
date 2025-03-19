@@ -47,7 +47,7 @@ char *ucs_2_to_utf_8(uint8_t *buf, unsigned int len)
         }
     }
 
-    for (; i < len; i += 2)
+    for (; i < len - 1; i += 2)
     {
         uint16_t ch;
 

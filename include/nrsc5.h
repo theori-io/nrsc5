@@ -271,8 +271,8 @@ typedef struct nrsc5_sis_dsd_t nrsc5_sis_dsd_t;
 struct nrsc5_id3_comment_t {
     struct nrsc5_id3_comment_t *next; /**< Pointer to next element or NULL */
     char *lang; /**< language code, e.g. "eng" */
-    char *short_content; /**< short content description */
-    char *actual_text; /**< actual text */
+    char *short_content_desc; /**< short content description */
+    char *full_text; /**< full text */
 };
 /**
  * Defines a typename for struct nrsc5_id3_comment_t

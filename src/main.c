@@ -337,7 +337,7 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
             if (evt->id3.genre)
                 log_info("Genre: %s", evt->id3.genre);
             for (comment = evt->id3.comments; comment != NULL; comment = comment->next)
-                log_info("Comment: lang=%s %s %s", comment->lang, comment->short_content, comment->actual_text);
+                log_info("Comment: lang=%s %s %s", comment->lang, comment->short_content_desc, comment->full_text);
             if (evt->id3.ufid.owner)
                 log_info("Unique file identifier: %s %s", evt->id3.ufid.owner, evt->id3.ufid.id);
             if (evt->id3.xhdr.param >= 0)

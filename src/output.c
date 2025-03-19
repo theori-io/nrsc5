@@ -286,8 +286,8 @@ static void output_id3(output_t *st, unsigned int program, uint8_t *buf, unsigne
 
                     comm = calloc(1, sizeof(nrsc5_id3_comment_t));
                     comm->lang = strndup((char*) data + 1, 3);
-                    comm->short_content = id3_encode_utf8(enc, data + 4, delim - (data + 4));
-                    comm->actual_text = id3_encode_utf8(enc, text, end - text);
+                    comm->short_content_desc = id3_encode_utf8(enc, data + 4, delim - (data + 4));
+                    comm->full_text = id3_encode_utf8(enc, text, end - text);
 
                     if (prev == NULL)
                         evt.id3.comments = comm;
@@ -358,8 +358,8 @@ static void output_id3(output_t *st, unsigned int program, uint8_t *buf, unsigne
         void *p = comm;
 
         free(comm->lang);
-        free(comm->short_content);
-        free(comm->actual_text);
+        free(comm->short_content_desc);
+        free(comm->full_text);
 
         comm = comm->next;
         free(p);

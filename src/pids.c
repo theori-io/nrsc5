@@ -62,6 +62,73 @@ static int check_crc12(uint8_t *bits)
     return expected_crc == crc12(bits);
 }
 
+static int crc7(const char *alert, int len)
+{
+    const unsigned char poly = 0x09;
+    unsigned char reg = 0x42;
+    int byte_index, bit_index;
+
+    for (byte_index = len - 1; byte_index >= 0; byte_index--)
+    {
+        for (bit_index = 6; bit_index >= 0; bit_index--)
+        {
+            unsigned char bit = ((unsigned char)alert[byte_index] >> bit_index) & 1;
+            if ((bit_index == 0) && (byte_index > 0))
+                bit ^= ((unsigned char)alert[byte_index - 1] >> 7);
+
+            reg <<= 1;
+            reg ^= bit;
+            if (reg & 0x80)
+                reg ^= (0x80 | poly);
+        }
+    }
+
+    for (bit_index = 6; bit_index >= 0; bit_index--)
+    {
+        reg <<= 1;
+        if (reg & 0x80)
+            reg ^= (0x80 | poly);
+    }
+
+    return reg;
+}
+
+static int control_data_crc(const char *control_data, int len)
+{
+    unsigned short poly = 0xD010;
+    unsigned short reg = 0x7E1B;
+    int lowbit;
+
+    int byte_index, bit_index;
+
+    for (byte_index = len - 1; byte_index >= 1; byte_index--)
+    {
+        for (bit_index = 0; bit_index < 8; bit_index++)
+        {
+            unsigned short bit =
+                ((unsigned char)control_data[byte_index] >> bit_index) & 1;
+            if ((byte_index == 1) || (byte_index == 2 && bit_index < 4))
+                bit = 0; // Skip CRC bits
+            
+            lowbit = reg & 1;
+            reg >>= 1;
+            reg ^= (bit << 15);
+            if (lowbit)
+                reg ^= poly;
+        }
+    }
+
+    for (bit_index = 0; bit_index < 16; bit_index++)
+    {
+        lowbit = reg & 1;
+        reg >>= 1;
+        if (lowbit)
+            reg ^= poly;
+    }
+
+    return reg & 0x0fff;
+}
+
 static unsigned int decode_int(uint8_t *bits, int *off, unsigned int length)
 {
     unsigned int i, result = 0;
@@ -70,6 +137,14 @@ static unsigned int decode_int(uint8_t *bits, int *off, unsigned int length)
         result <<= 1;
         result |= bits[(*off)++];
     }
+    return result;
+}
+
+static unsigned int decode_int_reverse(uint8_t *bits, int *off, unsigned int length)
+{
+    unsigned int i, result = 0;
+    for (i = 0; i < length; i++)
+        result |= (bits[(*off)++] << i);
     return result;
 }
 
@@ -87,6 +162,83 @@ static char decode_char5(uint8_t *bits, int *off)
 static char decode_char7(uint8_t *bits, int *off)
 {
     return (char) decode_int(bits, off, 7);
+}
+
+static void decode_control_data(const char *control_data, int len, int *category1, int *category2, int *location_format, int *num_locations, int **locations_out)
+{
+    int i, j;
+    uint8_t bits[MAX_ALERT_CNT_LEN * 8];
+    int off = 0;
+    int locations[MAX_ALERT_LOCATIONS];
+    int previous_location = 0;
+    int full_len, compressed_len;
+    
+    for (i = 0; i < len; i++)
+        for (j = 0; j < 8; j++)
+            bits[i*8 + j] = ((unsigned char)control_data[i] >> j) & 1;
+
+    off += 8; // unknown
+    off += 12; // CNT CRC
+    off += 8; // unknown
+    *category1 = decode_int_reverse(bits, &off, 5);
+    *category2 = decode_int_reverse(bits, &off, 5);
+    off += 9; // unknown
+    *location_format = decode_int_reverse(bits, &off, 3);
+    *num_locations = decode_int_reverse(bits, &off, 5);
+    off += 1; // unknown
+
+    switch (*location_format)
+    {
+    case 0: // SAME
+        full_len = 20;
+        compressed_len = 14;
+        break;
+    case 1: // FIPS
+    case 2: // ZIP
+        full_len = 17;
+        compressed_len = 10;
+        break;
+    default:
+        log_warn("Invalid location format: %d", *location_format);
+        return;
+    }
+
+    for (int i = 0; i < *num_locations; i++)
+    {
+        if (off + 1 >= len*8)
+        {
+            log_warn("Invalid location data");
+            return;
+        }
+
+        if ((i == 0) || bits[off++])
+        {
+            // Full-length location
+            if (off + full_len >= len*8)
+            {
+                log_warn("Invalid location data");
+                return;
+            }
+            locations[i] = decode_int_reverse(bits, &off, full_len);
+        }
+        else
+        {
+            // Compressed location
+            if (off + compressed_len >= len*8)
+            {
+                log_warn("Invalid location data");
+                return;
+            }
+            int new_digits = decode_int_reverse(bits, &off, compressed_len);
+            int old_digits = (previous_location % 100000) - (previous_location % 1000);
+            locations[i] = ((new_digits / 1000) * 100000) + (new_digits % 1000) + old_digits;
+        }
+
+        previous_location = locations[i];
+    }
+
+    *locations_out = malloc(sizeof(int) * (*num_locations));
+    memcpy(*locations_out, locations, sizeof(int) * (*num_locations));
 }
 
 static char *utf8_encode(encoding_t encoding, char *buf, int len)
@@ -114,6 +266,11 @@ static void report(pids_t *st)
     int altitude = 0;
     nrsc5_sis_asd_t *audio_services = NULL;
     nrsc5_sis_dsd_t *data_services = NULL;
+    int category1 = -1;
+    int category2 = -1;
+    int location_format = -1;
+    int num_locations = -1;
+    int *locations = NULL;
 
     if (st->country_code[0] != 0)
         country_code = st->country_code;
@@ -135,8 +292,8 @@ static void report(pids_t *st)
 
     if (st->alert_displayed)
     {
-        int cnt_bytes = 1 + (2 * st->alert_cnt_len);
-        alert = utf8_encode(st->alert_encoding, st->alert + cnt_bytes, st->alert_len - cnt_bytes);
+        alert = utf8_encode(st->alert_encoding, st->alert + st->alert_cnt_len, st->alert_len - st->alert_cnt_len);
+        decode_control_data(st->alert, st->alert_cnt_len, &category1, &category2, &location_format, &num_locations, &locations);
     }
 
     if (!isnan(st->latitude) && !isnan(st->longitude))
@@ -174,6 +331,7 @@ static void report(pids_t *st)
     }
 
     nrsc5_report_sis(st->input->radio, country_code, st->fcc_facility_id, name, slogan, message, alert,
+                     (uint8_t *)st->alert, st->alert_cnt_len, category1, category2, location_format, num_locations, locations,
                      latitude, longitude, altitude, audio_services, data_services);
 
     free(name);
@@ -593,8 +751,8 @@ static void decode_sis(pids_t *st, uint8_t *bits)
                 }
                 st->alert_encoding = decode_int(bits, &off, 3);
                 st->alert_len = decode_int(bits, &off, 9);
-                off += 7; // CRC-7 integrity check
-                st->alert_cnt_len = decode_int(bits, &off, 5);
+                st->alert_crc = decode_int(bits, &off, 7);
+                st->alert_cnt_len = 1 + (2 * decode_int(bits, &off, 5));
                 for (j = 0; j < 3; j++)
                     st->alert[j] = decode_int(bits, &off, 8);
             }
@@ -613,8 +771,32 @@ static void decode_sis(pids_t *st, uint8_t *bits)
 
                 if (complete)
                 {
-                    st->alert_displayed = 1;
-                    updated = 1;
+                    int expected_alert_crc = crc7(st->alert, st->alert_len);
+                    if (st->alert_crc == expected_alert_crc)
+                    {
+                        if ((st->alert_cnt_len >= 7) && (st->alert_cnt_len <= st->alert_len))
+                        {
+                            int actual_cnt_crc = (((unsigned char)st->alert[2] & 0x0f) << 8) | (unsigned char)st->alert[1];
+                            int expected_cnt_crc = control_data_crc(st->alert, st->alert_cnt_len);
+                            if (actual_cnt_crc == expected_cnt_crc)
+                            {
+                                st->alert_displayed = 1;
+                                updated = 1;
+                            }
+                            else
+                            {
+                                log_warn("Invalid CNT CRC: 0x%03x != 0x%03x", actual_cnt_crc, expected_cnt_crc);
+                            }
+                        }
+                        else
+                        {
+                            log_warn("Invalid alert CNT length");
+                        }
+                    }
+                    else
+                    {
+                        log_warn("Invalid alert CRC: 0x%02x != 0x%02x", st->alert_crc, expected_alert_crc);
+                    }
                 }
             }
             break;

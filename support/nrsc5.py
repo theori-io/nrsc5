@@ -130,6 +130,28 @@ class ProgramType(enum.Enum):
     SPECIAL_READING_SERVICES = 76
 
 
+class LocationFormat(enum.Enum):
+    SAME = 0
+    FIPS = 1
+    ZIP = 2
+
+
+class AlertCategory(enum.Enum):
+    NON_SPECIFIC = 1
+    GEOPHYSICAL = 2
+    WEATHER = 3
+    SAFETY = 4
+    SECURITY = 5
+    RESCUE = 6
+    FIRE = 7
+    HEALTH = 8
+    ENVIRONMENTAL = 9
+    TRANSPORTATION = 10
+    UTILITIES = 11
+    HAZMAT = 12
+    TEST = 30
+
+
 IQ = collections.namedtuple("IQ", ["data"])
 MER = collections.namedtuple("MER", ["lower", "upper"])
 BER = collections.namedtuple("BER", ["cber"])
@@ -150,7 +172,8 @@ LOT = collections.namedtuple("LOT", ["port", "lot", "mime", "name", "data", "exp
 SISAudioService = collections.namedtuple("SISAudioService", ["program", "access", "type", "sound_exp"])
 SISDataService = collections.namedtuple("SISDataService", ["access", "type", "mime_type"])
 SIS = collections.namedtuple("SIS", ["country_code", "fcc_facility_id", "name", "slogan", "message", "alert",
-                                     "latitude", "longitude", "altitude", "audio_services", "data_services"])
+                                     "latitude", "longitude", "altitude", "audio_services", "data_services",
+                                     "alert_cnt", "alert_categories", "alert_location_format", "alert_locations"])
 
 
 class _IQ(ctypes.Structure):
@@ -366,6 +389,13 @@ class _SIS(ctypes.Structure):
         ("altitude", ctypes.c_int),
         ("audio_services", ctypes.POINTER(_SISAudioService)),
         ("data_services", ctypes.POINTER(_SISDataService)),
+        ("alert_cnt", ctypes.POINTER(ctypes.c_char)),
+        ("alert_cnt_length", ctypes.c_int),
+        ("alert_category1", ctypes.c_int),
+        ("alert_category2", ctypes.c_int),
+        ("alert_location_format", ctypes.c_int),
+        ("alert_num_locations", ctypes.c_int),
+        ("alert_locations", ctypes.POINTER(ctypes.c_int)),
     ]
 
 
@@ -527,9 +557,17 @@ class NRSC5:
                 data_services.append(SISDataService(Access(dsd.access), ServiceDataType(dsd.type), dsd.mime_type))
                 data_service_ptr = dsd.next
 
+            alert_categories = []
+            if sis.alert_category1 >= 1:
+                alert_categories.append(AlertCategory(sis.alert_category1))
+            if sis.alert_category2 >= 1:
+                alert_categories.append(AlertCategory(sis.alert_category2))
             evt = SIS(self._decode(sis.country_code), sis.fcc_facility_id, self._decode(sis.name),
                       self._decode(sis.slogan), self._decode(sis.message), self._decode(sis.alert),
-                      latitude, longitude, altitude, audio_services, data_services)
+                      latitude, longitude, altitude, audio_services, data_services,
+                      sis.alert_cnt[:sis.alert_cnt_length], alert_categories,
+                      None if sis.alert_location_format == -1 else LocationFormat(sis.alert_location_format),
+                      sis.alert_locations[:sis.alert_num_locations])
         self.callback(evt_type, evt, *self.callback_args)
 
     def __init__(self, callback, callback_args=()):
@@ -554,6 +592,12 @@ class NRSC5:
     def program_type_name(program_type):
         name = ctypes.c_char_p()
         NRSC5.libnrsc5.nrsc5_program_type_name(program_type.value, ctypes.byref(name))
+        return name.value.decode()
+
+    @staticmethod
+    def alert_category_name(category):
+        name = ctypes.c_char_p()
+        NRSC5.libnrsc5.nrsc5_alert_category_name(category.value, ctypes.byref(name))
         return name.value.decode()
 
     def open(self, device_index):

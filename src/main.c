@@ -390,7 +390,48 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
         if (evt->sis.message)
             log_info("Message: %s", evt->sis.message);
         if (evt->sis.alert)
-            log_info("Alert: %s", evt->sis.alert);
+        {
+            int i;
+            char alert_details[512] = "";
+            const char *name = NULL;
+
+            strcat(alert_details, "Category=[");
+            if (evt->sis.alert_category1 >= 1)
+            {
+                nrsc5_alert_category_name(evt->sis.alert_category1, &name);
+                strcat(alert_details, name);
+            }
+            if (evt->sis.alert_category2 >= 1)
+            {
+                nrsc5_alert_category_name(evt->sis.alert_category2, &name);
+                strcat(alert_details, ", ");
+                strcat(alert_details, name);
+            }
+            strcat(alert_details, "] ");
+
+            switch (evt->sis.alert_location_format)
+            {
+            case NRSC5_LOCATION_FORMAT_SAME:
+                strcat(alert_details, "SAME=[");
+                break;
+            case NRSC5_LOCATION_FORMAT_FIPS:
+                strcat(alert_details, "FIPS=[");
+                break;
+            case NRSC5_LOCATION_FORMAT_ZIP:
+                strcat(alert_details, "ZIP=[");
+                break;
+            }
+
+            for (i = 0; i < evt->sis.alert_num_locations; i++)
+            {
+                if (i > 0)
+                    strcat(alert_details, ", ");
+                sprintf(alert_details + strlen(alert_details), "%d", evt->sis.alert_locations[i]);
+            }
+            strcat(alert_details, "]");
+
+            log_info("Alert: %s %s", alert_details, evt->sis.alert);
+        }
         if (!isnan(evt->sis.latitude))
             log_info("Station location: %.4f, %.4f, %dm", evt->sis.latitude, evt->sis.longitude, evt->sis.altitude);
         for (audio_service = evt->sis.audio_services; audio_service != NULL; audio_service = audio_service->next)

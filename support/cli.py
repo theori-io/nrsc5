@@ -292,7 +292,8 @@ class NRSC5CLI:
             if evt.message:
                 logging.info("Message: %s", evt.message)
             if evt.alert:
-                logging.info("Alert: %s", evt.alert)
+                categories = ", ".join(self.radio.alert_category_name(category) for category in evt.alert_categories)
+                logging.info("Alert: Category=[%s] %s=%s %s", categories, evt.alert_location_format.name, str(evt.alert_locations), evt.alert)
             if evt.latitude:
                 logging.info("Station location: %.4f, %.4f, %dm",
                              evt.latitude, evt.longitude, evt.altitude)

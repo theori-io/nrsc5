@@ -286,6 +286,27 @@ void nrsc5_program_type_name(unsigned int type, const char **name)
     }
 }
 
+void nrsc5_alert_category_name(unsigned int type, const char **name)
+{
+    switch (type)
+    {
+    case NRSC5_ALERT_CATEGORY_NON_SPECIFIC: *name = "Non-specific"; break;
+    case NRSC5_ALERT_CATEGORY_GEOPHYSICAL: *name = "Geophysical"; break;
+    case NRSC5_ALERT_CATEGORY_WEATHER: *name = "Weather"; break;
+    case NRSC5_ALERT_CATEGORY_SAFETY: *name = "Safety"; break;
+    case NRSC5_ALERT_CATEGORY_SECURITY: *name = "Security"; break;
+    case NRSC5_ALERT_CATEGORY_RESCUE: *name = "Rescue"; break;
+    case NRSC5_ALERT_CATEGORY_FIRE: *name = "Fire"; break;
+    case NRSC5_ALERT_CATEGORY_HEALTH: *name = "Health"; break;
+    case NRSC5_ALERT_CATEGORY_ENVIRONMENTAL: *name = "Environmental"; break;
+    case NRSC5_ALERT_CATEGORY_TRANSPORTATION: *name = "Transportation"; break;
+    case NRSC5_ALERT_CATEGORY_UTILITIES: *name = "Utilities"; break;
+    case NRSC5_ALERT_CATEGORY_HAZMAT: *name = "Hazmat"; break;
+    case NRSC5_ALERT_CATEGORY_TEST: *name = "Test"; break;
+    default: *name = "Unknown"; break;
+    }
+}
+
 static nrsc5_t *nrsc5_alloc(void)
 {
     nrsc5_t *st = calloc(1, sizeof(*st));
@@ -837,7 +858,8 @@ void nrsc5_report_sig(nrsc5_t *st, sig_service_t *services, unsigned int count)
 }
 
 void nrsc5_report_sis(nrsc5_t *st, const char *country_code, int fcc_facility_id, const char *name,
-                      const char *slogan, const char *message, const char *alert,
+                      const char *slogan, const char *message, const char *alert, const uint8_t *cnt, int cnt_length,
+                      int category1, int category2, int location_format, int num_locations, const int *locations,
                       float latitude, float longitude, int altitude, nrsc5_sis_asd_t *audio_services,
                       nrsc5_sis_dsd_t *data_services)
 {
@@ -850,6 +872,13 @@ void nrsc5_report_sis(nrsc5_t *st, const char *country_code, int fcc_facility_id
     evt.sis.slogan = slogan;
     evt.sis.message = message;
     evt.sis.alert = alert;
+    evt.sis.alert_cnt = cnt;
+    evt.sis.alert_cnt_length = cnt_length;
+    evt.sis.alert_category1 = category1;
+    evt.sis.alert_category2 = category2;
+    evt.sis.alert_location_format = location_format;
+    evt.sis.alert_num_locations = num_locations;
+    evt.sis.alert_locations = locations;
     evt.sis.latitude = latitude;
     evt.sis.longitude = longitude;
     evt.sis.altitude = altitude;

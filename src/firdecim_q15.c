@@ -29,7 +29,7 @@ firdecim_q15 firdecim_q15_create(const float * taps, unsigned int ntaps)
     q = malloc(sizeof(*q));
     q->ntaps = (ntaps == 32) ? 32 : 15;
     q->taps = malloc(sizeof(int16_t) * ntaps * 2);
-    q->window = calloc(sizeof(cint16_t), WINDOW_SIZE);
+    q->window = calloc(WINDOW_SIZE, sizeof(cint16_t));
     firdecim_q15_reset(q);
 
     // reverse order so we can push into the window

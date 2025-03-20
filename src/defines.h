@@ -68,6 +68,8 @@
 #define MAX_STREAMS 4
 // number of subcarriers per AM partition
 #define PARTITION_WIDTH_AM 25
+// number of HDC frames in a sequence
+#define MAX_AUDIO_PACKETS 64
 
 #define log_debug(...) \
             do { if (LIBRARY_DEBUG_LEVEL <= 1) { fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\n"); } } while (0)

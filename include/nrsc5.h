@@ -263,6 +263,22 @@ struct nrsc5_sis_dsd_t
  */
 typedef struct nrsc5_sis_dsd_t nrsc5_sis_dsd_t;
 
+/**
+* ID3 comment descriptor. This is a linked list element that may point to further
+* comments via `next` member if not `NULL`.
+* Refer to HD-Radio document SY_IDD_1028s.
+*/
+struct nrsc5_id3_comment_t {
+    struct nrsc5_id3_comment_t *next; /**< Pointer to next element or NULL */
+    char *lang; /**< language code, e.g. "eng" */
+    char *short_content_desc; /**< short content description */
+    char *full_text; /**< full text */
+};
+/**
+ * Defines a typename for struct nrsc5_id3_comment_t
+ */
+typedef struct nrsc5_id3_comment_t nrsc5_id3_comment_t;
+
 /**  Incoming event from receiver.
  *
  * This event structure is passed to your application supplied
@@ -329,6 +345,7 @@ struct nrsc5_event_t
                 int param;
                 int lot;
             } xhdr;
+            nrsc5_id3_comment_t *comments;
         } id3;
         struct {
             uint16_t port;

@@ -126,23 +126,28 @@ static unsigned int id3_length(uint8_t *buf)
     return ((buf[0] & 0x7f) << 21) | ((buf[1] & 0x7f) << 14) | ((buf[2] & 0x7f) << 7) | (buf[3] & 0x7f);
 }
 
-static char *id3_text(uint8_t *buf, unsigned int frame_len)
+static char* id3_encode_utf8(uint8_t enc, uint8_t *buf, unsigned int len)
 {
     char *text;
 
-    if (frame_len > 0)
-    {
-        if (buf[0] == 0)
-            return iso_8859_1_to_utf_8(buf + 1, frame_len - 1);
-        else if (buf[0] == 1)
-            return ucs_2_to_utf_8(buf + 1, frame_len - 1);
-        else
-            log_warn("Invalid encoding: %d", buf[0]);
-    }
+    if (enc == 0)
+        return iso_8859_1_to_utf_8(buf, len);
+    else if (enc == 1)
+        return ucs_2_to_utf_8(buf, len);
+    else
+        log_warn("Invalid encoding: %d", enc);
 
     text = malloc(1);
     text[0] = 0;
     return text;
+}
+
+static char *id3_text(uint8_t *buf, unsigned int frame_len)
+{
+    if (frame_len > 0)
+        return id3_encode_utf8(buf[0], buf + 1, frame_len - 1);
+    else
+        return id3_encode_utf8(0, NULL, 0);
 }
 
 static void output_id3(output_t *st, unsigned int program, uint8_t *buf, unsigned int len)
@@ -150,11 +155,13 @@ static void output_id3(output_t *st, unsigned int program, uint8_t *buf, unsigne
     char *title = NULL, *artist = NULL, *album = NULL, *genre = NULL, *ufid_owner = NULL, *ufid_id = NULL;
     uint32_t xhdr_mime = 0;
     int xhdr_param = -1, xhdr_lot = -1;
+    nrsc5_id3_comment_t *comm = NULL;
 
     unsigned int off = 0, id3_len;
     nrsc5_event_t evt;
 
     evt.event = NRSC5_EVENT_ID3;
+    evt.id3.comments = NULL;
 
     if (len < 10 || memcmp(buf, "ID3\x03\x00", 5) || buf[5]) return;
     id3_len = id3_length(buf + 6) + 10;
@@ -165,7 +172,7 @@ static void output_id3(output_t *st, unsigned int program, uint8_t *buf, unsigne
     {
         uint8_t *tag = buf + off;
         uint8_t *data = tag + 10;
-        unsigned int frame_len = id3_length(tag + 4);
+        unsigned int frame_len = ((unsigned int)tag[4] << 24) | (tag[5] << 16) | (tag[6] << 8) | tag[7];
         if (off + 10 + frame_len > id3_len)
             break;
 
@@ -239,6 +246,56 @@ static void output_id3(output_t *st, unsigned int program, uint8_t *buf, unsigne
                           price, until, url, seller, desc, received_as);
             }
         }
+        else if (memcmp(tag, "COMM", 4) == 0)
+        {
+            if (frame_len < 5)
+            {
+                log_warn("bad COMM tag (frame_len %d)", frame_len);
+            }
+            else
+            {
+                uint8_t enc = data[0];
+                uint8_t *delim = NULL;
+                uint8_t *text = NULL;
+                uint8_t *end = data + frame_len;
+
+                if (enc == 0)
+                {
+                    delim = memchr(data + 4, 0, frame_len - 4);
+                    if (delim)
+                        text = delim + 1;
+                }
+                else if (enc == 1)
+                {
+                    unsigned int i;
+            
+                    for (i = 0; i < len - 1; i += 2)
+                    {
+                        if (buf[i] == 0 && buf[i + 1] == 0)
+                        {
+                            delim = buf + i;
+                            text = buf + i + 2;
+                            break;
+                        }
+                    }
+                }      
+
+                if (delim)
+                {
+                    nrsc5_id3_comment_t* prev = comm;
+
+                    comm = calloc(1, sizeof(nrsc5_id3_comment_t));
+                    comm->lang = strndup((char*) data + 1, 3);
+                    comm->short_content_desc = id3_encode_utf8(enc, data + 4, delim - (data + 4));
+                    comm->full_text = id3_encode_utf8(enc, text, end - text);
+
+                    if (prev == NULL)
+                        evt.id3.comments = comm;
+                    else
+                        prev->next = comm;
+                }
+            }
+        }
         else if (memcmp(tag, "XHDR", 4) == 0)
         {
             uint8_t extlen;
@@ -295,6 +352,18 @@ static void output_id3(output_t *st, unsigned int program, uint8_t *buf, unsigne
     free(genre);
     free(ufid_owner);
     free(ufid_id);
+
+    for (comm = evt.id3.comments; comm != NULL; )
+    {
+        void *p = comm;
+
+        free(comm->lang);
+        free(comm->short_content_desc);
+        free(comm->full_text);
+
+        comm = comm->next;
+        free(p);
+    }
 }
 
 static void parse_sig(output_t *st, uint8_t *buf, unsigned int len)

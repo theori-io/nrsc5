@@ -246,6 +246,8 @@ class NRSC5CLI:
                     logging.info("Album: %s", evt.album)
                 if evt.genre:
                     logging.info("Genre: %s", evt.genre)
+                for comment in evt.comments:
+                    logging.info("Comment: lang=%s %s %s", comment.lang, comment.short_content_desc, comment.full_text)
                 if evt.ufid:
                     logging.info("Unique file identifier: %s %s", evt.ufid.owner, evt.ufid.id)
                 if evt.xhdr:

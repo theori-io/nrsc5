@@ -135,9 +135,10 @@ MER = collections.namedtuple("MER", ["lower", "upper"])
 BER = collections.namedtuple("BER", ["cber"])
 HDC = collections.namedtuple("HDC", ["program", "data"])
 Audio = collections.namedtuple("Audio", ["program", "data"])
+Comment = collections.namedtuple("Comment", ["lang", "short_content_desc", "full_text"])
 UFID = collections.namedtuple("UFID", ["owner", "id"])
 XHDR = collections.namedtuple("XHDR", ["mime", "param", "lot"])
-ID3 = collections.namedtuple("ID3", ["program", "title", "artist", "album", "genre", "ufid", "xhdr"])
+ID3 = collections.namedtuple("ID3", ["program", "title", "artist", "album", "genre", "ufid", "xhdr", "comments"])
 SIGAudioComponent = collections.namedtuple("SIGAudioComponent", ["port", "type", "mime"])
 SIGDataComponent = collections.namedtuple("SIGDataComponent", ["port", "service_data_type", "type", "mime"])
 SIGComponent = collections.namedtuple("SIGComponent", ["type", "id", "audio", "data"])
@@ -187,6 +188,16 @@ class _Audio(ctypes.Structure):
         ("count", ctypes.c_size_t),
     ]
 
+class _Comment(ctypes.Structure):
+    pass
+
+_Comment._fields_ = [
+    ("next", ctypes.POINTER(_Comment)),
+    ("lang", ctypes.c_char_p),
+    ("short_content_desc", ctypes.c_char_p),
+    ("full_text", ctypes.c_char_p),
+]
+
 
 class _UFID(ctypes.Structure):
     _fields_ = [
@@ -212,6 +223,7 @@ class _ID3(ctypes.Structure):
         ("genre", ctypes.c_char_p),
         ("ufid", _UFID),
         ("xhdr", _XHDR),
+        ("comments", ctypes.POINTER(_Comment)),
     ]
 
 
@@ -442,9 +454,15 @@ class NRSC5:
                 xhdr = XHDR(None if id3.xhdr.mime == 0 else MIMEType(id3.xhdr.mime),
                             None if id3.xhdr.param == -1 else id3.xhdr.param,
                             None if id3.xhdr.lot == -1 else id3.xhdr.lot)
+            comments = []
+            comment_ptr = id3.comments
+            while comment_ptr:
+                c = comment_ptr.contents
+                comments.append(Comment(self._decode(c.lang), self._decode(c.short_content_desc), self._decode(c.full_text)))
+                comment_ptr = c.next
 
             evt = ID3(id3.program, self._decode(id3.title), self._decode(id3.artist),
-                      self._decode(id3.album), self._decode(id3.genre), ufid, xhdr)
+                      self._decode(id3.album), self._decode(id3.genre), ufid, xhdr, comments)
         elif evt_type == EventType.SIG:
             evt = []
             service_ptr = c_evt.u.sig.services

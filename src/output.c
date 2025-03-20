@@ -172,7 +172,7 @@ static void output_id3(output_t *st, unsigned int program, uint8_t *buf, unsigne
     {
         uint8_t *tag = buf + off;
         uint8_t *data = tag + 10;
-        unsigned int frame_len = id3_length(tag + 4);
+        unsigned int frame_len = (tag[4] << 24) | (tag[5] << 16) | (tag[6] << 8) | tag[7];
         if (off + 10 + frame_len > id3_len)
             break;
 

@@ -92,14 +92,6 @@ typedef enum {
     NUM_LOGICAL_CHANNELS
 } logical_channel_t;
 
-static inline cint16_t cf_to_cq15(float complex x)
-{
-    cint16_t cq15;
-    cq15.r = crealf(x) * 32767.0f;
-    cq15.i = cimagf(x) * 32767.0f;
-    return cq15;
-}
-
 static inline float complex cq15_to_cf(cint16_t cq15)
 {
     return CMPLXF((float)cq15.r / 32767.0f, (float)cq15.i / 32767.0f);

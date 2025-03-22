@@ -69,6 +69,12 @@ static uint8_t gray8(float f)
         return 1;
 }
 
+static inline int8_t demod(float x, float mult)
+{
+    float clamped = fmaxf(fminf(x, 1), -1);
+    return lroundf(clamped * mult);
+}
+
 static uint8_t qpsk(complex float cf)
 {
     return (crealf(cf) < 0 ? 0 : 1) | (cimagf(cf) < 0 ? 0 : 2);
@@ -452,7 +458,6 @@ void sync_process_fm(sync_t *st)
         float mult_lb = fmaxf(fminf(mer_lb * 10, 127), 1);
         float mult_ub = fmaxf(fminf(mer_ub * 10, 127), 1);
 
-#define DEMOD(x) ((x) >= 0 ? 1 : -1)
         for (int n = 0; n < BLKSZ; n++)
         {
             float complex c;
@@ -462,8 +467,8 @@ void sync_process_fm(sync_t *st)
                 for (j = 1; j < PARTITION_WIDTH; j++)
                 {
                     c = st->buffer[i + j][n];
-                    decode_push_pm(&st->input->decode, DEMOD(crealf(c)) * mult_lb);
-                    decode_push_pm(&st->input->decode, DEMOD(cimagf(c)) * mult_lb);
+                    decode_push_pm(&st->input->decode, demod(crealf(c), mult_lb));
+                    decode_push_pm(&st->input->decode, demod(cimagf(c), mult_lb));
                 }
             }
             for (i = UB_END - (PM_PARTITIONS * PARTITION_WIDTH); i < UB_END; i += PARTITION_WIDTH)
@@ -472,8 +477,8 @@ void sync_process_fm(sync_t *st)
                 for (j = 1; j < PARTITION_WIDTH; j++)
                 {
                     c = st->buffer[i + j][n];
-                    decode_push_pm(&st->input->decode, DEMOD(crealf(c)) * mult_ub);
-                    decode_push_pm(&st->input->decode, DEMOD(cimagf(c)) * mult_ub);
+                    decode_push_pm(&st->input->decode, demod(crealf(c), mult_ub));
+                    decode_push_pm(&st->input->decode, demod(cimagf(c), mult_ub));
                 }
             }
             if (compatibility_mode[st->psmi] == 2) {
@@ -481,14 +486,14 @@ void sync_process_fm(sync_t *st)
                 for (j = 1; j < PARTITION_WIDTH; j++)
                 {
                     c = st->buffer[LB_START + (PM_PARTITIONS * PARTITION_WIDTH) + j][n];
-                    decode_push_px1(&st->input->decode, DEMOD(crealf(c)) * mult_lb, P3_FRAME_LEN_FM / 2);
-                    decode_push_px1(&st->input->decode, DEMOD(cimagf(c)) * mult_lb, P3_FRAME_LEN_FM / 2);
+                    decode_push_px1(&st->input->decode, demod(crealf(c), mult_lb), P3_FRAME_LEN_FM / 2);
+                    decode_push_px1(&st->input->decode, demod(cimagf(c), mult_lb), P3_FRAME_LEN_FM / 2);
                 }
                 for (j = 1; j < PARTITION_WIDTH; j++)
                 {
                     c = st->buffer[UB_END - (PM_PARTITIONS + 1) * PARTITION_WIDTH + j][n];
-                    decode_push_px1(&st->input->decode, DEMOD(crealf(c)) * mult_ub, P3_FRAME_LEN_FM / 2);
-                    decode_push_px1(&st->input->decode, DEMOD(cimagf(c)) * mult_ub, P3_FRAME_LEN_FM / 2);
+                    decode_push_px1(&st->input->decode, demod(crealf(c), mult_ub), P3_FRAME_LEN_FM / 2);
+                    decode_push_px1(&st->input->decode, demod(cimagf(c), mult_ub), P3_FRAME_LEN_FM / 2);
                 }
             }
             if ((compatibility_mode[st->psmi] == 3) || (compatibility_mode[st->psmi] == 11)) {
@@ -498,8 +503,8 @@ void sync_process_fm(sync_t *st)
                     for (j = 1; j < PARTITION_WIDTH; j++)
                     {
                         c = st->buffer[i + j][n];
-                        decode_push_px1(&st->input->decode, DEMOD(crealf(c)) * mult_lb, P3_FRAME_LEN_FM);
-                        decode_push_px1(&st->input->decode, DEMOD(cimagf(c)) * mult_lb, P3_FRAME_LEN_FM);
+                        decode_push_px1(&st->input->decode, demod(crealf(c), mult_lb), P3_FRAME_LEN_FM);
+                        decode_push_px1(&st->input->decode, demod(cimagf(c), mult_lb), P3_FRAME_LEN_FM);
                     }
                 }
                 for (i = UB_END - (PM_PARTITIONS + 2) * PARTITION_WIDTH; i < UB_END - (PM_PARTITIONS * PARTITION_WIDTH); i += PARTITION_WIDTH)
@@ -508,8 +513,8 @@ void sync_process_fm(sync_t *st)
                     for (j = 1; j < PARTITION_WIDTH; j++)
                     {
                         c = st->buffer[i + j][n];
-                        decode_push_px1(&st->input->decode, DEMOD(crealf(c)) * mult_ub, P3_FRAME_LEN_FM);
-                        decode_push_px1(&st->input->decode, DEMOD(cimagf(c)) * mult_ub, P3_FRAME_LEN_FM);
+                        decode_push_px1(&st->input->decode, demod(crealf(c), mult_ub), P3_FRAME_LEN_FM);
+                        decode_push_px1(&st->input->decode, demod(cimagf(c), mult_ub), P3_FRAME_LEN_FM);
                     }
                 }
             }
@@ -520,8 +525,8 @@ void sync_process_fm(sync_t *st)
                     for (j = 1; j < PARTITION_WIDTH; j++)
                     {
                         c = st->buffer[i + j][n];
-                        decode_push_px2(&st->input->decode, DEMOD(crealf(c)) * mult_lb);
-                        decode_push_px2(&st->input->decode, DEMOD(cimagf(c)) * mult_lb);
+                        decode_push_px2(&st->input->decode, demod(crealf(c), mult_lb));
+                        decode_push_px2(&st->input->decode, demod(cimagf(c), mult_lb));
                     }
                 }
                 for (i = UB_END - (PM_PARTITIONS + 4) * PARTITION_WIDTH; i < UB_END - (PM_PARTITIONS + 2) * PARTITION_WIDTH; i += PARTITION_WIDTH)
@@ -530,8 +535,8 @@ void sync_process_fm(sync_t *st)
                     for (j = 1; j < PARTITION_WIDTH; j++)
                     {
                         c = st->buffer[i + j][n];
-                        decode_push_px2(&st->input->decode, DEMOD(crealf(c)) * mult_ub);
-                        decode_push_px2(&st->input->decode, DEMOD(cimagf(c)) * mult_ub);
+                        decode_push_px2(&st->input->decode, demod(crealf(c), mult_ub));
+                        decode_push_px2(&st->input->decode, demod(cimagf(c), mult_ub));
                     }
                 }
             }

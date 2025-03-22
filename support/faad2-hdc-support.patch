@@ -1,6 +1,6 @@
-From 932275694a920ba760cd99025b954d03ce1fe14e Mon Sep 17 00:00:00 2001
+From 66d18e72a8c8cb169341b70b70aa9817fbe0164b Mon Sep 17 00:00:00 2001
 From: Clayton Smith <argilo@gmail.com>
-Date: Thu, 6 Mar 2025 19:27:26 -0500
+Date: Sat, 22 Mar 2025 14:23:34 -0400
 Subject: [PATCH] Support for HDC variant
 
 ---
@@ -581,7 +581,7 @@ index e27980f..4c2b91c 100644
  }
  
 diff --git a/libfaad/syntax.c b/libfaad/syntax.c
-index 56ae310..987264c 100644
+index 56ae310..fd8f057 100644
 --- a/libfaad/syntax.c
 +++ b/libfaad/syntax.c
 @@ -86,7 +86,7 @@ static void gain_control_data(bitfile *ld, ic_stream *ics);
@@ -601,7 +601,7 @@ index 56ae310..987264c 100644
 +static void hdc_data_block(NeAACDecStruct *hDecoder, NeAACDecFrameInfo *hInfo,
 +                           bitfile *ld, program_config *pce, drc_info *drc)
 +{
-+    uint8_t i, n;
++    uint8_t n;
 +
 +    hDecoder->fr_channels = 0;
 +    hDecoder->fr_ch_ele = 0;
@@ -638,7 +638,7 @@ index 56ae310..987264c 100644
 +    // XXX immediately followed by SBR data, which was handled in decode_*
 +
 +    // NB we expect errors until we hit a valid first SBR block
-+    if (hDecoder->sbr[0]->ret)
++    if (!hDecoder->sbr[0] || hDecoder->sbr[0]->ret)
 +        return;
 +
 +    while (faad_get_processed_bits(ld) + 8 <= faad_origbitbuffer_size(ld)*8)

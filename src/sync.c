@@ -413,6 +413,11 @@ void sync_process_fm(sync_t *st)
 
         angle /= (partitions_per_band + 1) * 2;
         st->angle = angle;
+        for (i = 0; i < partitions_per_band * PARTITION_WIDTH + 1; i += PARTITION_WIDTH)
+        {
+            st->costas_freq[LB_START + i] -= angle;
+            st->costas_freq[UB_END - i] -= angle;
+        }
 
         // Calculate modulation error
         float error_lb = 0, error_ub = 0;

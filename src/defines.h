@@ -19,7 +19,7 @@
 // OFDM symbols per L1 block
 #define BLKSZ 32
 // symbols processed by each invocation of acquire_process
-#define ACQUIRE_SYMBOLS (BLKSZ * 2)
+#define ACQUIRE_SYMBOLS (BLKSZ)
 // index of first lower sideband subcarrier
 #define LB_START ((FFT_FM / 2) - 546)
 // index of last upper sideband subcarrier

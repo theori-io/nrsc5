@@ -13,6 +13,8 @@ typedef struct
   int8_t internal[P3_FRAME_LEN_FM * 32];
   unsigned int i;
   unsigned int pt[4];
+  int length;
+  int started;
   int ready;
 } interleaver_iv_t;
 
@@ -21,6 +23,7 @@ typedef struct
     struct input_t *input;
     int8_t buffer_pm[720 * BLKSZ * 16];
     unsigned int idx_pm;
+    int started_pm;
     uint8_t buffer_pids_am[2 * BLKSZ];
     unsigned int idx_pids_am;
     uint8_t buffer_pu[PARTITION_WIDTH_AM * BLKSZ * 8];
@@ -75,31 +78,25 @@ static inline void decode_push_pm(decode_t *st, int8_t sbit)
 {
     st->buffer_pm[st->idx_pm++] = sbit;
     if (st->idx_pm % (720 * BLKSZ) == 0)
-    {
         decode_process_pids(st);
-    }
     if (st->idx_pm == 720 * BLKSZ * 16)
-    {
-        decode_process_p1(st);
-        st->idx_pm = 0;
-    }
+        if (st->started_pm)
+            decode_process_p1(st);
 }
-static inline void decode_push_px1_px2(decode_t *st, interleaver_iv_t *interleaver, int8_t *viterbi, uint8_t *scrambler, int8_t sbit, unsigned int frame_len)
+static inline void decode_push_px1_px2(decode_t *st, interleaver_iv_t *interleaver, int8_t *viterbi, uint8_t *scrambler, int8_t sbit)
 {
     interleaver->buffer[interleaver->idx++] = sbit;
-    if (interleaver->idx % (frame_len * 2) == 0)
-    {
-        decode_process_p3_p4(st, interleaver, viterbi, scrambler, frame_len, (interleaver == &st->interleaver_px1) ? P3_LOGICAL_CHANNEL : P4_LOGICAL_CHANNEL);
-        interleaver->idx = 0;
-    }
+    if (interleaver->idx % interleaver->length == 0)
+        if (interleaver->started)
+            decode_process_p3_p4(st, interleaver, viterbi, scrambler, interleaver->length / 2, (interleaver == &st->interleaver_px1) ? P3_LOGICAL_CHANNEL : P4_LOGICAL_CHANNEL);
 }
-static inline void decode_push_px1(decode_t *st, int8_t sbit, unsigned int frame_len)
+static inline void decode_push_px1(decode_t *st, int8_t sbit)
 {
-    decode_push_px1_px2(st, &st->interleaver_px1, st->viterbi_p3, st->scrambler_p3, sbit, frame_len);
+    decode_push_px1_px2(st, &st->interleaver_px1, st->viterbi_p3, st->scrambler_p3, sbit);
 }
 static inline void decode_push_px2(decode_t *st, int8_t sbit)
 {
-    decode_push_px1_px2(st, &st->interleaver_px2, st->viterbi_p4, st->scrambler_p4, sbit, P3_FRAME_LEN_FM);
+    decode_push_px1_px2(st, &st->interleaver_px2, st->viterbi_p4, st->scrambler_p4, sbit);
 }
 static inline void decode_push_pids(decode_t *st, uint8_t sym)
 {
@@ -123,5 +120,7 @@ static inline void decode_push_pl_pu_s_t(decode_t *st, uint8_t sym_pl, uint8_t s
         st->idx_pu_pl_s_t = 0;
     }
 }
+void decode_set_block(decode_t *st, unsigned int bc);
+void decode_set_px1_length(decode_t *st, unsigned int frame_len);
 void decode_reset(decode_t *st);
 void decode_init(decode_t *st, struct input_t *input);

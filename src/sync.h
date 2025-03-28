@@ -12,6 +12,7 @@ typedef struct
     unsigned int idx;
     int psmi;
     int cfo_wait;
+    unsigned int bc;
     unsigned int offset_history;
     int samperr;
     float angle;

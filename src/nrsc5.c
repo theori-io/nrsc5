@@ -39,11 +39,15 @@ static int do_auto_gain(nrsc5_t *st)
     if (gain_count < 0)
         goto error;
 
-    for (int i = 0; i < gain_count; i++)
-    {
-        int gain = gain_list[i];
+    int low = 0;
+    int high = gain_count - 1;
 
-        if (set_tuner_gain(st, gain_list[i]) != 0)
+    while (low <= high)
+    {
+        int mid = (low + high) / 2;
+        int gain = gain_list[mid];
+
+        if (set_tuner_gain(st, gain) != 0)
             continue;
 
         if (st->rtltcp)
@@ -69,7 +73,7 @@ static int do_auto_gain(nrsc5_t *st)
 
         uint8_t max_sample = 0;
         uint8_t min_sample = 255;
-        for (int j = 0; j < len; j++)
+        for (int j = len/4; j < len; j++)
         {
             if (st->samples_buf[j] > max_sample)
                 max_sample = st->samples_buf[j];
@@ -80,7 +84,18 @@ static int do_auto_gain(nrsc5_t *st)
         float amplitude_db = 20 * log10f((max_sample - min_sample + 1) / 256.0f);
         log_debug("Gain: %.1f dB, Peak amplitude: %.1f dBFS", gain / 10.0f, amplitude_db);
 
-        if ((i == 0) || (amplitude_db < -6.0f))
+        if (amplitude_db < -6.0f)
+        {
+            best_gain = gain;
+            best_amplitude_db = amplitude_db;
+            low = mid + 1;
+        }
+        else
+        {
+            high = mid - 1;
+        }
+
+        if (high == -1)
         {
             best_gain = gain;
             best_amplitude_db = amplitude_db;

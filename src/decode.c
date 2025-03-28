@@ -429,17 +429,40 @@ void decode_process_p1_p3_am(decode_t *st)
     }
 }
 
+void decode_set_block(decode_t *st, unsigned int bc)
+{
+    st->idx_pm = 720 * BLKSZ * bc;
+    if (bc == 0)
+        st->started_pm = 1;
+
+    st->interleaver_px1.idx = (st->interleaver_px1.length / 2) * (bc % 2);
+    st->interleaver_px2.idx = (st->interleaver_px2.length / 2) * (bc % 2);
+    if ((bc % 2) == 0)
+    {
+        st->interleaver_px1.started = 1;
+        st->interleaver_px2.started = 1;
+    }
+}
+
+void decode_set_px1_length(decode_t *st, unsigned int frame_len)
+{
+    st->interleaver_px1.length = frame_len;
+}
+
 static void interleaver_iv_reset(interleaver_iv_t *interleaver)
 {
     interleaver->idx = 0;
     interleaver->i = 0;
     memset(interleaver->pt, 0, sizeof(unsigned int) * 4);
+    interleaver->length = P3_FRAME_LEN_FM * 2;
+    interleaver->started = 0;
     interleaver->ready = 0;
 }
 
 void decode_reset(decode_t *st)
 {
     st->idx_pm = 0;
+    st->started_pm = 0;
     st->idx_pu_pl_s_t = 0;
     st->am_diversity_wait = 3;
     interleaver_iv_reset(&st->interleaver_px1);

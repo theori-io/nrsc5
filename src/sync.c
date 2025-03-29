@@ -323,7 +323,7 @@ void detect_cfo(sync_t *st)
         if (best_offset >= 0 && best_count >= 3)
         {
             // At least three offsets matched, so this is likely the correct CFO.
-            input_set_skip(st->input, best_offset * FFTCP_FM);
+            acquire_keep_extra(&st->input->acq, ((BLKSZ - best_offset) % BLKSZ) * FFTCP_FM);
             acquire_cfo_adjust(&st->input->acq, cfo);
 
             log_debug("Block @ %d", best_offset);
@@ -625,7 +625,7 @@ void sync_process_am(sync_t *st)
         offset = find_ref_am(st, CENTER_AM + REF_INDEX_AM);
         if (offset > 0)
         {
-            input_set_skip(st->input, offset * FFTCP_AM);
+            acquire_keep_extra(&st->input->acq, ((BLKSZ - offset) % BLKSZ) * FFTCP_AM);
             log_debug("Block @ %d", offset);
             st->cfo_wait = 8;
         }

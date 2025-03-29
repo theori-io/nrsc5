@@ -23,6 +23,7 @@ typedef struct
     unsigned int idx;
     float prev_angle;
     float complex phase;
+    int keep_extra;
     int cfo;
 
     int mode;
@@ -32,6 +33,7 @@ typedef struct
 } acquire_t;
 
 void acquire_process(acquire_t *st);
+void acquire_keep_extra(acquire_t *st, int extra);
 void acquire_cfo_adjust(acquire_t *st, int cfo);
 unsigned int acquire_push(acquire_t *st, cint16_t *buf, unsigned int length);
 void acquire_reset(acquire_t *st);

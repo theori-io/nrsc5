@@ -254,9 +254,15 @@ void acquire_process(acquire_t *st)
         sync_push(&st->input->sync, st->fftout);
     }
 
-    keep = st->fftcp + (st->fftcp / 2 - samperr);
+    keep = st->fftcp + (st->fftcp / 2 - samperr) + st->keep_extra;
+    st->keep_extra = 0;
     memmove(&st->in_buffer[0], &st->in_buffer[st->idx - keep], sizeof(cint16_t) * keep);
     st->idx = keep;
+}
+
+void acquire_keep_extra(acquire_t *st, int extra)
+{
+    st->keep_extra = extra;
 }
 
 void acquire_cfo_adjust(acquire_t *st, int cfo)
@@ -293,6 +299,7 @@ void acquire_reset(acquire_t *st)
     st->idx = 0;
     st->prev_angle = 0;
     st->phase = 1;
+    st->keep_extra = 0;
     st->cfo = 0;
 }
 

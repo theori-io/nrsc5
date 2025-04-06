@@ -646,9 +646,8 @@ void sync_process_am(sync_t *st)
 
         if ((st->offset_history & 0xffff) == 0x5670)
         {
-            log_debug("Sync!");
             st->bc = 0;
-            st->input->sync_state = SYNC_STATE_FINE;
+            input_set_sync_state(st->input, SYNC_STATE_FINE);
             decode_reset(&st->input->decode);
             frame_reset(&st->input->frame);
             st->offset_history = 0;

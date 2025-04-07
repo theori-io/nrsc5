@@ -21,7 +21,7 @@ jobs:
           cmake ..
       - name: Compile
         working-directory: build
-        run: make -j3
+        run: make -j4
       - name: Install
         working-directory: build
         run: |
@@ -40,8 +40,8 @@ jobs:
       - name: Windows cross-compile
         run: |
           sudo apt-get install -y mingw-w64
-          support/win-cross-compile 32 --cmake-args="-DUSE_SSE=ON"
-          support/win-cross-compile 64 --cmake-args="-DUSE_SSE=ON"
+          support/win-cross-compile 32 --cmake-args="-DUSE_SSE=ON" -j4
+          support/win-cross-compile 64 --cmake-args="-DUSE_SSE=ON" -j4
   macos-build:
     name: MacOS CI
     strategy:
@@ -62,7 +62,7 @@ jobs:
           cmake ..
       - name: Compile
         working-directory: build
-        run: make -j3
+        run: make -j4
       - name: Install
         working-directory: build
         run: sudo make install
@@ -80,5 +80,5 @@ jobs:
         run: |
           brew install --cask xquartz wine-stable
           brew install mingw-w64
-          support/win-cross-compile 32 --cmake-args="-DUSE_SSE=ON"
-          support/win-cross-compile 64 --cmake-args="-DUSE_SSE=ON"
+          support/win-cross-compile 32 --cmake-args="-DUSE_SSE=ON" -j4
+          support/win-cross-compile 64 --cmake-args="-DUSE_SSE=ON" -j4

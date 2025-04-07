@@ -3,8 +3,6 @@
 set -e
 
 root=`git rev-parse --show-toplevel`
-CMAKE_EXTRA_ARGS=""
-
 if [ "$1" == 32 ]; then
     prefix=${root}/build-win32
     host=i686-w64-mingw32
@@ -12,37 +10,19 @@ elif [ "$1" == 64 ]; then
     prefix=${root}/build-win64
     host=x86_64-w64-mingw32
 else
-    echo "Usage: $0 (32|64) [options] [make flags]"
+    echo "Usage: $0 (32|64) [--cmake-args=\"options\"] [make flags]"
     exit 1
 fi
 shift
 
-while [[ "$1" == --* ]]; do
-    case "$1" in
-        --use-sse)       CMAKE_EXTRA_ARGS+=" -DUSE_SSE=ON"; shift ;;
-        --no-faad2)      CMAKE_EXTRA_ARGS+=" -DUSE_FAAD2=OFF"; shift ;;
-        --build-doc)     CMAKE_EXTRA_ARGS+=" -DBUILD_DOC=ON"; shift ;;
-        --debug-level)
-            debug_level="$2"
-            if [[ -z "$debug_level" ]]; then
-                 echo "Error: --debug-level requires a value." >&2
-                 exit 1
-            fi
-            if [[ "$debug_level" =~ ^[1-5]$ ]]; then
-                CMAKE_EXTRA_ARGS+=" -DLIBRARY_DEBUG_LEVEL=${debug_level}"
-                shift 2
-            else
-                echo "Error: --debug-level requires a number between 1 and 5 (got: '${debug_level}')." >&2
-                exit 1
-            fi
-            ;;
-        *) break ;;
-    esac
-done
+if [[ "$1" == --cmake-args=* ]]; then
+    CMAKE_ARGS="${1#*=}"
+    shift
+fi
 
 mkdir -p ${prefix}
-cd ${prefix}
 
+cd ${prefix}
 cmake \
     -D CMAKE_SYSTEM_NAME=Windows \
     -D CMAKE_C_COMPILER=${host}-gcc \
@@ -52,8 +32,7 @@ cmake \
     -D USE_SYSTEM_RTLSDR=OFF \
     -D USE_SYSTEM_LIBAO=OFF \
     -D USE_SYSTEM_FFTW=OFF \
-    ${CMAKE_EXTRA_ARGS} \
+    ${CMAKE_ARGS} \
     ..
-
-make "$@"
+make $*
 make install

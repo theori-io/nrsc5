@@ -10,10 +10,15 @@ elif [ "$1" == 64 ]; then
     prefix=${root}/build-win64
     host=x86_64-w64-mingw32
 else
-    echo "Usage: $0 (32|64) [make flags]"
+    echo "Usage: $0 (32|64) [--cmake-args=\"options\"] [make flags]"
     exit 1
 fi
 shift
+
+if [[ "$1" == --cmake-args=* ]]; then
+    CMAKE_ARGS="${1#*=}"
+    shift
+fi
 
 mkdir -p ${prefix}
 
@@ -22,12 +27,12 @@ cmake \
     -D CMAKE_SYSTEM_NAME=Windows \
     -D CMAKE_C_COMPILER=${host}-gcc \
     -D CMAKE_INSTALL_PREFIX=${prefix} \
-    -D USE_SSE=ON \
     -D USE_STATIC=ON \
     -D USE_SYSTEM_LIBUSB=OFF \
     -D USE_SYSTEM_RTLSDR=OFF \
     -D USE_SYSTEM_LIBAO=OFF \
     -D USE_SYSTEM_FFTW=OFF \
+    ${CMAKE_ARGS} \
     ..
 make $*
 make install

@@ -77,14 +77,14 @@ Once everything is built, you can run nrsc5 independently of MSYS2. Copy the fol
 ### Cross-compiling for Windows from Ubuntu / Debian
 
     sudo apt install mingw-w64
-    support/win-cross-compile 64
+    support/win-cross-compile 64 --cmake-args="-DUSE_SSE=ON"
 
 Replace `64` with `32` if you want a 32-bit build. Once the build is complete, copy `*.dll` and `nrsc5.exe` from the `build-win64/bin` (or `build-win32/bin`) folder to your Windows machine.
 
 ### Cross-compiling for Windows from macOS
 
     brew install mingw-w64
-    support/win-cross-compile 64
+    support/win-cross-compile 64 --cmake-args="-DUSE_SSE=ON"
 
 Replace `64` with `32` if you want a 32-bit build. Once the build is complete, copy `*.dll` and `nrsc5.exe` from the `build-win64/bin` (or `build-win32/bin`) folder to your Windows machine.
 

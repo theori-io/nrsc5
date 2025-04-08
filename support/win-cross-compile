@@ -34,5 +34,9 @@ cmake \
     -D USE_SYSTEM_FFTW=OFF \
     ${CMAKE_ARGS} \
     ..
+
+# needed to ensure non-system libusb is seen by non-system rtlsdr during cmake
+export PKG_CONFIG_PATH=${prefix}/libusb-prefix/lib/pkgconfig:$PKG_CONFIG_PATH    
+
 make $*
 make install

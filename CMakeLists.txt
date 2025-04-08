@@ -156,7 +156,7 @@ if (NOT USE_SYSTEM_RTLSDR)
         rtlsdr_external
         TIMEOUT 120
         GIT_REPOSITORY "https://gitea.osmocom.org/sdr/rtl-sdr.git"
-        GIT_TAG b85f037d85fa5382c3e88463184b77b273cd1091
+        GIT_TAG v2.0.2
         PREFIX ${RTLSDR_PREFIX}
 
         UPDATE_COMMAND ""

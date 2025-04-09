@@ -338,6 +338,7 @@ static void report(pids_t *st)
     free(slogan);
     free(message);
     free(alert);
+    free(locations);
 
     while (audio_services)
     {

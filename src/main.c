@@ -31,6 +31,7 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <windows.h>
+#include <fcntl.h>
 #else
 #include <netdb.h>
 #include <sys/socket.h>
@@ -761,10 +762,6 @@ int main(int argc, char *argv[])
     nrsc5_t *radio = NULL;
     state_t *st = calloc(1, sizeof(state_t));
 
-#ifdef __MINGW32__
-    SetConsoleOutputCP(CP_UTF8);
-#endif
-
     pthread_mutex_init(&log_mutex, NULL);
     log_set_lock(log_lock);
     log_set_udata(&log_mutex);
@@ -773,6 +770,12 @@ int main(int argc, char *argv[])
     init_audio_buffers(st);
     if (parse_args(st, argc, argv) != 0)
         return 0;
+
+#ifdef __MINGW32__
+    SetConsoleOutputCP(CP_UTF8);
+    setmode(fileno(stdin), O_BINARY);
+    setmode(fileno(stdout), O_BINARY);
+#endif
 
     if (st->input_name)
     {

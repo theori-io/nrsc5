@@ -35,8 +35,11 @@ jobs:
           grep -q "You're Listening to Q" sample.log
           cat sample | nrsc5 -r - -o sample.wav 0 2> sample.log
           grep -q "You're Listening to Q" sample.log
-          support/cli.py -r sample 0
-          cat sample | support/cli.py -r - 0
+
+          support/cli.py -r sample -o sample.wav 0 2> sample.log
+          grep -q "You're Listening to Q" sample.log
+          cat sample | support/cli.py -r - -o sample.wav 0 2> sample.log
+          grep -q "You're Listening to Q" sample.log
       - name: Windows cross-compile
         run: |
           sudo apt-get install -y mingw-w64
@@ -52,7 +55,9 @@ jobs:
       - name: Install dependencies
         run: |
           brew install autoconf automake libtool libao fftw librtlsdr portaudio
-          # pip3 install --global-option=build_ext --global-option="-I/usr/local/include/" --global-option="-L/usr/local/lib" pyaudio
+          python3 -m venv ${{ runner.temp }}/venv
+          source ${{ runner.temp }}/venv/bin/activate
+          pip3 install pyaudio
       - name: Checkout code
         uses: actions/checkout@v4
       - name: Configure
@@ -74,8 +79,13 @@ jobs:
           grep -q "You're Listening to Q" sample.log
           cat sample | nrsc5 -r - -o sample.wav 0 2> sample.log
           grep -q "You're Listening to Q" sample.log
-          # support/cli.py -r sample 0
-          # cat sample | support/cli.py -r - 0
+
+          source ${{ runner.temp }}/venv/bin/activate
+          export DYLD_LIBRARY_PATH=/usr/local/lib
+          support/cli.py -r sample -o sample.wav 0 2> sample.log
+          grep -q "You're Listening to Q" sample.log
+          cat sample | support/cli.py -r - -o sample.wav 0 2> sample.log
+          grep -q "You're Listening to Q" sample.log
       - name: Windows cross-compile
         run: |
           brew install --cask xquartz wine-stable

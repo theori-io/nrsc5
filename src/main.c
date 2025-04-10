@@ -513,7 +513,12 @@ static void *input_main(void *arg)
     if (!isatty(STDIN_FILENO))
         return NULL;
 
-#ifndef __MINGW32__
+#ifdef __MINGW32__
+    HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
+    DWORD mode = 0;
+    GetConsoleMode(hStdin, &mode);
+    SetConsoleMode(hStdin, mode & (~ENABLE_ECHO_INPUT) & (~ENABLE_LINE_INPUT));
+#else
     struct termios prev_termios, t;
 
     // disable terminal canonical mode
@@ -526,14 +531,9 @@ static void *input_main(void *arg)
 
     while (!st->done)
     {
-#ifdef __MINGW32__
-        int ch;
-        ch = _getch();
-#else
         char ch;
         if (read(STDIN_FILENO, &ch, 1) != 1)
             break;
-#endif
 
         switch (ch)
         {

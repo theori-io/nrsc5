@@ -1,6 +1,6 @@
-From 66d18e72a8c8cb169341b70b70aa9817fbe0164b Mon Sep 17 00:00:00 2001
+From f90b0f325f66cbcdb45bbc9239b7d0889cb140e9 Mon Sep 17 00:00:00 2001
 From: Clayton Smith <argilo@gmail.com>
-Date: Sat, 22 Mar 2025 14:23:34 -0400
+Date: Fri, 11 Apr 2025 15:53:22 -0400
 Subject: [PATCH] Support for HDC variant
 
 ---
@@ -581,7 +581,7 @@ index e27980f..4c2b91c 100644
  }
  
 diff --git a/libfaad/syntax.c b/libfaad/syntax.c
-index 56ae310..fd8f057 100644
+index 56ae310..8c7dde8 100644
 --- a/libfaad/syntax.c
 +++ b/libfaad/syntax.c
 @@ -86,7 +86,7 @@ static void gain_control_data(bitfile *ld, ic_stream *ics);
@@ -676,8 +676,8 @@ index 56ae310..fd8f057 100644
 +#endif
 +
 +            );
-+        hDecoder->sbr[0]->Is_HDC_SBR = 1;
 +    }
++    hDecoder->sbr[0]->Is_HDC_SBR = 1;
 +
 +    count = (uint16_t)bit2byte(buffer_size*8 - bitsconsumed);
 +

@@ -535,7 +535,7 @@ static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *
     port = find_port(st, port_id);
     if (port == NULL)
     {
-        log_debug("missing port %04X", port_id);
+        log_debug("port %04X not defined in SIG table", port_id);
         return;
     }
 

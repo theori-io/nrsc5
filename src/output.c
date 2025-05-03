@@ -27,30 +27,93 @@
 #include "private.h"
 #include "unicode.h"
 
-void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int program, unsigned int stream_id)
+void output_align(output_t *st, unsigned int program, unsigned int stream_id, unsigned int offset)
 {
-    nrsc5_report_hdc(st->radio, program, pkt, len);
+    elastic_buffer_t *elastic = &st->elastic[program][stream_id];
+    elastic->audio_offset = offset;
+}
+
+void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int program, unsigned int stream_id, unsigned int seq)
+{
+    elastic_buffer_t *elastic = &st->elastic[program][stream_id];
 
     if (stream_id != 0)
         return; // TODO: Process enhanced stream
 
-#ifdef USE_FAAD2
-    void *buffer;
-    NeAACDecFrameInfo info;
+    if (elastic->packets[seq].size != 0)
+       log_warn("Packet %d already exists in elastic buffer for program %d, stream %d. Overwriting.", seq, program, stream_id);
 
-    if (!st->aacdec[program])
+    memcpy(elastic->packets[seq].data, pkt, len);
+    elastic->packets[seq].size = len;
+}
+
+void output_advance(output_t *st)
+{
+    unsigned int program, frame;
+    unsigned int audio_frames = (st->radio->mode == NRSC5_MODE_FM ? 2 : 4);
+
+    for (program = 0; program < MAX_PROGRAMS; program++)
     {
-        unsigned long samprate = 22050;
-        NeAACDecInitHDC(&st->aacdec[program], &samprate);
-    }
+        elastic_buffer_t *elastic = &st->elastic[program][0]; // TODO: Process enhanced stream
 
-    buffer = NeAACDecDecode(st->aacdec[program], &info, pkt, len);
-    if (info.error > 0)
-        log_error("Decode error: %s", NeAACDecGetErrorMessage(info.error));
+        if (elastic->audio_offset == -1)
+            continue;
 
-    if (info.error == 0 && info.samples > 0)
-        nrsc5_report_audio(st->radio, program, buffer, info.samples);
+        for (frame = 0; frame < audio_frames; frame++)
+        {
+            unsigned int len = elastic->packets[elastic->audio_offset].size;
+            uint8_t *pkt = elastic->packets[elastic->audio_offset].data;
+#ifdef USE_FAAD2
+            int produced_audio = 0;
 #endif
+
+            if (len > 0)
+            {
+                nrsc5_report_hdc(st->radio, program, pkt, len);
+
+#ifdef USE_FAAD2
+                void *buffer;
+                NeAACDecFrameInfo info;
+
+                if (!st->aacdec[program])
+                {
+                    unsigned long samprate = 22050;
+                    NeAACDecInitHDC(&st->aacdec[program], &samprate);
+                }
+
+                buffer = NeAACDecDecode(st->aacdec[program], &info, pkt, len);
+                if (info.error > 0)
+                    log_error("Decode error: %s", NeAACDecGetErrorMessage(info.error));
+
+                if (info.error == 0 && info.samples > 0)
+                {
+                    nrsc5_report_audio(st->radio, program, buffer, info.samples);
+                    produced_audio = 1;
+                }
+#endif
+
+                elastic->packets[elastic->audio_offset].size = 0;
+            }
+            else
+            {
+#ifdef USE_FAAD2
+                // Reset decoder. Missing packets.
+                if (st->aacdec[program])
+                {
+                    NeAACDecClose(st->aacdec[program]);
+                    st->aacdec[program] = NULL;
+                }                
+#endif
+            }
+
+#ifdef USE_FAAD2
+            if (!produced_audio)
+                nrsc5_report_audio(st->radio, program, st->silence, NRSC5_AUDIO_FRAME_SAMPLES * 2);
+#endif
+    
+            elastic->audio_offset = (elastic->audio_offset + 1) % ELASTIC_BUFFER_LEN;
+        }
+    }
 }
 
 static void aas_free_lot(aas_file_t *file)
@@ -92,14 +155,22 @@ void output_reset(output_t *st)
 {
     aas_reset(st);
 
-#ifdef USE_FAAD2
     for (int i = 0; i < MAX_PROGRAMS; i++)
     {
+        for (int j = 0; j < MAX_STREAMS; j++)
+        {
+            for (int k = 0; k < ELASTIC_BUFFER_LEN; k++)
+            {
+                st->elastic[i][j].packets[k].size = 0;
+            }
+            st->elastic[i][j].audio_offset = -1;
+        }
+#ifdef USE_FAAD2
         if (st->aacdec[i])
             NeAACDecClose(st->aacdec[i]);
         st->aacdec[i] = NULL;
-    }
 #endif
+    }
 }
 
 void output_init(output_t *st, nrsc5_t *radio)
@@ -108,6 +179,7 @@ void output_init(output_t *st, nrsc5_t *radio)
 #ifdef USE_FAAD2
     for (int i = 0; i < MAX_PROGRAMS; i++)
         st->aacdec[i] = NULL;
+    memset(st->silence, 0, sizeof(st->silence));
 #endif
 
     memset(st->ports, 0, sizeof(st->ports));

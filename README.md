@@ -148,3 +148,8 @@ To quit, press <kbd>Q</kbd>.
 ### RTL-SDR drivers on Windows
 
 If you get errors trying to access your RTL-SDR device, then you may need to use [Zadig](http://zadig.akeo.ie/) to change the USB driver. Once you download and run Zadig, select your RTL-SDR device, ensure the driver is set to WinUSB, and then click "Replace Driver". If your device is not listed, enable "Options" -> "List All Devices".
+
+### Application Programming Interface (API)
+
+If you would like to build an application that makes use of nrsc5's functionality, you can use the [C API](include/nrsc5.h) ([documentation](https://theori-io.github.io/nrsc5/c-api/)) or [Python API](support/nrsc5.py). The [`nrsc5` command-line application](src/main.c) is built on top of the C API, and an equivalent [Python command-line application](support/cli.py) is built on top of the Python API. These applications serve as examples of how to use the API.
+

@@ -42,5 +42,3 @@ void input_free(input_t *st);
 void input_set_sync_state(input_t *st, unsigned int new_state);
 void input_push_cu8(input_t *st, const uint8_t *buf, uint32_t len);
 void input_push_cs16(input_t *st, const int16_t *buf, uint32_t len);
-void input_pdu_push(input_t *st, uint8_t *pdu, unsigned int len, unsigned int program, unsigned int stream_id);
-void input_aas_push(input_t *st, uint8_t *psd, unsigned int len);

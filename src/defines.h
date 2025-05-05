@@ -65,7 +65,9 @@
 // number of programs (max)
 #define MAX_PROGRAMS 8
 // number of streams per program (max)
-#define MAX_STREAMS 4
+#define MAX_STREAMS 2
+// number of audio packets in the elastic buffer
+#define ELASTIC_BUFFER_LEN 64
 // number of subcarriers per AM partition
 #define PARTITION_WIDTH_AM 25
 

@@ -87,16 +87,31 @@ typedef struct
 
 typedef struct
 {
+    unsigned int size;
+    uint8_t data[MAX_PDU_LEN];
+} packet_t;
+
+typedef struct
+{
+    packet_t packets[ELASTIC_BUFFER_LEN];
+    int audio_offset;
+} elastic_buffer_t;
+
+typedef struct
+{
     nrsc5_t *radio;
+    elastic_buffer_t elastic[MAX_PROGRAMS][MAX_STREAMS];
 #ifdef HAVE_FAAD2
     NeAACDecHandle aacdec[MAX_PROGRAMS];
+    int16_t silence[NRSC5_AUDIO_FRAME_SAMPLES * 2];
 #endif
     aas_port_t ports[MAX_PORTS];
     sig_service_t services[MAX_SIG_SERVICES];
 } output_t;
 
-void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int program, unsigned int stream_id);
-void output_begin(output_t *st);
+void output_align(output_t *st, unsigned int program, unsigned int stream_id, unsigned int offset);
+void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int program, unsigned int stream_id, unsigned int seq);
+void output_advance(output_t *st);
 void output_reset(output_t *st);
 void output_init(output_t *st, nrsc5_t *);
 void output_free(output_t *st);

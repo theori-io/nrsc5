@@ -105,6 +105,8 @@ void acquire_process(acquire_t *st)
     if (st->idx != (unsigned int)st->fftcp * (ACQUIRE_SYMBOLS + 1))
         return;
 
+    output_advance(st->input->output);
+
     if (st->input->sync_state == SYNC_STATE_FINE)
     {
         samperr = st->fftcp / 2 + st->input->sync.samperr;

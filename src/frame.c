@@ -288,6 +288,32 @@ static unsigned int calc_lc_bits(frame_header_t *hdr)
     }
 }
 
+static unsigned int calc_avg_packets(frame_header_t *hdr)
+{
+    switch(hdr->codec)
+    {
+        case 0:
+            return 32;
+        case 1:
+        case 2:
+        case 3:
+            if (hdr->stream_id == 0)
+                return 4;
+            else
+                return 32;
+        case 10:
+            if (hdr->stream_id == 0)
+                return 32;
+            else
+                return 4;
+        case 13:
+            return 4;
+        default:
+            log_warn("unknown codec field (%d)", hdr->codec);
+            return 32;
+    }
+}
+
 static unsigned int parse_location(uint8_t *buf, unsigned int lc_bits, unsigned int i)
 {
     if (lc_bits == 16)
@@ -337,7 +363,7 @@ static void aas_push(frame_t *st, uint8_t* psd, unsigned int length, logical_cha
     else
     {
         // remove protocol and fcs fields
-        input_aas_push(st->input, psd + 1, length - 3);
+        output_aas_push(st->input->output, psd + 1, length - 3);
     }
 }
 
@@ -503,7 +529,7 @@ void frame_process(frame_t *st, size_t length, logical_channel_t lc)
     while (offset < audio_end - RS_CODEWORD_LEN)
     {
         unsigned int start = offset;
-        unsigned int j, lc_bits, loc_bytes, prog;
+        unsigned int j, lc_bits, loc_bytes, prog, avg, seq, output_offset;
         unsigned short locations[MAX_AUDIO_PACKETS];
         frame_header_t hdr = {0};
         hef_t hef = {0};
@@ -532,9 +558,24 @@ void frame_process(frame_t *st, size_t length, logical_channel_t lc)
         }
         offset += loc_bytes;
 
+        if (hdr.stream_id >= MAX_STREAMS)
+        {
+            log_warn("invalid stream_id: %d", hdr.stream_id);
+            offset = start + locations[hdr.nop - 1] + 1;
+            continue;
+        }
+
         if (hdr.hef)
             offset += parse_hef(st->buffer + offset, audio_end - offset, &hef);
         prog = hef.prog_num;
+        avg = calc_avg_packets(&hdr);
+        seq = (ELASTIC_BUFFER_LEN + hdr.seq - hdr.pfirst) % ELASTIC_BUFFER_LEN;
+
+        output_offset = (ELASTIC_BUFFER_LEN + (hdr.pdu_seq * avg) - (hdr.latency * 2)) % ELASTIC_BUFFER_LEN;
+        if (((ELASTIC_BUFFER_LEN + seq - output_offset) % ELASTIC_BUFFER_LEN) >= (ELASTIC_BUFFER_LEN / 2))
+            output_offset = (output_offset + (ELASTIC_BUFFER_LEN / 2)) % ELASTIC_BUFFER_LEN;
+
+        output_align(st->input->output, prog, hdr.stream_id, output_offset);
 
         parse_hdlc(st, aas_push, st->psd_buf[prog], &st->psd_idx[prog], MAX_AAS_LEN, st->buffer + offset, start + hdr.la_location + 1 - offset, lc);
         offset = start + hdr.la_location + 1;
@@ -555,7 +596,7 @@ void frame_process(frame_t *st, size_t length, logical_channel_t lc)
                     if (crc == 0)
                     {
                         memcpy(&st->pdu[prog][hdr.stream_id][idx], st->buffer + offset, cnt);
-                        input_pdu_push(st->input, st->pdu[prog][hdr.stream_id], cnt + idx, prog, hdr.stream_id);
+                        output_push(st->input->output, st->pdu[prog][hdr.stream_id], cnt + idx, prog, hdr.stream_id, seq);
                     }
                     st->pdu_idx[prog][hdr.stream_id] = 0;
                 }
@@ -576,11 +617,12 @@ void frame_process(frame_t *st, size_t length, logical_channel_t lc)
             {
                 if (crc == 0)
                 {
-                    input_pdu_push(st->input, st->buffer + offset, cnt, prog, hdr.stream_id);
+                    output_push(st->input->output, st->buffer + offset, cnt, prog, hdr.stream_id, seq);
                 }
             }
 
             offset += cnt + 1;
+            seq = (seq + 1) % ELASTIC_BUFFER_LEN;
         }
     }
 

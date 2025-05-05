@@ -42,7 +42,7 @@
 #include "log.h"
 
 #define AUDIO_BUFFERS 128
-#define AUDIO_THRESHOLD 40
+#define AUDIO_THRESHOLD 8
 #define AUDIO_DATA_LENGTH 8192
 
 typedef struct buffer_t {

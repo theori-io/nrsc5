@@ -38,11 +38,6 @@ static float decim_taps[] = {
     -0.00410953676328063
 };
 
-void input_pdu_push(input_t *st, uint8_t *pdu, unsigned int len, unsigned int program, unsigned int stream_id)
-{
-    output_push(st->output, pdu, len, program, stream_id);
-}
-
 int input_shift(input_t *st, unsigned int cnt)
 {
     if (cnt + st->avail > INPUT_BUF_LEN)
@@ -202,9 +197,4 @@ void input_set_sync_state(input_t *st, unsigned int new_state)
     }
 
     st->sync_state = new_state;
-}
-
-void input_aas_push(input_t *st, uint8_t *psd, unsigned int len)
-{
-    output_aas_push(st->output, psd, len);
 }

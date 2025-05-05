@@ -391,41 +391,47 @@ void decode_process_pids_am(decode_t *st)
 
 void decode_process_p1_p3_am(decode_t *st)
 {
-    int total_errors = 0;
+    unsigned int block = st->idx_pu_pl_s_t / (PARTITION_WIDTH_AM * BLKSZ) - 1;
 
-    interleaver_ma1(st);
+    if (block == 0)
+        st->am_errors = 0;
 
-    if (st->am_diversity_wait > 0)
-    {
-        st->am_diversity_wait--;
-        return;
-    }
-
-    for (int block = 0; block < 8; block++)
+    if (st->am_diversity_wait == 0)
     {
         nrsc5_conv_decode_e1(st->viterbi_p1_am + (block * P1_FRAME_LEN_AM * 3), st->scrambler_p1_am, P1_FRAME_LEN_AM);
-        total_errors += bit_errors_p1_am(st->viterbi_p1_am + (block * P1_FRAME_LEN_AM * 3), st->scrambler_p1_am);
+        st->am_errors += bit_errors_p1_am(st->viterbi_p1_am + (block * P1_FRAME_LEN_AM * 3), st->scrambler_p1_am);
         descramble(st->scrambler_p1_am, P1_FRAME_LEN_AM);
         frame_push(&st->input->frame, st->scrambler_p1_am, P1_FRAME_LEN_AM, P1_LOGICAL_CHANNEL);
+
+        if (block == 7)
+        {
+            if (st->input->sync.psmi != SERVICE_MODE_MA3)
+            {
+                nrsc5_conv_decode_e2(st->viterbi_p3_am, st->scrambler_p3_am, P3_FRAME_LEN_MA1);
+                st->am_errors += bit_errors_p3_ma1(st->viterbi_p3_am, st->scrambler_p3_am);
+                descramble(st->scrambler_p3_am, P3_FRAME_LEN_MA1);
+                frame_push(&st->input->frame, st->scrambler_p3_am, P3_FRAME_LEN_MA1, P3_LOGICAL_CHANNEL);
+        
+                nrsc5_report_ber(st->input->radio, (float) st->am_errors / (8 * P1_FRAME_LEN_ENCODED_AM + P3_FRAME_LEN_ENCODED_MA1));
+            }
+            else
+            {
+                nrsc5_conv_decode_e1(st->viterbi_p3_am, st->scrambler_p3_am, P3_FRAME_LEN_MA3);
+                st->am_errors += bit_errors_p3_ma3(st->viterbi_p3_am, st->scrambler_p3_am);
+                descramble(st->scrambler_p3_am, P3_FRAME_LEN_MA3);
+                frame_push(&st->input->frame, st->scrambler_p3_am, P3_FRAME_LEN_MA3, P3_LOGICAL_CHANNEL);
+        
+                nrsc5_report_ber(st->input->radio, (float) st->am_errors / (8 * P1_FRAME_LEN_ENCODED_AM + P3_FRAME_LEN_ENCODED_MA3));
+            }        
+        }
     }
 
-    if (st->input->sync.psmi != SERVICE_MODE_MA3)
+    if (block == 7)
     {
-        nrsc5_conv_decode_e2(st->viterbi_p3_am, st->scrambler_p3_am, P3_FRAME_LEN_MA1);
-        total_errors += bit_errors_p3_ma1(st->viterbi_p3_am, st->scrambler_p3_am);
-        descramble(st->scrambler_p3_am, P3_FRAME_LEN_MA1);
-        frame_push(&st->input->frame, st->scrambler_p3_am, P3_FRAME_LEN_MA1, P3_LOGICAL_CHANNEL);
+        interleaver_ma1(st);
 
-        nrsc5_report_ber(st->input->radio, (float) total_errors / (8 * P1_FRAME_LEN_ENCODED_AM + P3_FRAME_LEN_ENCODED_MA1));
-    }
-    else
-    {
-        nrsc5_conv_decode_e1(st->viterbi_p3_am, st->scrambler_p3_am, P3_FRAME_LEN_MA3);
-        total_errors += bit_errors_p3_ma3(st->viterbi_p3_am, st->scrambler_p3_am);
-        descramble(st->scrambler_p3_am, P3_FRAME_LEN_MA3);
-        frame_push(&st->input->frame, st->scrambler_p3_am, P3_FRAME_LEN_MA3, P3_LOGICAL_CHANNEL);
-
-        nrsc5_report_ber(st->input->radio, (float) total_errors / (8 * P1_FRAME_LEN_ENCODED_AM + P3_FRAME_LEN_ENCODED_MA3));
+        if (st->am_diversity_wait > 0)
+            st->am_diversity_wait--;
     }
 }
 
@@ -464,7 +470,8 @@ void decode_reset(decode_t *st)
     st->idx_pm = 0;
     st->started_pm = 0;
     st->idx_pu_pl_s_t = 0;
-    st->am_diversity_wait = 3;
+    st->am_errors = 0;
+    st->am_diversity_wait = 4;
     interleaver_iv_reset(&st->interleaver_px1);
     interleaver_iv_reset(&st->interleaver_px2);
     pids_init(&st->pids, st->input);

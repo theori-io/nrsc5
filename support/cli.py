@@ -19,7 +19,7 @@ class NRSC5CLI:
         self.radio = nrsc5.NRSC5(lambda evt_type, evt: self.callback(evt_type, evt))
         self.nrsc5_version = self.radio.get_version()
         self.parse_args()
-        self.audio_queue = queue.Queue(maxsize=64)
+        self.audio_queue = queue.Queue(maxsize=16)
         self.device_condition = threading.Condition()
         self.interrupted = False
         self.iq_output = None

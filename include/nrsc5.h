@@ -393,24 +393,25 @@ struct nrsc5_event_t
             uint16_t port;
             uint16_t seq;
             unsigned int size;
-            uint32_t mime;
+            uint32_t mime;       /**< MIME type of the data component this stream belongs to, e.g. NRSC5_MIME_HERE_IMAGE */
             const uint8_t *data;
         } stream;
         struct {
             uint16_t port;
             uint16_t seq;
             unsigned int size;
-            uint32_t mime;
+            uint32_t mime;       /**< MIME type of the data component this packet belongs to, e.g. NRSC5_MIME_NAVTEQ */
             const uint8_t *data;
         } packet;
         struct {
             uint16_t port;
             unsigned int lot;
             unsigned int size;
-            uint32_t mime;
+            uint32_t mime;           /**< MIME type of this file, e.g. NRSC5_MIME_PNG */
             const char *name;
             const uint8_t *data;
             struct tm *expiry_utc;
+            uint32_t component_mime; /**< MIME type of the data component this file belongs to, e.g. NRSC5_MIME_TTN_STM_WEATHER */
         } lot;
         struct {
             unsigned int program;       /**< program number 0, 1, ..., 7 */

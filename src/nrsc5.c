@@ -756,7 +756,8 @@ void nrsc5_report_packet(nrsc5_t *st, uint16_t port, uint16_t seq, unsigned int 
     nrsc5_report(st, &evt);
 }
 
-void nrsc5_report_lot(nrsc5_t *st, uint16_t port, unsigned int lot, unsigned int size, uint32_t mime, const char *name, const uint8_t *data, struct tm *expiry_utc)
+void nrsc5_report_lot(nrsc5_t *st, uint16_t port, unsigned int lot, unsigned int size, uint32_t mime, const char *name,
+                      const uint8_t *data, struct tm *expiry_utc, uint32_t component_mime)
 {
     nrsc5_event_t evt;
 
@@ -768,6 +769,7 @@ void nrsc5_report_lot(nrsc5_t *st, uint16_t port, unsigned int lot, unsigned int
     evt.lot.name = name;
     evt.lot.data = data;
     evt.lot.expiry_utc = expiry_utc;
+    evt.lot.component_mime = component_mime;
     nrsc5_report(st, &evt);
 }
 

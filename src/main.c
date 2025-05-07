@@ -379,7 +379,8 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
             dump_aas_file(st, evt);
         char time_str[64];
         strftime(time_str, sizeof(time_str), "%Y-%m-%dT%H:%M:%SZ", evt->lot.expiry_utc);
-        log_info("LOT file: port=%04X lot=%d name=%s size=%d mime=%08X expiry=%s", evt->lot.port, evt->lot.lot, evt->lot.name, evt->lot.size, evt->lot.mime, time_str);
+        log_info("LOT file: port=%04X lot=%d name=%s size=%d mime=%08X component_mime=%08X expiry=%s",
+                 evt->lot.port, evt->lot.lot, evt->lot.name, evt->lot.size, evt->lot.mime, evt->lot.component_mime, time_str);
         break;
     case NRSC5_EVENT_SIS:
         if (evt->sis.country_code)

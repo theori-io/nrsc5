@@ -27,6 +27,7 @@ class EventType(enum.Enum):
     SIS = 11
     STREAM = 12
     PACKET = 13
+    AUDIO_SERVICE = 14
 
 
 AUDIO_FRAME_SAMPLES = 2048
@@ -130,6 +131,12 @@ class ProgramType(enum.Enum):
     SPECIAL_READING_SERVICES = 76
 
 
+class Blend(enum.Enum):
+    DISABLE = 0
+    SELECT = 1
+    ENABLE = 2
+
+
 class LocationFormat(enum.Enum):
     SAME = 0
     FIPS = 1
@@ -174,6 +181,8 @@ SISDataService = collections.namedtuple("SISDataService", ["access", "type", "mi
 SIS = collections.namedtuple("SIS", ["country_code", "fcc_facility_id", "name", "slogan", "message", "alert",
                                      "latitude", "longitude", "altitude", "audio_services", "data_services",
                                      "alert_cnt", "alert_categories", "alert_location_format", "alert_locations"])
+AudioService = collections.namedtuple("AudioService", ["program", "access", "type", "codec_mode", "blend_control",
+                                                       "digital_audio_gain", "common_delay", "latency"])
 
 
 class _IQ(ctypes.Structure):
@@ -399,6 +408,19 @@ class _SIS(ctypes.Structure):
     ]
 
 
+class _AudioService(ctypes.Structure):
+    _fields_ = [
+        ("program", ctypes.c_uint),
+        ("access", ctypes.c_uint),
+        ("type", ctypes.c_uint),
+        ("codec_mode", ctypes.c_uint),
+        ("blend_control", ctypes.c_uint),
+        ("digital_audio_gain", ctypes.c_int),
+        ("common_delay", ctypes.c_uint),
+        ("latency", ctypes.c_uint),
+    ]
+
+
 class _EventUnion(ctypes.Union):
     _fields_ = [
         ("iq", _IQ),
@@ -412,6 +434,7 @@ class _EventUnion(ctypes.Union):
         ("packet", _PACKET),
         ("lot", _LOT),
         ("sis", _SIS),
+        ("audio_service", _AudioService)
     ]
 
 
@@ -568,6 +591,19 @@ class NRSC5:
                       sis.alert_cnt[:sis.alert_cnt_length], alert_categories,
                       None if sis.alert_location_format == -1 else LocationFormat(sis.alert_location_format),
                       sis.alert_locations[:sis.alert_num_locations])
+        elif evt_type == EventType.AUDIO_SERVICE:
+            service = c_evt.u.audio_service
+            evt = AudioService(
+                service.program,
+                Access(service.access),
+                ProgramType(service.type),
+                service.codec_mode,
+                Blend(service.blend_control),
+                service.digital_audio_gain,
+                service.common_delay,
+                service.latency
+            )
+
         self.callback(evt_type, evt, *self.callback_args)
 
     def __init__(self, callback, callback_args=()):

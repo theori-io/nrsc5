@@ -79,7 +79,7 @@ enum
     NRSC5_SIG_COMPONENT_DATA
 };
 
-/**  Represent a channel component.
+/**  Represents a service component.
  *
  * An element of a linked list that accompanies a nrsc5_sig_service_t
  * describing a component of a SIG record. This provides further
@@ -121,14 +121,19 @@ enum
     NRSC5_SIG_SERVICE_DATA
 };
 
-/**  Represent Station Information Guide (SIG) records
+/**  Represents Station Information Guide (SIG) records
  *
  * Element of a linked list that will accompany an NRSC5_EVENT_SIG type event.
- * Each cell describes a channel (audio or data), with a name, e.g. "MPS"
+ * Each element describes a channel (audio or data), with a name, e.g. "MPS"
  * is used to indicate main program service, "SPS1" to indicate
  * supplemental program service 1.  Each service may include a linked
  * list of type nrsc5_sig_component_t describing its components, which
  * may include both audio and other data.
+ *
+ * Note: Stations which have only a single audio program and no data services
+ * may not broadcast a SIG table. Applications should not assume that a SIG
+ * table will be present. Information about audio services can be obtained
+ * from PDU headers (reported in NRSC5_EVENT_AUDIO_SERVICE events) instead.
  */
 struct nrsc5_sig_service_t
 {
@@ -158,7 +163,8 @@ enum
     NRSC5_EVENT_LOT,
     NRSC5_EVENT_SIS,
     NRSC5_EVENT_STREAM,
-    NRSC5_EVENT_PACKET
+    NRSC5_EVENT_PACKET,
+    NRSC5_EVENT_AUDIO_SERVICE
 };
 
 enum
@@ -205,6 +211,13 @@ enum
 
 enum
 {
+    NRSC5_BLEND_DISABLE,
+    NRSC5_BLEND_SELECT,
+    NRSC5_BLEND_ENABLE
+};
+
+enum
+{
     NRSC5_LOCATION_FORMAT_SAME,
     NRSC5_LOCATION_FORMAT_FIPS,
     NRSC5_LOCATION_FORMAT_ZIP
@@ -231,6 +244,11 @@ enum
  * Station Information Service *Audio* service descriptor. This is a
  * linked list element that may point to further audio service
  * descriptor elements.  Refer to NRSC-5 document SY_IDD_1020s.
+ *
+ * Note: Not all stations broadcast SIS audio service descriptors, so
+ * applications should not assume that they will be present. Audio service
+ * data from PDU headers (reported in NRSC5_EVENT_AUDIO_SERVICE events) can
+ * be used instead.
  */
 struct nrsc5_sis_asd_t
 {
@@ -394,6 +412,16 @@ struct nrsc5_event_t
             const uint8_t *data;
             struct tm *expiry_utc;
         } lot;
+        struct {
+            unsigned int program;       /**< program number 0, 1, ..., 7 */
+            unsigned int access;        /**< NRSC5_ACCESS_PUBLIC or NRSC5_ACCESS_RESTRICTED */
+            unsigned int type;          /**< program type, e.g. NRSC5_PROGRAM_TYPE_JAZZ */
+            unsigned int codec_mode;    /**< audio codec mode. See SY_IDD_1017s Table 5-2. */
+            unsigned int blend_control; /**< blend control (NRSC5_BLEND_DISABLE, NRSC5_BLEND_SELECT, or NRSC5_BLEND_ENABLE). See SY_IDD_1017s section 5.2.1.2. */
+            int digital_audio_gain;     /**< TX digital audio gain, in dB. See SY_IDD_1017s section 5.2.1.3. */
+            unsigned int common_delay;  /**< post-decoded common delay, in audio frame periods. See SY_IDD_1017s Table 5-1. */
+            unsigned int latency;       /**< audio codec latency, in audio frame periods. See SY_IDD_1017s Table 5-1. */
+        } audio_service;
         struct {
             nrsc5_sig_service_t *services;
         } sig;

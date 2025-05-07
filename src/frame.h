@@ -8,6 +8,17 @@
 
 typedef struct
 {
+    int access;
+    int type;
+    int codec_mode;
+    int blend_control;
+    int digital_audio_gain;
+    int common_delay;
+    int latency;
+} audio_service_t;
+
+typedef struct
+{
     uint16_t mode;
     uint16_t length;
     unsigned int block_idx;
@@ -30,6 +41,7 @@ typedef struct
 {
     struct input_t *input;
     uint8_t buffer[MAX_PDU_LEN];
+    audio_service_t services[MAX_PROGRAMS];
     uint8_t pdu[MAX_PROGRAMS][MAX_STREAMS][MAX_PDU_LEN];
     unsigned int pdu_idx[MAX_PROGRAMS][MAX_STREAMS];
     unsigned int pci;

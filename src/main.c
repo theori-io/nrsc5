@@ -453,6 +453,21 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
                      name, data_service->mime_type);
         }
         break;
+    case NRSC5_EVENT_AUDIO_SERVICE:
+        {
+            const char *name = NULL;
+            nrsc5_program_type_name(evt->audio_service.type, &name);
+            log_info("Audio service %d: %s, type: %s, codec: %d, blend: %d, gain: %d dB, delay: %d, latency: %d",
+                    evt->audio_service.program,
+                    evt->audio_service.access == NRSC5_ACCESS_PUBLIC ? "public" : "restricted",
+                    name,
+                    evt->audio_service.codec_mode,
+                    evt->audio_service.blend_control,
+                    evt->audio_service.digital_audio_gain,
+                    evt->audio_service.common_delay,
+                    evt->audio_service.latency);
+        }
+        break;
     }
 }
 

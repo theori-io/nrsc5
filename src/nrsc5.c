@@ -795,6 +795,24 @@ static uint8_t convert_sig_service_type(uint8_t type)
     }
 }
 
+void nrsc5_report_audio_service(nrsc5_t *st, unsigned int program, unsigned int access, unsigned int type, 
+                                unsigned int codec_mode, unsigned int blend_control, int digital_audio_gain,
+                                unsigned int common_delay, unsigned int latency)
+{
+    nrsc5_event_t evt;
+
+    evt.event = NRSC5_EVENT_AUDIO_SERVICE;
+    evt.audio_service.access = access;
+    evt.audio_service.program = program;
+    evt.audio_service.type = type;
+    evt.audio_service.codec_mode = codec_mode;
+    evt.audio_service.blend_control = blend_control;
+    evt.audio_service.digital_audio_gain = digital_audio_gain;
+    evt.audio_service.common_delay = common_delay;
+    evt.audio_service.latency = latency;
+    nrsc5_report(st, &evt);
+}
+
 void nrsc5_report_sig(nrsc5_t *st, sig_service_t *services, unsigned int count)
 {
     nrsc5_sig_service_t *service = NULL;

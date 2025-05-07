@@ -308,6 +308,16 @@ class NRSC5CLI:
                              data_service.access.name,
                              self.radio.service_data_type_name(data_service.type),
                              data_service.mime_type)
+        elif evt_type == nrsc5.EventType.AUDIO_SERVICE:
+            logging.info("Audio service %s: %s, type: %s, codec: %d, blend: %s, gain: %d dB, delay: %d, latency: %d",
+                         evt.program,
+                         evt.access.name,
+                         self.radio.program_type_name(evt.type),
+                         evt.codec_mode,
+                         evt.blend_control.name,
+                         evt.digital_audio_gain,
+                         evt.common_delay,
+                         evt.latency)
 
 
 if __name__ == "__main__":

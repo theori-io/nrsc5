@@ -19,6 +19,7 @@
 #include "frame.h"
 #include "input.h"
 #include "rs_char.h"
+#include "private.h"
 
 #define PCI_AUDIO 0x38D8D3
 #define PCI_AUDIO_OPP 0xCE3634
@@ -30,7 +31,7 @@
 
 typedef struct
 {
-    unsigned int codec;
+    unsigned int codec_mode;
     unsigned int stream_id;
     unsigned int pdu_seq;
     unsigned int blend_control;
@@ -182,7 +183,7 @@ static int fix_header(frame_t *st, uint8_t *buf)
 
 static void parse_header(uint8_t *buf, frame_header_t *hdr)
 {
-    hdr->codec = buf[8] & 0xf;
+    hdr->codec_mode = buf[8] & 0xf;
     hdr->stream_id = (buf[8] >> 4) & 0x3;
     hdr->pdu_seq = (buf[8] >> 6) | ((buf[9] & 1) << 2);
     hdr->blend_control = (buf[9] >> 1) & 0x3;
@@ -268,7 +269,7 @@ static unsigned int parse_hef(uint8_t *buf, unsigned int length, hef_t *hef)
 
 static unsigned int calc_lc_bits(frame_header_t *hdr)
 {
-    switch(hdr->codec)
+    switch(hdr->codec_mode)
     {
     case 0:
         return 16;
@@ -283,14 +284,14 @@ static unsigned int calc_lc_bits(frame_header_t *hdr)
     case 13:
         return 12;
     default:
-        log_warn("unknown codec field (%d)", hdr->codec);
+        log_warn("unknown codec field (%d)", hdr->codec_mode);
         return 16;
     }
 }
 
 static unsigned int calc_avg_packets(frame_header_t *hdr)
 {
-    switch(hdr->codec)
+    switch(hdr->codec_mode)
     {
         case 0:
             return 32;
@@ -309,7 +310,7 @@ static unsigned int calc_avg_packets(frame_header_t *hdr)
         case 13:
             return 4;
         default:
-            log_warn("unknown codec field (%d)", hdr->codec);
+            log_warn("unknown codec field (%d)", hdr->codec_mode);
             return 32;
     }
 }
@@ -568,6 +569,39 @@ void frame_process(frame_t *st, size_t length, logical_channel_t lc)
         if (hdr.hef)
             offset += parse_hef(st->buffer + offset, audio_end - offset, &hef);
         prog = hef.prog_num;
+        audio_service_t *service = &st->services[prog];
+
+        if ((hdr.stream_id == 0) && (
+            (service->access != (int) hef.access) ||
+            (service->type != (int) hef.prog_type) ||
+            (service->codec_mode != (int) hdr.codec_mode) ||
+            (service->blend_control != (int) hdr.blend_control) ||
+            (service->digital_audio_gain != (int) hdr.per_stream_delay) ||
+            (service->common_delay != (int) hdr.common_delay) ||
+            (service->latency != (int) hdr.latency)
+        ))
+        {
+            service->access = hef.access;
+            service->type = hef.prog_type;
+            service->codec_mode = hdr.codec_mode;
+            service->blend_control = hdr.blend_control;
+            service->digital_audio_gain = hdr.per_stream_delay;
+            service->common_delay = hdr.common_delay;
+            service->latency = hdr.latency;
+
+            nrsc5_report_audio_service(
+                st->input->radio,
+                prog,
+                service->access,
+                service->type,
+                service->codec_mode,
+                service->blend_control,
+                (service->digital_audio_gain < 16) ? service->digital_audio_gain : (service->digital_audio_gain - 32),
+                service->common_delay * 4,
+                service->latency * 2
+            );
+        }
+
         avg = calc_avg_packets(&hdr);
         seq = (ELASTIC_BUFFER_LEN + hdr.seq - hdr.pfirst) % ELASTIC_BUFFER_LEN;
 
@@ -701,6 +735,17 @@ void frame_push(frame_t *st, uint8_t *bits, size_t length, logical_channel_t lc)
 
 void frame_reset(frame_t *st)
 {
+    for (int prog = 0; prog < MAX_PROGRAMS; prog++)
+    {
+        st->services[prog].access = -1;
+        st->services[prog].type = -1;
+        st->services[prog].codec_mode = -1;
+        st->services[prog].blend_control = -1;
+        st->services[prog].digital_audio_gain = -1;
+        st->services[prog].common_delay = -1;
+        st->services[prog].latency = -1;
+        }
+
     st->pci = 0;
     for (int prog = 0; prog < MAX_PROGRAMS; prog++)
     {

@@ -495,7 +495,7 @@ static void decode_sis(pids_t *st, uint8_t *bits)
             {
                 latitude = decode_signed_int(bits, &off, 22) / 8192.0;
                 altitude_high = decode_int(bits, &off, 4) << 8;
-                if (latitude != st->latitude)
+                if ((latitude != st->latitude) || (altitude_high != (st->altitude & 0xf00)))
                 {
                     st->latitude = latitude;
                     st->altitude = (st->altitude & 0x0f0) | altitude_high;
@@ -510,7 +510,7 @@ static void decode_sis(pids_t *st, uint8_t *bits)
             {
                 longitude = decode_signed_int(bits, &off, 22) / 8192.0;
                 altitude_low = decode_int(bits, &off, 4) << 4;
-                if (longitude != st->longitude)
+                if ((longitude != st->longitude) || (altitude_low != (st->altitude & 0x0f0)))
                 {
                     st->longitude = longitude;
                     st->altitude = (st->altitude & 0xf00) | altitude_low;

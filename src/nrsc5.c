@@ -920,3 +920,100 @@ void nrsc5_report_sis(nrsc5_t *st, const char *country_code, int fcc_facility_id
 
     nrsc5_report(st, &evt);
 }
+
+void nrsc5_report_station_id(nrsc5_t *st, const char *country_code, int fcc_facility_id)
+{
+    nrsc5_event_t evt;
+
+    evt.event = NRSC5_EVENT_STATION_ID;
+    evt.station_id.country_code = country_code;
+    evt.station_id.fcc_facility_id = fcc_facility_id;
+
+    nrsc5_report(st, &evt);
+}
+
+void nrsc5_report_station_name(nrsc5_t *st, const char *name)
+{
+    nrsc5_event_t evt;
+
+    evt.event = NRSC5_EVENT_STATION_NAME;
+    evt.station_name.name = name;
+
+    nrsc5_report(st, &evt);
+}
+
+void nrsc5_report_station_slogan(nrsc5_t *st, const char *slogan)
+{
+    nrsc5_event_t evt;
+
+    evt.event = NRSC5_EVENT_STATION_SLOGAN;
+    evt.station_slogan.slogan = slogan;
+
+    nrsc5_report(st, &evt);
+}
+
+void nrsc5_report_station_message(nrsc5_t *st, const char *message)
+{
+    nrsc5_event_t evt;
+
+    evt.event = NRSC5_EVENT_STATION_MESSAGE;
+    evt.station_message.message = message;
+
+    nrsc5_report(st, &evt);
+}
+
+void nrsc5_report_station_location(nrsc5_t *st, float latitude, float longitude, int altitude)
+{
+    nrsc5_event_t evt;
+
+    evt.event = NRSC5_EVENT_STATION_LOCATION;
+    evt.station_location.latitude = latitude;
+    evt.station_location.longitude = longitude;
+    evt.station_location.altitude = altitude;
+
+    nrsc5_report(st, &evt);
+}
+
+void nrsc5_report_asd(nrsc5_t *st, unsigned int program, unsigned int access, unsigned int type, unsigned int sound_exp)
+{
+    nrsc5_event_t evt;
+
+    evt.event = NRSC5_EVENT_AUDIO_SERVICE_DESCRIPTOR;
+    evt.asd.program = program;
+    evt.asd.access = access;
+    evt.asd.type = type;
+    evt.asd.sound_exp = sound_exp;
+
+    nrsc5_report(st, &evt);
+}
+
+void nrsc5_report_dsd(nrsc5_t *st, unsigned int access, unsigned int type, uint32_t mime_type)
+{
+    nrsc5_event_t evt;
+
+    evt.event = NRSC5_EVENT_DATA_SERVICE_DESCRIPTOR;
+    evt.dsd.access = access;
+    evt.dsd.type = type;
+    evt.dsd.mime_type = mime_type;
+
+    nrsc5_report(st, &evt);
+}
+
+void nrsc5_report_emergency_alert(nrsc5_t *st, const char *message, const uint8_t *control_data,
+                                  int control_data_length, int category1, int category2, int location_format,
+                                  int num_locations, const int *locations)
+{
+    nrsc5_event_t evt;
+
+    evt.event = NRSC5_EVENT_EMERGENCY_ALERT;
+    evt.emergency_alert.message = message;
+    evt.emergency_alert.control_data = control_data;
+    evt.emergency_alert.control_data_length = control_data_length;
+    evt.emergency_alert.category1 = category1;
+    evt.emergency_alert.category2 = category2;
+    evt.emergency_alert.location_format = location_format;
+    evt.emergency_alert.num_locations = num_locations;
+    evt.emergency_alert.locations = locations;
+
+    nrsc5_report(st, &evt);
+}

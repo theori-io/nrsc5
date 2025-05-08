@@ -164,7 +164,15 @@ enum
     NRSC5_EVENT_SIS,
     NRSC5_EVENT_STREAM,
     NRSC5_EVENT_PACKET,
-    NRSC5_EVENT_AUDIO_SERVICE
+    NRSC5_EVENT_AUDIO_SERVICE,
+    NRSC5_EVENT_STATION_ID,
+    NRSC5_EVENT_STATION_NAME,
+    NRSC5_EVENT_STATION_SLOGAN,
+    NRSC5_EVENT_STATION_MESSAGE,
+    NRSC5_EVENT_STATION_LOCATION,
+    NRSC5_EVENT_AUDIO_SERVICE_DESCRIPTOR,
+    NRSC5_EVENT_DATA_SERVICE_DESCRIPTOR,
+    NRSC5_EVENT_EMERGENCY_ALERT
 };
 
 enum
@@ -255,7 +263,7 @@ struct nrsc5_sis_asd_t
     struct nrsc5_sis_asd_t *next; /**< Pointer to next element or NULL */
     unsigned int program;     /**< program number 0, 1, ..., 7 */
     unsigned int access;      /**< NRSC5_ACCESS_PUBLIC or NRSC5_ACCESS_RESTRICTED */
-    unsigned int type;        /**< audio service, e.g. NRSC5_PROGRAM_TYPE_JAZZ */
+    unsigned int type;        /**< program type, e.g. NRSC5_PROGRAM_TYPE_JAZZ */
     unsigned int sound_exp;   /**< 0 is none, 2 is Dolby Pro Logic II Surround */
 };
 /**
@@ -297,7 +305,7 @@ struct nrsc5_sis_dsd_t
 {
     struct nrsc5_sis_dsd_t *next; /**< Pointer to next element or NULL */
     unsigned int access;  /**< NRSC5_ACCESS_PUBLIC or NRSC5_ACCESS_RESTRICTED */
-    unsigned int type; /**< data service type, e.g. NRSC5_SERVICE_DATA_TYPE_TEXT */
+    unsigned int type;    /**< data service type, e.g. NRSC5_SERVICE_DATA_TYPE_TEXT */
     uint32_t mime_type;   /**< MIME type, e.g. `NRSC5_MIME_TEXT` */
 };
 /**
@@ -331,22 +339,29 @@ struct nrsc5_event_t
 {
 /*! Type of event.
  * The member `event` determines which sort of event occurred:
- * - `NRSC5_EVENT_LOST_DEVICE` : signal is over
- * - `NRSC5_EVENT_BER` : Bit Error Ratio data, see the `ber` union member
- * - `NRSC5_EVENT_MER` : modulation error ratio, see the `mer` union member,
- *    and NRSC5 document SY_TN_2646s
+ * - `NRSC5_EVENT_LOST_DEVICE` : RTL-SDR device was disconnected
  * - `NRSC5_EVENT_IQ` : IQ data, see the `iq` union member
- * - `NRSC5_EVENT_HDC` : HDC audio packet, see the `hdc` union member
- * - `NRSC5_EVENT_AUDIO` : audio buffer, see the `audio` union member
  * - `NRSC5_EVENT_SYNC` : indicates synchronization achieved
  * - `NRSC5_EVENT_LOST_SYNC` : indicates synchronization lost
- * - `NRSC5_EVENT_ID3` : ID3 information packet arrived, see `id3` member
- *    and information in HD-Radio document SY_IDD_1028s.
+ * - `NRSC5_EVENT_MER` : modulation error ratio, see the `mer` union member, and NRSC5 document SY_TN_2646s
+ * - `NRSC5_EVENT_BER` : Bit Error Ratio data, see the `ber` union member
+ * - `NRSC5_EVENT_HDC` : HDC audio packet, see the `hdc` union member
+ * - `NRSC5_EVENT_AUDIO` : audio buffer, see the `audio` union member
+ * - `NRSC5_EVENT_ID3` : ID3 information packet arrived, see `id3` member and information in HD-Radio document SY_IDD_1028s.
  * - `NRSC5_EVENT_SIG` : service information arrived, see `sig` member
+ * - `NRSC5_EVENT_LOT` : LOT file data available, see `lot` member
+ * - `NRSC5_EVENT_SIS` : DEPRECATED. Use `NRSC5_EVENT_STATION_ID`, `NRSC5_EVENT_STATION_NAME`, `NRSC5_EVENT_STATION_SLOGAN`, `NRSC5_EVENT_STATION_MESSAGE`, `NRSC5_EVENT_STATION_LOCATION`, `NRSC5_EVENT_AUDIO_SERVICE_DESCRIPTOR`, `NRSC5_EVENT_DATA_SERVICE_DESCRIPTOR`, and `NRSC5_EVENT_EMERGENCY_ALERT` instead.
  * - `NRSC5_EVENT_STREAM` : stream data available, see `stream` member
  * - `NRSC5_EVENT_PACKET` : packet data available, see `packet` member
- * - `NRSC5_EVENT_LOT` : LOT file data available, see `lot` member
- * - `NRSC5_EVENT_SIS` : station information, see `sis` member
+ * - `NRSC5_EVENT_AUDIO_SERVICE` : audio service available, see `audio_service` member
+ * - `NRSC5_EVENT_STATION_ID` : station ID number, see `station_id` member
+ * - `NRSC5_EVENT_STATION_NAME` : station name, see `station_name` member
+ * - `NRSC5_EVENT_STATION_SLOGAN` : station slogan, see `station_slogan` member
+ * - `NRSC5_EVENT_STATION_MESSAGE` : station message, see `station_message` member
+ * - `NRSC5_EVENT_STATION_LOCATION` : station location, see `station_location` member
+ * - `NRSC5_EVENT_AUDIO_SERVICE_DESCRIPTOR` : SIS audio service descriptor, see `asd` member
+ * - `NRSC5_EVENT_DATA_SERVICE_DESCRIPTOR` : SIS data service descriptor, see `dsd` member
+ * - `NRSC5_EVENT_EMERGENCY_ALERT` : emergency alert, see `emergency_alert` member
  */
     unsigned int event;
     union
@@ -445,6 +460,45 @@ struct nrsc5_event_t
             int alert_num_locations;
             const int *alert_locations;
         } sis;
+        struct {
+            const char *country_code;
+            int fcc_facility_id;
+        } station_id;
+        struct {
+            const char *name;
+        } station_name;
+        struct {
+            const char *slogan;
+        } station_slogan;
+        struct {
+            const char *message;
+        } station_message;
+        struct {
+            float latitude;
+            float longitude;
+            int altitude;
+        } station_location;
+        struct {
+            unsigned int program;     /**< program number 0, 1, ..., 7 */
+            unsigned int access;      /**< NRSC5_ACCESS_PUBLIC or NRSC5_ACCESS_RESTRICTED */
+            unsigned int type;        /**< program type, e.g. NRSC5_PROGRAM_TYPE_JAZZ */
+            unsigned int sound_exp;   /**< 0 is none, 2 is Dolby Pro Logic II Surround */        
+        } asd;
+        struct {
+            unsigned int access;  /**< NRSC5_ACCESS_PUBLIC or NRSC5_ACCESS_RESTRICTED */
+            unsigned int type;    /**< data service type, e.g. NRSC5_SERVICE_DATA_TYPE_TEXT */
+            uint32_t mime_type;   /**< MIME type, e.g. `NRSC5_MIME_TEXT` */        
+        } dsd;
+        struct {
+            const char *message;
+            const uint8_t *control_data;
+            int control_data_length;
+            int category1;
+            int category2;
+            int location_format;
+            int num_locations;
+            const int *locations;
+        } emergency_alert;
     };
 };
 /**

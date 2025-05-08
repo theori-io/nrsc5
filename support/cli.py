@@ -281,33 +281,33 @@ class NRSC5CLI:
                 path = os.path.join(self.args.dump_aas_files, evt.name)
                 with open(path, "wb") as file:
                     file.write(evt.data)
-        elif evt_type == nrsc5.EventType.SIS:
-            if evt.country_code:
-                logging.info("Country: %s, FCC facility ID: %s",
-                             evt.country_code, evt.fcc_facility_id)
-            if evt.name:
-                logging.info("Station name: %s", evt.name)
-            if evt.slogan:
-                logging.info("Slogan: %s", evt.slogan)
-            if evt.message:
-                logging.info("Message: %s", evt.message)
-            if evt.alert:
-                categories = ", ".join(self.radio.alert_category_name(category) for category in evt.alert_categories)
-                logging.info("Alert: Category=[%s] %s=%s %s", categories, evt.alert_location_format.name, str(evt.alert_locations), evt.alert)
-            if evt.latitude:
-                logging.info("Station location: %.4f, %.4f, %dm",
-                             evt.latitude, evt.longitude, evt.altitude)
-            for audio_service in evt.audio_services:
-                logging.info("Audio program %s: %s, type: %s, sound experience %s",
-                             audio_service.program,
-                             audio_service.access.name,
-                             self.radio.program_type_name(audio_service.type),
-                             audio_service.sound_exp)
-            for data_service in evt.data_services:
-                logging.info("Data service: %s, type: %s, MIME type %03x",
-                             data_service.access.name,
-                             self.radio.service_data_type_name(data_service.type),
-                             data_service.mime_type)
+        elif evt_type == nrsc5.EventType.STATION_ID:
+            logging.info("Country: %s, FCC facility ID: %s", evt.country_code, evt.fcc_facility_id)
+        elif evt_type == nrsc5.EventType.STATION_NAME:
+            logging.info("Station name: %s", evt.name)
+        elif evt_type == nrsc5.EventType.STATION_SLOGAN:
+            logging.info("Slogan: %s", evt.slogan)
+        elif evt_type == nrsc5.EventType.STATION_MESSAGE:
+            logging.info("Message: %s", evt.message)
+        elif evt_type == nrsc5.EventType.STATION_LOCATION:
+            logging.info("Station location: %.4f, %.4f, %dm", evt.latitude, evt.longitude, evt.altitude)
+        elif evt_type == nrsc5.EventType.AUDIO_SERVICE_DESCRIPTOR:
+            logging.info("Audio program %s: %s, type: %s, sound experience %s",
+                         evt.program,
+                         evt.access.name,
+                         self.radio.program_type_name(evt.type),
+                         evt.sound_exp)
+        elif evt_type == nrsc5.EventType.DATA_SERVICE_DESCRIPTOR:
+            logging.info("Data service: %s, type: %s, MIME type %03x",
+                         evt.access.name,
+                         self.radio.service_data_type_name(evt.type),
+                         evt.mime_type)
+        elif evt_type == nrsc5.EventType.EMERGENCY_ALERT:
+            if evt.message is not None:
+                categories = ", ".join(self.radio.alert_category_name(category) for category in evt.categories)
+                logging.info("Alert: Category=[%s] %s=%s %s", categories, evt.location_format.name, str(evt.locations), evt.message)
+            else:
+                logging.info("Alert ended")
         elif evt_type == nrsc5.EventType.AUDIO_SERVICE:
             logging.info("Audio service %s: %s, type: %s, codec: %d, blend: %s, gain: %d dB, delay: %d, latency: %d",
                          evt.program,

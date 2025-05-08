@@ -282,9 +282,8 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
     state_t *st = opaque;
     nrsc5_sig_service_t *sig_service;
     nrsc5_sig_component_t *sig_component;
-    nrsc5_sis_asd_t *audio_service;
-    nrsc5_sis_dsd_t *data_service;
     nrsc5_id3_comment_t *comment;
+    const char *name;
 
     switch (evt->event)
     {
@@ -381,36 +380,56 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
         strftime(time_str, sizeof(time_str), "%Y-%m-%dT%H:%M:%SZ", evt->lot.expiry_utc);
         log_info("LOT file: port=%04X lot=%d name=%s size=%d mime=%08X expiry=%s", evt->lot.port, evt->lot.lot, evt->lot.name, evt->lot.size, evt->lot.mime, time_str);
         break;
-    case NRSC5_EVENT_SIS:
-        if (evt->sis.country_code)
-            log_info("Country: %s, FCC facility ID: %d", evt->sis.country_code, evt->sis.fcc_facility_id);
-        if (evt->sis.name)
-            log_info("Station name: %s", evt->sis.name);
-        if (evt->sis.slogan)
-            log_info("Slogan: %s", evt->sis.slogan);
-        if (evt->sis.message)
-            log_info("Message: %s", evt->sis.message);
-        if (evt->sis.alert)
+    case NRSC5_EVENT_STATION_ID:
+        log_info("Country: %s, FCC facility ID: %d", evt->station_id.country_code, evt->station_id.fcc_facility_id);
+        break;
+    case NRSC5_EVENT_STATION_NAME:
+        log_info("Station name: %s", evt->station_name.name);
+        break;
+    case NRSC5_EVENT_STATION_SLOGAN:
+        log_info("Slogan: %s", evt->station_slogan.slogan);
+        break;
+    case NRSC5_EVENT_STATION_MESSAGE:
+        log_info("Message: %s", evt->station_message.message);
+        break;
+    case NRSC5_EVENT_STATION_LOCATION:
+        log_info("Station location: %.4f, %.4f, %dm", evt->station_location.latitude, evt->station_location.longitude, evt->station_location.altitude);
+        break;
+    case NRSC5_EVENT_AUDIO_SERVICE_DESCRIPTOR:
+        nrsc5_program_type_name(evt->asd.type, &name);
+        log_info("Audio program %d: %s, type: %s, sound experience %d",
+                    evt->asd.program,
+                    evt->asd.access == NRSC5_ACCESS_PUBLIC ? "public" : "restricted",
+                    name, evt->asd.sound_exp);
+        break;
+    case NRSC5_EVENT_DATA_SERVICE_DESCRIPTOR:
+        nrsc5_service_data_type_name(evt->dsd.type, &name);
+        log_info("Data service: %s, type: %s, MIME type %03x",
+                    evt->dsd.access == NRSC5_ACCESS_PUBLIC ? "public" : "restricted",
+                    name, evt->dsd.mime_type);
+        break;
+    case NRSC5_EVENT_EMERGENCY_ALERT:
+        if (evt->emergency_alert.message)
         {
             int i;
             char alert_details[512] = "";
             const char *name = NULL;
 
             strcat(alert_details, "Category=[");
-            if (evt->sis.alert_category1 >= 1)
+            if (evt->emergency_alert.category1 >= 1)
             {
-                nrsc5_alert_category_name(evt->sis.alert_category1, &name);
+                nrsc5_alert_category_name(evt->emergency_alert.category1, &name);
                 strcat(alert_details, name);
             }
-            if (evt->sis.alert_category2 >= 1)
+            if (evt->emergency_alert.category2 >= 1)
             {
-                nrsc5_alert_category_name(evt->sis.alert_category2, &name);
+                nrsc5_alert_category_name(evt->emergency_alert.category2, &name);
                 strcat(alert_details, ", ");
                 strcat(alert_details, name);
             }
             strcat(alert_details, "] ");
 
-            switch (evt->sis.alert_location_format)
+            switch (evt->emergency_alert.location_format)
             {
             case NRSC5_LOCATION_FORMAT_SAME:
                 strcat(alert_details, "SAME=[");
@@ -423,50 +442,30 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
                 break;
             }
 
-            for (i = 0; i < evt->sis.alert_num_locations; i++)
+            for (i = 0; i < evt->emergency_alert.num_locations; i++)
             {
                 if (i > 0)
                     strcat(alert_details, ", ");
-                sprintf(alert_details + strlen(alert_details), "%d", evt->sis.alert_locations[i]);
+                sprintf(alert_details + strlen(alert_details), "%d", evt->emergency_alert.locations[i]);
             }
             strcat(alert_details, "]");
 
-            log_info("Alert: %s %s", alert_details, evt->sis.alert);
+            log_info("Alert: %s %s", alert_details, evt->emergency_alert.message);
         }
-        if (!isnan(evt->sis.latitude))
-            log_info("Station location: %.4f, %.4f, %dm", evt->sis.latitude, evt->sis.longitude, evt->sis.altitude);
-        for (audio_service = evt->sis.audio_services; audio_service != NULL; audio_service = audio_service->next)
-        {
-            const char *name = NULL;
-            nrsc5_program_type_name(audio_service->type, &name);
-            log_info("Audio program %d: %s, type: %s, sound experience %d",
-                     audio_service->program,
-                     audio_service->access == NRSC5_ACCESS_PUBLIC ? "public" : "restricted",
-                     name, audio_service->sound_exp);
-        }
-        for (data_service = evt->sis.data_services; data_service != NULL; data_service = data_service->next)
-        {
-            const char *name = NULL;
-            nrsc5_service_data_type_name(data_service->type, &name);
-            log_info("Data service: %s, type: %s, MIME type %03x",
-                     data_service->access == NRSC5_ACCESS_PUBLIC ? "public" : "restricted",
-                     name, data_service->mime_type);
-        }
+        else
+            log_info("Alert ended");
         break;
     case NRSC5_EVENT_AUDIO_SERVICE:
-        {
-            const char *name = NULL;
-            nrsc5_program_type_name(evt->audio_service.type, &name);
-            log_info("Audio service %d: %s, type: %s, codec: %d, blend: %d, gain: %d dB, delay: %d, latency: %d",
-                    evt->audio_service.program,
-                    evt->audio_service.access == NRSC5_ACCESS_PUBLIC ? "public" : "restricted",
-                    name,
-                    evt->audio_service.codec_mode,
-                    evt->audio_service.blend_control,
-                    evt->audio_service.digital_audio_gain,
-                    evt->audio_service.common_delay,
-                    evt->audio_service.latency);
-        }
+        nrsc5_program_type_name(evt->audio_service.type, &name);
+        log_info("Audio service %d: %s, type: %s, codec: %d, blend: %d, gain: %d dB, delay: %d, latency: %d",
+                evt->audio_service.program,
+                evt->audio_service.access == NRSC5_ACCESS_PUBLIC ? "public" : "restricted",
+                name,
+                evt->audio_service.codec_mode,
+                evt->audio_service.blend_control,
+                evt->audio_service.digital_audio_gain,
+                evt->audio_service.common_delay,
+                evt->audio_service.latency);
         break;
     }
 }

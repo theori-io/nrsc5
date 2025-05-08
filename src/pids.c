@@ -424,6 +424,7 @@ static void decode_sis(pids_t *st, uint8_t *bits)
             {
                 strcpy(st->country_code, country_code);
                 st->fcc_facility_id = fcc_facility_id;
+                nrsc5_report_station_id(st->input->radio, st->country_code, st->fcc_facility_id);
                 updated = 1;
             }
             break;
@@ -439,6 +440,7 @@ static void decode_sis(pids_t *st, uint8_t *bits)
             if (strcmp(short_name, st->short_name) != 0)
             {
                 strcpy(st->short_name, short_name);
+                nrsc5_report_station_name(st->input->radio, st->short_name);
                 updated = 1;
             }
             break;
@@ -471,6 +473,14 @@ static void decode_sis(pids_t *st, uint8_t *bits)
                 if (complete)
                 {
                     st->long_name_displayed = 1;
+
+                    if (!st->slogan_displayed)
+                    {
+                        char *slogan = utf8_encode(ENCODING_ISO_8859_1, st->long_name, strlen(st->long_name));
+                        nrsc5_report_station_slogan(st->input->radio, slogan);
+                        free(slogan);
+                    }
+
                     updated = 1;
                 }
             }
@@ -490,7 +500,10 @@ static void decode_sis(pids_t *st, uint8_t *bits)
                     st->latitude = latitude;
                     st->altitude = (st->altitude & 0x0f0) | altitude_high;
                     if (!isnan(st->longitude))
+                    {
+                        nrsc5_report_station_location(st->input->radio, st->latitude, st->longitude, st->altitude);
                         updated = 1;
+                    }
                 }
             }
             else
@@ -502,7 +515,10 @@ static void decode_sis(pids_t *st, uint8_t *bits)
                     st->longitude = longitude;
                     st->altitude = (st->altitude & 0xf00) | altitude_low;
                     if (!isnan(st->latitude))
+                    {
+                        nrsc5_report_station_location(st->input->radio, st->latitude, st->longitude, st->altitude);
                         updated = 1;
+                    }
                 }
             }
             break;
@@ -550,6 +566,11 @@ static void decode_sis(pids_t *st, uint8_t *bits)
                     if (checksum == st->message_checksum)
                     {
                         st->message_displayed = 1;
+
+                        char *message = utf8_encode(st->message_encoding, st->message, st->message_len);
+                        nrsc5_report_station_message(st->input->radio, message);
+                        free(message);
+
                         updated = 1;
                     }
                     else
@@ -582,6 +603,7 @@ static void decode_sis(pids_t *st, uint8_t *bits)
                     || st->audio_services[prog_num].sound_exp != audio_service.sound_exp)
                 {
                     st->audio_services[prog_num] = audio_service;
+                    nrsc5_report_asd(st->input->radio, prog_num, audio_service.access, audio_service.type, audio_service.sound_exp);
                     updated = 1;
                 }
                 break;
@@ -602,6 +624,7 @@ static void decode_sis(pids_t *st, uint8_t *bits)
                     else if (st->data_services[j].type == -1)
                     {
                         st->data_services[j] = data_service;
+                        nrsc5_report_dsd(st->input->radio, data_service.access, data_service.type, data_service.mime_type);
                         updated = 1;
                         break;
                     }
@@ -714,6 +737,13 @@ static void decode_sis(pids_t *st, uint8_t *bits)
                         if (st->universal_short_name_append)
                             strcat(st->universal_short_name_final, "-FM");
                         st->universal_short_name_displayed = 1;
+
+                        char *name = utf8_encode(st->universal_short_name_encoding,
+                                                 st->universal_short_name_final,
+                                                 strlen(st->universal_short_name_final));
+                        nrsc5_report_station_name(st->input->radio, name);
+                        free(name);
+
                         updated = 1;
                     }
                 }
@@ -745,6 +775,14 @@ static void decode_sis(pids_t *st, uint8_t *bits)
                     if (complete)
                     {
                         st->slogan_displayed = 1;
+
+                        if (!st->long_name_displayed)
+                        {
+                            char *slogan = utf8_encode(st->slogan_encoding, st->slogan, st->slogan_len);
+                            nrsc5_report_station_slogan(st->input->radio, slogan);
+                            free(slogan);
+                        }
+
                         updated = 1;
                     }
                 }
@@ -797,6 +835,18 @@ static void decode_sis(pids_t *st, uint8_t *bits)
                             if (actual_cnt_crc == expected_cnt_crc)
                             {
                                 st->alert_displayed = 1;
+
+                                int category1 = -1;
+                                int category2 = -1;
+                                int location_format = -1;
+                                int num_locations = -1;
+                                int *locations = NULL;
+                                char *message = utf8_encode(st->alert_encoding, st->alert + st->alert_cnt_len, st->alert_len - st->alert_cnt_len);
+                                decode_control_data(st->alert, st->alert_cnt_len, &category1, &category2, &location_format, &num_locations, &locations);
+                                nrsc5_report_emergency_alert(st->input->radio, message, (uint8_t *)st->alert, st->alert_cnt_len, category1, category2, location_format, num_locations, locations);
+                                free(message);
+                                free(locations);
+                        
                                 updated = 1;
                             }
                             else
@@ -822,6 +872,7 @@ static void decode_sis(pids_t *st, uint8_t *bits)
     if (st->alert_displayed && (st->alert_timeout >= ALERT_TIMEOUT_LIMIT))
     {
         reset_alert(st);
+        nrsc5_report_emergency_alert(st->input->radio, NULL, NULL, -1, -1, -1, -1, -1, NULL);
         updated = 1;
     }
 

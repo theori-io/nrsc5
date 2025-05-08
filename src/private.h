@@ -64,3 +64,13 @@ void nrsc5_report_sis(nrsc5_t *, const char *country_code, int fcc_facility_id, 
                       int category1, int category2, int location_format, int num_locations, const int *locations,
                       float latitude, float longitude, int altitude, nrsc5_sis_asd_t *audio_services,
                       nrsc5_sis_dsd_t *data_services);
+void nrsc5_report_station_id(nrsc5_t *st, const char *country_code, int fcc_facility_id);
+void nrsc5_report_station_name(nrsc5_t *st, const char *name);
+void nrsc5_report_station_slogan(nrsc5_t *st, const char *slogan);
+void nrsc5_report_station_message(nrsc5_t *st, const char *message);
+void nrsc5_report_station_location(nrsc5_t *st, float latitude, float longitude, int altitude);
+void nrsc5_report_asd(nrsc5_t *st, unsigned int program, unsigned int access, unsigned int type, unsigned int sound_exp);
+void nrsc5_report_dsd(nrsc5_t *st, unsigned int access, unsigned int type, uint32_t mime_type);
+void nrsc5_report_emergency_alert(nrsc5_t *st, const char *message, const uint8_t *control_data,
+                                  int control_data_length, int category1, int category2,
+                                  int location_format, int num_locations, const int *locations);

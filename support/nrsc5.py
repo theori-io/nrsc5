@@ -28,6 +28,14 @@ class EventType(enum.Enum):
     STREAM = 12
     PACKET = 13
     AUDIO_SERVICE = 14
+    STATION_ID = 15
+    STATION_NAME = 16
+    STATION_SLOGAN = 17
+    STATION_MESSAGE = 18
+    STATION_LOCATION = 19
+    AUDIO_SERVICE_DESCRIPTOR = 20
+    DATA_SERVICE_DESCRIPTOR = 21
+    EMERGENCY_ALERT = 22
 
 
 AUDIO_FRAME_SAMPLES = 2048
@@ -181,6 +189,12 @@ SISDataService = collections.namedtuple("SISDataService", ["access", "type", "mi
 SIS = collections.namedtuple("SIS", ["country_code", "fcc_facility_id", "name", "slogan", "message", "alert",
                                      "latitude", "longitude", "altitude", "audio_services", "data_services",
                                      "alert_cnt", "alert_categories", "alert_location_format", "alert_locations"])
+StationID = collections.namedtuple("StationID", ["country_code", "fcc_facility_id"])
+StationName = collections.namedtuple("StationName", ["name"])
+StationSlogan = collections.namedtuple("StationSlogan", ["slogan"])
+StationMessage = collections.namedtuple("StationMessage", ["message"])
+StationLocation = collections.namedtuple("StationLocation", ["latitude", "longitude", "altitude"])
+EmergencyAlert = collections.namedtuple("EmergencyAlert", ["message", "control_data", "categories", "location_format", "locations"])
 AudioService = collections.namedtuple("AudioService", ["program", "access", "type", "codec_mode", "blend_control",
                                                        "digital_audio_gain", "common_delay", "latency"])
 
@@ -408,6 +422,69 @@ class _SIS(ctypes.Structure):
     ]
 
 
+class _StationID(ctypes.Structure):
+    _fields_ = [
+        ("country_code", ctypes.c_char_p),
+        ("fcc_facility_id", ctypes.c_int),
+    ]
+
+
+class _StationName(ctypes.Structure):
+    _fields_ = [
+        ("name", ctypes.c_char_p),
+    ]
+
+
+class _StationSlogan(ctypes.Structure):
+    _fields_ = [
+        ("slogan", ctypes.c_char_p),
+    ]
+
+
+class _StationMessage(ctypes.Structure):
+    _fields_ = [
+        ("message", ctypes.c_char_p),
+    ]
+
+
+class _StationLocation(ctypes.Structure):
+    _fields_ = [
+        ("latitude", ctypes.c_float),
+        ("longitude", ctypes.c_float),
+        ("altitude", ctypes.c_int),
+    ]
+
+
+class _ASD(ctypes.Structure):
+    _fields_ = [
+    ("program", ctypes.c_uint),
+    ("access", ctypes.c_uint),
+    ("type", ctypes.c_uint),
+    ("sound_exp", ctypes.c_uint),
+]
+
+
+class _DSD(ctypes.Structure):
+    _fields_ = [
+    ("access", ctypes.c_uint),
+    ("type", ctypes.c_uint),
+    ("mime_type", ctypes.c_uint32),
+]
+
+
+class _EmergencyAlert(ctypes.Structure):
+    _fields_ = [
+        ("message", ctypes.c_char_p),
+        ("control_data", ctypes.POINTER(ctypes.c_char)),
+        ("control_data_length", ctypes.c_int),
+        ("category1", ctypes.c_int),
+        ("category2", ctypes.c_int),
+        ("location_format", ctypes.c_int),
+        ("num_locations", ctypes.c_int),
+        ("locations", ctypes.POINTER(ctypes.c_int)),
+    ]
+
+
 class _AudioService(ctypes.Structure):
     _fields_ = [
         ("program", ctypes.c_uint),
@@ -434,6 +511,14 @@ class _EventUnion(ctypes.Union):
         ("packet", _PACKET),
         ("lot", _LOT),
         ("sis", _SIS),
+        ("station_id", _StationID),
+        ("station_name", _StationName),
+        ("station_slogan", _StationSlogan),
+        ("station_message", _StationMessage),
+        ("station_location", _StationLocation),
+        ("asd", _ASD),
+        ("dsd", _DSD),
+        ("emergency_alert", _EmergencyAlert),
         ("audio_service", _AudioService)
     ]
 
@@ -591,6 +676,40 @@ class NRSC5:
                       sis.alert_cnt[:sis.alert_cnt_length], alert_categories,
                       None if sis.alert_location_format == -1 else LocationFormat(sis.alert_location_format),
                       sis.alert_locations[:sis.alert_num_locations])
+        elif evt_type == EventType.STATION_ID:
+            station_id = c_evt.u.station_id
+            evt = StationID(self._decode(station_id.country_code), station_id.fcc_facility_id)
+        elif evt_type == EventType.STATION_NAME:
+            station_name = c_evt.u.station_name
+            evt = StationName(self._decode(station_name.name))
+        elif evt_type == EventType.STATION_SLOGAN:
+            station_slogan = c_evt.u.station_slogan
+            evt = StationSlogan(self._decode(station_slogan.slogan))
+        elif evt_type == EventType.STATION_MESSAGE:
+            station_message = c_evt.u.station_message
+            evt = StationMessage(self._decode(station_message.message))
+        elif evt_type == EventType.STATION_LOCATION:
+            station_location = c_evt.u.station_location
+            evt = StationLocation(station_location.latitude, station_location.longitude, station_location.altitude)
+        elif evt_type == EventType.AUDIO_SERVICE_DESCRIPTOR:
+            asd = c_evt.u.asd
+            evt = SISAudioService(asd.program, Access(asd.access), ProgramType(asd.type), asd.sound_exp)
+        elif evt_type == EventType.DATA_SERVICE_DESCRIPTOR:
+            dsd = c_evt.u.dsd
+            evt = SISDataService(Access(dsd.access), ServiceDataType(dsd.type), dsd.mime_type)
+        elif evt_type == EventType.EMERGENCY_ALERT:
+            emergency_alert = c_evt.u.emergency_alert
+            categories = []
+            if emergency_alert.category1 >= 1:
+                categories.append(AlertCategory(emergency_alert.category1))
+            if emergency_alert.category2 >= 1:
+                categories.append(AlertCategory(emergency_alert.category2))
+            evt = EmergencyAlert(self._decode(emergency_alert.message),
+                                 emergency_alert.control_data[:emergency_alert.control_data_length],
+                                 categories,
+                                 None if emergency_alert.location_format == -1 else LocationFormat(emergency_alert.location_format),
+                                 emergency_alert.locations[:emergency_alert.num_locations])
+
         elif evt_type == EventType.AUDIO_SERVICE:
             service = c_evt.u.audio_service
             evt = AudioService(

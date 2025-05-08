@@ -275,8 +275,8 @@ class NRSC5CLI:
                          evt.port, evt.seq, evt.mime.name, len(evt.data))
         elif evt_type == nrsc5.EventType.LOT:
             time_str = evt.expiry_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
-            logging.info("LOT file: port=%04X lot=%s name=%s size=%s mime=%s expiry=%s",
-                         evt.port, evt.lot, evt.name, len(evt.data), evt.mime.name, time_str)
+            logging.info("LOT file: port=%04X lot=%s name=%s size=%s mime=%s component_mime=%s expiry=%s",
+                         evt.port, evt.lot, evt.name, len(evt.data), evt.mime.name, evt.component_mime.name, time_str)
             if self.args.dump_aas_files:
                 path = os.path.join(self.args.dump_aas_files, evt.name)
                 with open(path, "wb") as file:

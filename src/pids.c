@@ -20,6 +20,8 @@
 #include "private.h"
 #include "unicode.h"
 
+#define ALERT_TIMEOUT_LIMIT 16
+
 static char *chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ ?-*$ ";
 static int payload_sizes[] = {
     32, 22, 58, 32, 27, 58, 27, 22,
@@ -355,6 +357,15 @@ static void report(pids_t *st)
     }
 }
 
+static void reset_alert(pids_t *st)
+{
+    memset(st->alert, 0, sizeof(st->alert));
+    memset(st->alert_have_frame, 0, sizeof(st->alert_have_frame));
+    st->alert_seq = -1;
+    st->alert_displayed = 0;
+    st->alert_timeout = 0;
+}
+
 static void decode_sis(pids_t *st, uint8_t *bits)
 {
     int payloads, off, i;
@@ -363,6 +374,9 @@ static void decode_sis(pids_t *st, uint8_t *bits)
     if (bits[0] != 0) return;
     payloads = bits[1] + 1;
     off = 2;
+
+    if (st->alert_displayed)
+        st->alert_timeout++;
 
     for (i = 0; i < payloads; i++)
     {
@@ -737,6 +751,7 @@ static void decode_sis(pids_t *st, uint8_t *bits)
             }
             break;
         case 9:
+            st->alert_timeout = 0;
             current_frame = decode_int(bits, &off, 6);
             seq = decode_int(bits, &off, 2);
             off += 2; // reserved
@@ -804,6 +819,12 @@ static void decode_sis(pids_t *st, uint8_t *bits)
         }
     }
 
+    if (st->alert_displayed && (st->alert_timeout >= ALERT_TIMEOUT_LIMIT))
+    {
+        reset_alert(st);
+        updated = 1;
+    }
+
     if (updated == 1)
         report(st);
 }
@@ -868,10 +889,7 @@ void pids_init(pids_t *st, input_t *input)
     st->slogan_len = -1;
     st->slogan_displayed = 0;
 
-    memset(st->alert, 0, sizeof(st->alert));
-    memset(st->alert_have_frame, 0, sizeof(st->alert_have_frame));
-    st->alert_seq = -1;
-    st->alert_displayed = 0;
+    reset_alert(st);
 
     st->input = input;
 }

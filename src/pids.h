@@ -92,6 +92,7 @@ typedef struct
     int alert_crc;
     int alert_cnt_len;
     int alert_displayed;
+    int alert_timeout;
 } pids_t;
 
 void pids_frame_push(pids_t *st, uint8_t *bits);

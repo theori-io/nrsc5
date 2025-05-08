@@ -408,15 +408,19 @@ struct nrsc5_event_t
             uint16_t port;
             uint16_t seq;
             unsigned int size;
-            uint32_t mime;
+            uint32_t mime;  /**< DEPRECATED: Use `component->data.mime` instead */
             const uint8_t *data;
+            nrsc5_sig_service_t *service;
+            nrsc5_sig_component_t *component;
         } stream;
         struct {
             uint16_t port;
             uint16_t seq;
             unsigned int size;
-            uint32_t mime;
+            uint32_t mime;  /**< DEPRECATED: Use `component->data.mime` instead */
             const uint8_t *data;
+            nrsc5_sig_service_t *service;
+            nrsc5_sig_component_t *component;
         } packet;
         struct {
             uint16_t port;
@@ -426,6 +430,8 @@ struct nrsc5_event_t
             const char *name;
             const uint8_t *data;
             struct tm *expiry_utc;
+            nrsc5_sig_service_t *service;
+            nrsc5_sig_component_t *component;
         } lot;
         struct {
             unsigned int program;       /**< program number 0, 1, ..., 7 */

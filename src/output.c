@@ -149,6 +149,8 @@ static void aas_reset(output_t *st)
 
     memset(st->ports, 0, sizeof(st->ports));
     memset(st->services, 0, sizeof(st->services));
+
+    nrsc5_clear_sig(st->radio);
 }
 
 void output_reset(output_t *st)
@@ -615,12 +617,12 @@ static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *
     {
     case AAS_TYPE_STREAM:
     {
-        nrsc5_report_stream(st->radio, port_id, seq, len, port->mime, buf);
+        nrsc5_report_stream(st->radio, port_id, seq, len, buf);
         break;
     }
     case AAS_TYPE_PACKET:
     {
-        nrsc5_report_packet(st->radio, port_id, seq, len, port->mime, buf);
+        nrsc5_report_packet(st->radio, port_id, seq, len, buf);
         break;
     }
     case AAS_TYPE_LOT:

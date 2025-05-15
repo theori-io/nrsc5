@@ -79,7 +79,7 @@ Once everything is built, you can run nrsc5 independently of MSYS2. Copy the fol
     sudo apt install mingw-w64
     git clone https://github.com/theori-io/nrsc5.git
     cd nrsc5
-    support/win-cross-compile 64 --cmake-args="-DUSE_SSE=ON"
+    support/win-cross-compile 64 --cmake-args="-DUSE_SSE=ON" -j4
 
 Replace `64` with `32` if you want a 32-bit build. Once the build is complete, copy `*.dll` and `nrsc5.exe` from the `build-win64/bin` (or `build-win32/bin`) folder to your Windows machine.
 
@@ -88,7 +88,7 @@ Replace `64` with `32` if you want a 32-bit build. Once the build is complete, c
     brew install cmake autoconf automake libtool git mingw-w64
     git clone https://github.com/theori-io/nrsc5.git
     cd nrsc5
-    support/win-cross-compile 64 --cmake-args="-DUSE_SSE=ON"
+    support/win-cross-compile 64 --cmake-args="-DUSE_SSE=ON" -j4
 
 Replace `64` with `32` if you want a 32-bit build. Once the build is complete, copy `*.dll` and `nrsc5.exe` from the `build-win64/bin` (or `build-win32/bin`) folder to your Windows machine.
 

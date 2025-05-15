@@ -85,7 +85,7 @@ Replace `64` with `32` if you want a 32-bit build. Once the build is complete, c
 
 ### Cross-compiling for Windows from macOS
 
-    brew install cmake autoconf automake libtool git mingw-w64
+    brew install cmake autoconf automake libtool pkgconf git mingw-w64
     git clone https://github.com/theori-io/nrsc5.git
     cd nrsc5
     support/win-cross-compile 64 --cmake-args="-DUSE_SSE=ON" -j4

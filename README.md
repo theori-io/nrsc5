@@ -76,7 +76,7 @@ Once everything is built, you can run nrsc5 independently of MSYS2. Copy the fol
 
 ### Cross-compiling for Windows from Ubuntu / Debian
 
-    sudo apt install mingw-w64
+    sudo apt install cmake autoconf libtool pkgconf git mingw-w64
     git clone https://github.com/theori-io/nrsc5.git
     cd nrsc5
     support/win-cross-compile 64 --cmake-args="-DUSE_SSE=ON" -j4

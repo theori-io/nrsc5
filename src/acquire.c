@@ -320,8 +320,8 @@ void acquire_init(acquire_t *st, input_t *input)
     st->filter_am = firdecim_q15_create(filter_taps_am, sizeof(filter_taps_am) / sizeof(filter_taps_am[0]));
 
     pthread_mutex_lock(&fftw_mutex);
-    st->fft_plan_fm = fftwf_plan_dft_1d(FFT_FM, st->fftin, st->fftout, FFTW_FORWARD, 0);
-    st->fft_plan_am = fftwf_plan_dft_1d(FFT_AM, st->fftin, st->fftout, FFTW_FORWARD, 0);
+    st->fft_plan_fm = fftwf_plan_dft_1d(FFT_FM, st->fftin, st->fftout, FFTW_FORWARD, FFTW_ESTIMATE);
+    st->fft_plan_am = fftwf_plan_dft_1d(FFT_AM, st->fftin, st->fftout, FFTW_FORWARD, FFTW_ESTIMATE);
     pthread_mutex_unlock(&fftw_mutex);
 
     for (i = 0; i < FFTCP_FM; ++i)

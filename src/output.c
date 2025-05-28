@@ -130,24 +130,21 @@ static void aas_free_lot(aas_file_t *file)
 
 static void aas_reset(output_t *st)
 {
-    for (int i = 0; i < MAX_PORTS; i++)
+    for (int i = 0; i < MAX_SIG_SERVICES; i++)
     {
-        aas_port_t *port = &st->ports[i];
-        if (port->port == 0)
-            continue;
-        if (port->type == AAS_TYPE_LOT)
+        sig_service_t *service = &st->services[i];
+        free(service->name);
+
+        for (int j = 0; j < MAX_SIG_COMPONENTS; j++)
         {
-            for (int j = 0; j < MAX_LOT_FILES; j++)
-                aas_free_lot(&port->lot_files[j]);
+            sig_component_t *component = &service->component[j];
+
+            if (component->type == SIG_COMPONENT_DATA)
+                for (int k = 0; k < MAX_LOT_FILES; k++)
+                    aas_free_lot(&component->data.lot_files[k]);
         }
     }
 
-    for (int i = 0; i < MAX_SIG_SERVICES; i++)
-    {
-        free(st->services[i].name);
-    }
-
-    memset(st->ports, 0, sizeof(st->ports));
     memset(st->services, 0, sizeof(st->services));
 }
 
@@ -182,7 +179,6 @@ void output_init(output_t *st, nrsc5_t *radio)
     memset(st->silence, 0, sizeof(st->silence));
 #endif
 
-    memset(st->ports, 0, sizeof(st->ports));
     memset(st->services, 0, sizeof(st->services));
 
     output_reset(st);
@@ -440,7 +436,7 @@ static void output_id3(output_t *st, unsigned int program, uint8_t *buf, unsigne
 
 static void parse_sig(output_t *st, uint8_t *buf, unsigned int len)
 {
-    int port_idx = 0, service_idx = 0, component_idx = 0;
+    int service_idx = 0, component_idx = 0;
     uint8_t *p = buf;
     sig_service_t *service = NULL;
 
@@ -450,7 +446,6 @@ static void parse_sig(output_t *st, uint8_t *buf, unsigned int len)
         return;
     }
 
-    memset(st->ports, 0, sizeof(st->ports));
     memset(st->services, 0, sizeof(st->services));
 
     while (p < buf + len)
@@ -497,12 +492,6 @@ static void parse_sig(output_t *st, uint8_t *buf, unsigned int len)
                     goto done;
                 }
 
-                if (port_idx == MAX_PORTS)
-                {
-                    log_warn("Too many AAS ports");
-                    goto done;
-                }
-
                 comp = &service->component[component_idx++];
                 comp->type = SIG_COMPONENT_DATA;
                 comp->id = p[0];
@@ -510,12 +499,6 @@ static void parse_sig(output_t *st, uint8_t *buf, unsigned int len)
                 comp->data.service_data_type = p[3] | (p[4] << 8);
                 comp->data.type = p[5];
                 comp->data.mime = p[8] | (p[9] << 8) | (p[10] << 16) | ((uint32_t)p[11] << 24);
-
-                aas_port_t *port = &st->ports[port_idx++];
-                port->port = comp->data.port;
-                port->type = comp->data.type;
-                port->mime = comp->data.mime;
-                port->service_number = service->number;
             }
             else if (type == 0x66)
             {
@@ -547,30 +530,41 @@ done:
     nrsc5_report_sig(st->radio, st->services, service_idx);
 }
 
-static aas_port_t *find_port(output_t *st, uint16_t port_id)
+static sig_component_t *find_port(output_t *st, uint16_t port_id)
 {
-    unsigned int i;
-    for (i = 0; i < MAX_PORTS; i++)
+    unsigned int i, j;
+    for (i = 0; i < MAX_SIG_SERVICES; i++)
     {
-        if (st->ports[i].port == port_id)
-            return &st->ports[i];
+        sig_service_t *service = &st->services[i];
+        if (service->type == SIG_SERVICE_NONE)
+            break;
+
+        for (j = 0; j < MAX_SIG_COMPONENTS; j++)
+        {
+            sig_component_t *component = &service->component[j];
+            if (component->type == SIG_COMPONENT_NONE)
+                break;
+
+            if ((component->type == SIG_COMPONENT_DATA) && (component->data.port == port_id))
+                return component;
+        }
     }
     return NULL;
 }
 
-static aas_file_t *find_lot(aas_port_t *port, unsigned int lot)
+static aas_file_t *find_lot(sig_component_t *component, unsigned int lot)
 {
     for (int i = 0; i < MAX_LOT_FILES; i++)
     {
-        if (port->lot_files[i].timestamp == 0)
+        if (component->data.lot_files[i].timestamp == 0)
             continue;
-        if (port->lot_files[i].lot == lot)
-            return &port->lot_files[i];
+        if (component->data.lot_files[i].lot == lot)
+            return &component->data.lot_files[i];
     }
     return NULL;
 }
 
-static aas_file_t *find_free_lot(aas_port_t *port)
+static aas_file_t *find_free_lot(sig_component_t *component)
 {
     unsigned int min_timestamp = UINT_MAX;
     unsigned int min_idx = 0;
@@ -578,9 +572,9 @@ static aas_file_t *find_free_lot(aas_port_t *port)
 
     for (int i = 0; i < MAX_LOT_FILES; i++)
     {
-        unsigned int timestamp = port->lot_files[i].timestamp;
+        unsigned int timestamp = component->data.lot_files[i].timestamp;
         if (timestamp == 0)
-            return &port->lot_files[i];
+            return &component->data.lot_files[i];
         if (timestamp < min_timestamp)
         {
             min_timestamp = timestamp;
@@ -588,7 +582,7 @@ static aas_file_t *find_free_lot(aas_port_t *port)
         }
     }
 
-    file = &port->lot_files[min_idx];
+    file = &component->data.lot_files[min_idx];
     aas_free_lot(file);
     return file;
 }
@@ -596,7 +590,7 @@ static aas_file_t *find_free_lot(aas_port_t *port)
 static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *buf, unsigned int len)
 {
     static unsigned int counter = 1;
-    aas_port_t *port;
+    sig_component_t *component;
 
     if (st->services[0].type == SIG_SERVICE_NONE)
     {
@@ -604,23 +598,23 @@ static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *
         return;
     }
 
-    port = find_port(st, port_id);
-    if (port == NULL)
+    component = find_port(st, port_id);
+    if (component == NULL)
     {
         log_debug("port %04X not defined in SIG table", port_id);
         return;
     }
 
-    switch (port->type)
+    switch (component->data.type)
     {
     case AAS_TYPE_STREAM:
     {
-        nrsc5_report_stream(st->radio, port_id, seq, len, port->mime, buf);
+        nrsc5_report_stream(st->radio, port_id, seq, len, component->data.mime, buf);
         break;
     }
     case AAS_TYPE_PACKET:
     {
-        nrsc5_report_packet(st->radio, port_id, seq, len, port->mime, buf);
+        nrsc5_report_packet(st->radio, port_id, seq, len, component->data.mime, buf);
         break;
     }
     case AAS_TYPE_LOT:
@@ -649,10 +643,10 @@ static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *
             return;
         }
 
-        aas_file_t *file = find_lot(port, lot);
+        aas_file_t *file = find_lot(component, lot);
         if (file == NULL)
         {
-            file = find_free_lot(port);
+            file = find_free_lot(component);
             file->lot = lot;
             file->fragments = calloc(MAX_LOT_FRAGMENTS, sizeof(uint8_t*));
         }
@@ -689,7 +683,7 @@ static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *
             len -= hdrlen;
             hdrlen = 0;
 
-            log_debug("File %s, size %d, lot %d, port %04X, mime %08X", file->name, file->size, file->lot, port->port, file->mime);
+            log_debug("File %s, size %d, lot %d, port %04X, mime %08X", file->name, file->size, file->lot, component->data.port, file->mime);
         }
 
         if (hdrlen != 0)
@@ -727,7 +721,7 @@ static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *
                 uint8_t *data = malloc(num_fragments * LOT_FRAGMENT_SIZE);
                 for (int i = 0; i < num_fragments; i++)
                     memcpy(data + i * LOT_FRAGMENT_SIZE, file->fragments[i], LOT_FRAGMENT_SIZE);
-                nrsc5_report_lot(st->radio, port->port, file->lot, file->size, file->mime, file->name, data, &file->expiry_utc);
+                nrsc5_report_lot(st->radio, component->data.port, file->lot, file->size, file->mime, file->name, data, &file->expiry_utc);
                 free(data);
                 aas_free_lot(file);
             }
@@ -735,7 +729,7 @@ static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *
         break;
     }
     default:
-        log_info("unknown port type %d", port->type);
+        log_info("unknown port type %d", component->data.type);
         break;
     }
 }

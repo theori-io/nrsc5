@@ -58,7 +58,7 @@ void nrsc5_report_lot(nrsc5_t *, uint16_t port, unsigned int lot, unsigned int s
 void nrsc5_report_audio_service(nrsc5_t *, unsigned int program, unsigned int access, unsigned int type, 
                                 unsigned int codec_mode, unsigned int blend_control, int digital_audio_gain,
                                 unsigned int common_delay, unsigned int latency);
-void nrsc5_report_sig(nrsc5_t *, sig_service_t *services, unsigned int count);
+void nrsc5_report_sig(nrsc5_t *, sig_service_t *services);
 void nrsc5_report_sis(nrsc5_t *, const char *country_code, int fcc_facility_id, const char *name,
                       const char *slogan, const char *message, const char *alert, const uint8_t *cnt, int cnt_length,
                       int category1, int category2, int location_format, int num_locations, const int *locations,

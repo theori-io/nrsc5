@@ -730,7 +730,8 @@ void nrsc5_report_ber(nrsc5_t *st, float cber)
     nrsc5_report(st, &evt);
 }
 
-void nrsc5_report_stream(nrsc5_t *st, uint16_t port, uint16_t seq, unsigned int size, uint32_t mime, const uint8_t *data)
+void nrsc5_report_stream(nrsc5_t *st, uint16_t port, uint16_t seq, unsigned int size, const uint8_t *data,
+                         nrsc5_sig_service_t *service, nrsc5_sig_component_t *component)
 {
     nrsc5_event_t evt;
 
@@ -738,12 +739,15 @@ void nrsc5_report_stream(nrsc5_t *st, uint16_t port, uint16_t seq, unsigned int 
     evt.stream.port = port;
     evt.stream.seq = seq;
     evt.stream.size = size;
-    evt.stream.mime = mime;
+    evt.stream.mime = component->data.mime;
     evt.stream.data = data;
+    evt.stream.service = service;
+    evt.stream.component = component;
     nrsc5_report(st, &evt);
 }
 
-void nrsc5_report_packet(nrsc5_t *st, uint16_t port, uint16_t seq, unsigned int size, uint32_t mime, const uint8_t *data)
+void nrsc5_report_packet(nrsc5_t *st, uint16_t port, uint16_t seq, unsigned int size, const uint8_t *data,
+                         nrsc5_sig_service_t *service, nrsc5_sig_component_t *component)
 {
     nrsc5_event_t evt;
 
@@ -751,12 +755,16 @@ void nrsc5_report_packet(nrsc5_t *st, uint16_t port, uint16_t seq, unsigned int 
     evt.packet.port = port;
     evt.packet.seq = seq;
     evt.packet.size = size;
-    evt.packet.mime = mime;
+    evt.packet.mime = component->data.mime;
     evt.packet.data = data;
+    evt.packet.service = service;
+    evt.packet.component = component;
     nrsc5_report(st, &evt);
 }
 
-void nrsc5_report_lot(nrsc5_t *st, uint16_t port, unsigned int lot, unsigned int size, uint32_t mime, const char *name, const uint8_t *data, struct tm *expiry_utc)
+void nrsc5_report_lot(nrsc5_t *st, uint16_t port, unsigned int lot, unsigned int size, uint32_t mime,
+                      const char *name, const uint8_t *data, struct tm *expiry_utc,
+                      nrsc5_sig_service_t *service, nrsc5_sig_component_t *component)
 {
     nrsc5_event_t evt;
 
@@ -768,6 +776,8 @@ void nrsc5_report_lot(nrsc5_t *st, uint16_t port, unsigned int lot, unsigned int
     evt.lot.name = name;
     evt.lot.data = data;
     evt.lot.expiry_utc = expiry_utc;
+    evt.lot.service = service;
+    evt.lot.component = component;
     nrsc5_report(st, &evt);
 }
 
@@ -865,6 +875,10 @@ void nrsc5_report_sig(nrsc5_t *st, sig_service_t *services)
                 component->data.mime = internal->data.mime;
             }
 
+            // cache the service & component records for use in API events
+            internal->service_ext = service;
+            internal->component_ext = component;
+
             if (prevc == NULL)
                 service->components = component;
             else
@@ -873,9 +887,15 @@ void nrsc5_report_sig(nrsc5_t *st, sig_service_t *services)
     }
 
     nrsc5_report(st, &evt);
+    st->sig_table = evt.sig.services;
+}
+
+void nrsc5_clear_sig(nrsc5_t *st)
+{
+    nrsc5_sig_service_t *service = NULL;
 
     // free the data structures
-    for (service = evt.sig.services; service != NULL; )
+    for (service = st->sig_table; service != NULL; )
     {
         void *p;
         nrsc5_sig_component_t *component;

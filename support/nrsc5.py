@@ -181,9 +181,9 @@ SIGDataComponent = collections.namedtuple("SIGDataComponent", ["port", "service_
 SIGComponent = collections.namedtuple("SIGComponent", ["type", "id", "audio", "data"])
 SIGService = collections.namedtuple("SIGService", ["type", "number", "name", "components"])
 SIG = collections.namedtuple("SIG", ["services"])
-STREAM = collections.namedtuple("STREAM", ["port", "seq", "mime", "data"])
-PACKET = collections.namedtuple("PACKET", ["port", "seq", "mime", "data"])
-LOT = collections.namedtuple("LOT", ["port", "lot", "mime", "name", "data", "expiry_utc"])
+STREAM = collections.namedtuple("STREAM", ["port", "seq", "mime", "data", "service", "component"])
+PACKET = collections.namedtuple("PACKET", ["port", "seq", "mime", "data", "service", "component"])
+LOT = collections.namedtuple("LOT", ["port", "lot", "mime", "name", "data", "expiry_utc", "service", "component"])
 SISAudioService = collections.namedtuple("SISAudioService", ["program", "access", "type", "sound_exp"])
 SISDataService = collections.namedtuple("SISDataService", ["access", "type", "mime_type"])
 SIS = collections.namedtuple("SIS", ["country_code", "fcc_facility_id", "name", "slogan", "message", "alert",
@@ -335,6 +335,8 @@ class _STREAM(ctypes.Structure):
         ("size", ctypes.c_uint),
         ("mime", ctypes.c_uint32),
         ("data", ctypes.POINTER(ctypes.c_char)),
+        ("service", ctypes.POINTER(_SIGService)),
+        ("component", ctypes.POINTER(_SIGComponent)),
     ]
 
 
@@ -345,6 +347,8 @@ class _PACKET(ctypes.Structure):
         ("size", ctypes.c_uint),
         ("mime", ctypes.c_uint32),
         ("data", ctypes.POINTER(ctypes.c_char)),
+        ("service", ctypes.POINTER(_SIGService)),
+        ("component", ctypes.POINTER(_SIGComponent)),
     ]
 
 
@@ -371,6 +375,8 @@ class _LOT(ctypes.Structure):
         ("name", ctypes.c_char_p),
         ("data", ctypes.POINTER(ctypes.c_char)),
         ("expiry_utc", ctypes.POINTER(_TimeStruct)),
+        ("service", ctypes.POINTER(_SIGService)),
+        ("component", ctypes.POINTER(_SIGComponent)),
     ]
 
 
@@ -603,6 +609,8 @@ class NRSC5:
                       self._decode(id3.album), self._decode(id3.genre), ufid, xhdr, comments)
         elif evt_type == EventType.SIG:
             evt = []
+            self.services = {}
+            self.components = {}
             service_ptr = c_evt.u.sig.services
             while service_ptr:
                 service = service_ptr.contents
@@ -611,27 +619,38 @@ class NRSC5:
                 while component_ptr:
                     component = component_ptr.contents
                     component_type = ComponentType(component.type)
+                    audio = None
+                    data = None
                     if component_type == ComponentType.AUDIO:
                         audio = SIGAudioComponent(component.u.audio.port, ProgramType(component.u.audio.type),
                                                   MIMEType(component.u.audio.mime))
-                        components.append(SIGComponent(component_type, component.id, audio, None))
                     if component_type == ComponentType.DATA:
                         data = SIGDataComponent(component.u.data.port,
                                                 ServiceDataType(component.u.data.service_data_type),
                                                 component.u.data.type, MIMEType(component.u.data.mime))
-                        components.append(SIGComponent(component_type, component.id, None, data))
+                    component_obj = SIGComponent(component_type, component.id, audio, data)
+                    components.append(component_obj)
+                    self.components[(service.number, component.id)] = component_obj
                     component_ptr = component.next
-                evt.append(SIGService(ServiceType(service.type), service.number,
-                                      self._decode(service.name), components))
+                service_obj = SIGService(ServiceType(service.type), service.number,
+                                         self._decode(service.name), components)
+                evt.append(service_obj)
+                self.services[service.number] = service_obj
                 service_ptr = service.next
         elif evt_type == EventType.STREAM:
             stream = c_evt.u.stream
-            evt = STREAM(stream.port, stream.seq, MIMEType(stream.mime), stream.data[:stream.size])
+            service = self.services[stream.service.contents.number]
+            component = self.components[(stream.service.contents.number, stream.component.contents.id)]
+            evt = STREAM(stream.port, stream.seq, MIMEType(component.data.mime), stream.data[:stream.size], service, component)
         elif evt_type == EventType.PACKET:
             packet = c_evt.u.packet
-            evt = PACKET(packet.port, packet.seq, MIMEType(packet.mime), packet.data[:packet.size])
+            service = self.services[packet.service.contents.number]
+            component = self.components[(packet.service.contents.number, packet.component.contents.id)]
+            evt = PACKET(packet.port, packet.seq, MIMEType(component.data.mime), packet.data[:packet.size], service, component)
         elif evt_type == EventType.LOT:
             lot = c_evt.u.lot
+            service = self.services[lot.service.contents.number]
+            component = self.components[(lot.service.contents.number, lot.component.contents.id)]
             expiry_struct = lot.expiry_utc.contents
             expiry_time = datetime.datetime(
                 expiry_struct.tm_year + 1900,
@@ -642,7 +661,7 @@ class NRSC5:
                 expiry_struct.tm_sec,
                 tzinfo=datetime.timezone.utc
             )
-            evt = LOT(lot.port, lot.lot, MIMEType(lot.mime), self._decode(lot.name), lot.data[:lot.size], expiry_time)
+            evt = LOT(lot.port, lot.lot, MIMEType(lot.mime), self._decode(lot.name), lot.data[:lot.size], expiry_time, service, component)
         elif evt_type == EventType.SIS:
             sis = c_evt.u.sis
 

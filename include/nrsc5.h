@@ -142,6 +142,7 @@ struct nrsc5_sig_service_t
     uint16_t number;   /**< Channel number: 1,2,3,4 */
     const char *name;  /**< Channel name, e.g. "MPS" or "SPS1" */
     nrsc5_sig_component_t *components; /**< Head of linked list of components */
+    nrsc5_sig_component_t *audio_component; /**< Direct link to the audio component of an audio service, or NULL for a data service */
 };
 /**
  * Defines a typename for struct nrsc5_sig_service_t
@@ -408,15 +409,19 @@ struct nrsc5_event_t
             uint16_t port;
             uint16_t seq;
             unsigned int size;
-            uint32_t mime;
+            uint32_t mime;  /**< DEPRECATED: Use `component->data.mime` instead */
             const uint8_t *data;
+            nrsc5_sig_service_t *service;
+            nrsc5_sig_component_t *component;
         } stream;
         struct {
             uint16_t port;
             uint16_t seq;
             unsigned int size;
-            uint32_t mime;
+            uint32_t mime;  /**< DEPRECATED: Use `component->data.mime` instead */
             const uint8_t *data;
+            nrsc5_sig_service_t *service;
+            nrsc5_sig_component_t *component;
         } packet;
         struct {
             uint16_t port;
@@ -426,6 +431,8 @@ struct nrsc5_event_t
             const char *name;
             const uint8_t *data;
             struct tm *expiry_utc;
+            nrsc5_sig_service_t *service;
+            nrsc5_sig_component_t *component;
         } lot;
         struct {
             unsigned int program;       /**< program number 0, 1, ..., 7 */

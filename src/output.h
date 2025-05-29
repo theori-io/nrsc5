@@ -50,6 +50,9 @@ typedef struct
     uint8_t type;
     uint8_t id;
 
+    nrsc5_sig_service_t *service_ext;
+    nrsc5_sig_component_t *component_ext;
+
     union
     {
         struct {

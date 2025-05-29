@@ -146,6 +146,7 @@ static void aas_reset(output_t *st)
     }
 
     memset(st->services, 0, sizeof(st->services));
+    nrsc5_clear_sig(st->radio);
 }
 
 void output_reset(output_t *st)
@@ -647,12 +648,12 @@ static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *
     {
     case AAS_TYPE_STREAM:
     {
-        nrsc5_report_stream(st->radio, port_id, seq, len, component->data.mime, buf);
+        nrsc5_report_stream(st->radio, port_id, seq, len, buf, component->service_ext, component->component_ext);
         break;
     }
     case AAS_TYPE_PACKET:
     {
-        nrsc5_report_packet(st->radio, port_id, seq, len, component->data.mime, buf);
+        nrsc5_report_packet(st->radio, port_id, seq, len, buf, component->service_ext, component->component_ext);
         break;
     }
     case AAS_TYPE_LOT:
@@ -759,7 +760,9 @@ static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *
                 uint8_t *data = malloc(num_fragments * LOT_FRAGMENT_SIZE);
                 for (int i = 0; i < num_fragments; i++)
                     memcpy(data + i * LOT_FRAGMENT_SIZE, file->fragments[i], LOT_FRAGMENT_SIZE);
-                nrsc5_report_lot(st->radio, component->data.port, file->lot, file->size, file->mime, file->name, data, &file->expiry_utc);
+                nrsc5_report_lot(st->radio, component->data.port, file->lot, file->size, file->mime,
+                                 file->name, data, &file->expiry_utc,
+                                 component->service_ext, component->component_ext);
                 free(data);
                 aas_free_lot(file);
             }

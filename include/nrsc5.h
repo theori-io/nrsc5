@@ -142,6 +142,7 @@ struct nrsc5_sig_service_t
     uint16_t number;   /**< Channel number: 1,2,3,4 */
     const char *name;  /**< Channel name, e.g. "MPS" or "SPS1" */
     nrsc5_sig_component_t *components; /**< Head of linked list of components */
+    nrsc5_sig_component_t *audio_component; /**< Direct link to the audio component of an audio service, or NULL for a data service */
 };
 /**
  * Defines a typename for struct nrsc5_sig_service_t

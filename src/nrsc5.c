@@ -866,6 +866,7 @@ void nrsc5_report_sig(nrsc5_t *st, sig_service_t *services)
                 component->audio.port = internal->audio.port;
                 component->audio.type = internal->audio.type;
                 component->audio.mime = internal->audio.mime;
+                service->audio_component = component;
             }
             else if (internal->type == SIG_COMPONENT_DATA)
             {

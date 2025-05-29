@@ -179,7 +179,7 @@ ID3 = collections.namedtuple("ID3", ["program", "title", "artist", "album", "gen
 SIGAudioComponent = collections.namedtuple("SIGAudioComponent", ["port", "type", "mime"])
 SIGDataComponent = collections.namedtuple("SIGDataComponent", ["port", "service_data_type", "type", "mime"])
 SIGComponent = collections.namedtuple("SIGComponent", ["type", "id", "audio", "data"])
-SIGService = collections.namedtuple("SIGService", ["type", "number", "name", "components"])
+SIGService = collections.namedtuple("SIGService", ["type", "number", "name", "components", "audio_component"])
 SIG = collections.namedtuple("SIG", ["services"])
 STREAM = collections.namedtuple("STREAM", ["port", "seq", "mime", "data", "service", "component"])
 PACKET = collections.namedtuple("PACKET", ["port", "seq", "mime", "data", "service", "component"])
@@ -319,6 +319,7 @@ _SIGService._fields_ = [
     ("number", ctypes.c_uint16),
     ("name", ctypes.c_char_p),
     ("components", ctypes.POINTER(_SIGComponent)),
+    ("audio_component", ctypes.POINTER(_SIGComponent)),
 ]
 
 
@@ -616,6 +617,7 @@ class NRSC5:
                 service = service_ptr.contents
                 components = []
                 component_ptr = service.components
+                audio_component = None
                 while component_ptr:
                     component = component_ptr.contents
                     component_type = ComponentType(component.type)
@@ -629,11 +631,13 @@ class NRSC5:
                                                 ServiceDataType(component.u.data.service_data_type),
                                                 component.u.data.type, MIMEType(component.u.data.mime))
                     component_obj = SIGComponent(component_type, component.id, audio, data)
+                    if component_type == ComponentType.AUDIO:
+                        audio_component = component_obj
                     components.append(component_obj)
                     self.components[(service.number, component.id)] = component_obj
                     component_ptr = component.next
                 service_obj = SIGService(ServiceType(service.type), service.number,
-                                         self._decode(service.name), components)
+                                         self._decode(service.name), components, audio_component)
                 evt.append(service_obj)
                 self.services[service.number] = service_obj
                 service_ptr = service.next

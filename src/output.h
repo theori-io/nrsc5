@@ -9,7 +9,6 @@
 #endif
 
 #define AUDIO_FRAME_BYTES 8192
-#define MAX_PORTS 32
 #define MAX_SIG_SERVICES 8
 #define MAX_SIG_COMPONENTS 8
 #define MAX_LOT_FILES 8
@@ -48,15 +47,6 @@ typedef struct
 
 typedef struct
 {
-    uint16_t port;
-    uint8_t type;
-    unsigned int service_number;
-    uint32_t mime;
-    aas_file_t lot_files[MAX_LOT_FILES];
-} aas_port_t;
-
-typedef struct
-{
     uint8_t type;
     uint8_t id;
 
@@ -67,6 +57,7 @@ typedef struct
             uint16_t service_data_type;
             uint8_t type;
             uint32_t mime;
+            aas_file_t lot_files[MAX_LOT_FILES];
         } data;
         struct {
             uint8_t port;
@@ -105,7 +96,6 @@ typedef struct
     NeAACDecHandle aacdec[MAX_PROGRAMS];
     int16_t silence[NRSC5_AUDIO_FRAME_SAMPLES * 2];
 #endif
-    aas_port_t ports[MAX_PORTS];
     sig_service_t services[MAX_SIG_SERVICES];
 } output_t;
 

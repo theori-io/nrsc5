@@ -813,7 +813,7 @@ void nrsc5_report_audio_service(nrsc5_t *st, unsigned int program, unsigned int 
     nrsc5_report(st, &evt);
 }
 
-void nrsc5_report_sig(nrsc5_t *st, sig_service_t *services, unsigned int count)
+void nrsc5_report_sig(nrsc5_t *st, sig_service_t *services)
 {
     nrsc5_sig_service_t *service = NULL;
     nrsc5_event_t evt;
@@ -821,10 +821,13 @@ void nrsc5_report_sig(nrsc5_t *st, sig_service_t *services, unsigned int count)
     evt.event = NRSC5_EVENT_SIG;
 
     // convert internal structures to public structures
-    for (unsigned int i = 0; i < count; i++)
+    for (unsigned int i = 0; i < MAX_SIG_SERVICES; i++)
     {
         nrsc5_sig_component_t *component = NULL;
         nrsc5_sig_service_t *prev = service;
+
+        if (services[i].type == SIG_SERVICE_NONE)
+            break;
 
         service = calloc(1, sizeof(nrsc5_sig_service_t));
         service->type = convert_sig_service_type(services[i].type);

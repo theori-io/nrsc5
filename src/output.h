@@ -1,6 +1,7 @@
 #pragma once
 
 #include "config.h"
+#include "here_images.h"
 
 #include <nrsc5.h>
 
@@ -100,6 +101,7 @@ typedef struct
     int16_t silence[NRSC5_AUDIO_FRAME_SAMPLES * 2];
 #endif
     sig_service_t services[MAX_SIG_SERVICES];
+    here_images_t here_images;
 } output_t;
 
 void output_align(output_t *st, unsigned int program, unsigned int stream_id, unsigned int offset);

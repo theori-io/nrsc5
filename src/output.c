@@ -26,6 +26,7 @@
 #include "output.h"
 #include "private.h"
 #include "unicode.h"
+#include "here_images.h"
 
 void output_align(output_t *st, unsigned int program, unsigned int stream_id, unsigned int offset)
 {
@@ -169,11 +170,14 @@ void output_reset(output_t *st)
         st->aacdec[i] = NULL;
 #endif
     }
+
+    here_images_reset(&st->here_images);
 }
 
 void output_init(output_t *st, nrsc5_t *radio)
 {
     st->radio = radio;
+    st->here_images.radio = radio;
 #ifdef USE_FAAD2
     for (int i = 0; i < MAX_PROGRAMS; i++)
         st->aacdec[i] = NULL;
@@ -649,6 +653,8 @@ static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *
     case AAS_TYPE_STREAM:
     {
         nrsc5_report_stream(st->radio, port_id, seq, len, buf, component->service_ext, component->component_ext);
+        if (component->data.mime == NRSC5_MIME_HERE_IMAGE)
+            here_images_push(&st->here_images, seq, len, buf);
         break;
     }
     case AAS_TYPE_PACKET:

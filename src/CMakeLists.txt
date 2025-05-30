@@ -37,6 +37,7 @@ add_library (
     acquire.c
     decode.c
     frame.c
+    here_images.c
     input.c
     nrsc5.c
     output.c

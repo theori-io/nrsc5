@@ -73,15 +73,11 @@ static void process_packet(here_images_t *st)
         return;
     }
 
-    char *filename = malloc(filename_len + 1);
-    memcpy(filename, &st->buffer[28], filename_len);
-    filename[filename_len] = '\0';
+    st->buffer[28 + filename_len] = '\0';
 
     nrsc5_report_here_image(st->radio, image_type, seq, n1, n2, timestamp,
                             lat1 / 100000.f, lon1 / 100000.f, lat2 / 100000.f, lon2 / 100000.f,
-                            filename, file_len, &st->buffer[34 + filename_len]);
-
-    free(filename);
+                            (char *)&st->buffer[28], file_len, &st->buffer[34 + filename_len]);
 }
 
 void here_images_push(here_images_t *st, uint16_t seq, unsigned int len, uint8_t *buf)

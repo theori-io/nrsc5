@@ -319,12 +319,12 @@ class NRSC5CLI:
                          evt.common_delay,
                          evt.latency)
         elif evt_type == nrsc5.EventType.HERE_IMAGE:
-            time_str = evt.timestamp.strftime("%Y-%m-%dT%H:%M:%SZ")
+            time_str = evt.time_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
             logging.info("HERE Image: type=%s, seq=%d, n1=%d, n2=%d, time=%s, lat1=%.5f, lon1=%.5f, lat2=%.5f, lon2=%.5f, name=%s, size=%d",
                          evt.image_type.name, evt.seq, evt.n1, evt.n2, time_str, evt.latitude1, evt.longitude1,
                          evt.latitude2, evt.longitude2, evt.name, len(evt.data))
             if self.args.dump_aas_files:
-                time_int = int(evt.timestamp.timestamp())
+                time_int = int(evt.time_utc.timestamp())
                 path = os.path.join(self.args.dump_aas_files, f"{time_int}_{evt.name}")
                 with open(path, "wb") as file:
                     file.write(evt.data)

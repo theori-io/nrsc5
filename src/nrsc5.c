@@ -1053,7 +1053,13 @@ void nrsc5_report_here_image(nrsc5_t *st, int image_type, int seq, int n1, int n
     evt.here_image.seq = seq;
     evt.here_image.n1 = n1;
     evt.here_image.n2 = n2;
-    evt.here_image.timestamp = timestamp;
+#if defined(WIN32) || defined(_WIN32)
+    __time64_t ts = (__time64_t) timestamp;
+    evt.here_image.time_utc = _gmtime64(&ts);
+#else
+    time_t ts = (time_t) timestamp;
+    evt.here_image.time_utc = gmtime(&ts);
+#endif
     evt.here_image.latitude1 = latitude1;
     evt.here_image.longitude1 = longitude1;
     evt.here_image.latitude2 = latitude2;

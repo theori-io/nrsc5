@@ -203,7 +203,7 @@ StationLocation = collections.namedtuple("StationLocation", ["latitude", "longit
 EmergencyAlert = collections.namedtuple("EmergencyAlert", ["message", "control_data", "categories", "location_format", "locations"])
 AudioService = collections.namedtuple("AudioService", ["program", "access", "type", "codec_mode", "blend_control",
                                                        "digital_audio_gain", "common_delay", "latency"])
-HEREImage = collections.namedtuple("HEREImage", ["image_type", "seq", "n1", "n2", "timestamp", "latitude1", "longitude1",
+HEREImage = collections.namedtuple("HEREImage", ["image_type", "seq", "n1", "n2", "time_utc", "latitude1", "longitude1",
                                                  "latitude2", "longitude2", "name", "data"])
 
 
@@ -521,7 +521,7 @@ class _HEREImage(ctypes.Structure):
         ("seq", ctypes.c_int),
         ("n1", ctypes.c_int),
         ("n2", ctypes.c_int),
-        ("timestamp", ctypes.c_uint),
+        ("time_utc", ctypes.POINTER(_TimeStruct)),
         ("latitude1", ctypes.c_float),
         ("longitude1", ctypes.c_float),
         ("latitude2", ctypes.c_float),
@@ -590,6 +590,18 @@ class NRSC5:
         if string is None:
             return string
         return string.decode()
+
+    @staticmethod
+    def _timestruct_to_datetime(ts):
+        return datetime.datetime(
+            ts.contents.tm_year + 1900,
+            ts.contents.tm_mon + 1,
+            ts.contents.tm_mday,
+            ts.contents.tm_hour,
+            ts.contents.tm_min,
+            ts.contents.tm_sec,
+            tzinfo=datetime.timezone.utc
+        )
 
     def _callback_wrapper(self, c_evt):
         c_evt = c_evt.contents
@@ -683,16 +695,7 @@ class NRSC5:
             lot = c_evt.u.lot
             service = self.services[lot.service.contents.number]
             component = self.components[(lot.service.contents.number, lot.component.contents.id)]
-            expiry_struct = lot.expiry_utc.contents
-            expiry_time = datetime.datetime(
-                expiry_struct.tm_year + 1900,
-                expiry_struct.tm_mon + 1,
-                expiry_struct.tm_mday,
-                expiry_struct.tm_hour,
-                expiry_struct.tm_min,
-                expiry_struct.tm_sec,
-                tzinfo=datetime.timezone.utc
-            )
+            expiry_time = self._timestruct_to_datetime(lot.expiry_utc)
             evt = LOT(lot.port, lot.lot, MIMEType(lot.mime), self._decode(lot.name), lot.data[:lot.size], expiry_time, service, component)
         elif evt_type == EventType.SIS:
             sis = c_evt.u.sis
@@ -774,12 +777,13 @@ class NRSC5:
             )
         elif evt_type == EventType.HERE_IMAGE:
             here_image = c_evt.u.here_image
+            time_utc = self._timestruct_to_datetime(here_image.time_utc)
             evt = HEREImage(
                 HEREImageType(here_image.image_type),
                 here_image.seq,
                 here_image.n1,
                 here_image.n2,
-                datetime.datetime.fromtimestamp(here_image.timestamp, tz=datetime.timezone.utc),
+                time_utc,
                 here_image.latitude1,
                 here_image.longitude1,
                 here_image.latitude2,

@@ -245,7 +245,11 @@ static void dump_aas_file(state_t *st, const nrsc5_event_t *evt)
         name = evt->here_image.name;
         data = evt->here_image.data;
         size = evt->here_image.size;
-        number = evt->here_image.timestamp;
+#if defined(WIN32) || defined(_WIN32)
+        number = _mkgmtime64(evt->here_image.time_utc);
+#else
+        number = timegm(evt->here_image.time_utc);
+#endif
         break;
     default:
         log_error("invalid event type");
@@ -255,7 +259,7 @@ static void dump_aas_file(state_t *st, const nrsc5_event_t *evt)
     char fullpath[strlen(st->aas_files_path) + strlen(name) + 16];
     FILE *fp;
 
-    sprintf(fullpath, "%s" PATH_SEPARATOR "%d_%s", st->aas_files_path, number, name);
+    sprintf(fullpath, "%s" PATH_SEPARATOR "%u_%s", st->aas_files_path, number, name);
     fp = fopen(fullpath, "wb");
     if (fp == NULL)
     {
@@ -495,8 +499,7 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
     case NRSC5_EVENT_HERE_IMAGE:
         if (st->aas_files_path)
             dump_aas_file(st, evt);
-        time_t ts = (time_t) evt->here_image.timestamp;
-        strftime(time_str, sizeof(time_str), "%Y-%m-%dT%H:%M:%SZ", gmtime(&ts));
+        strftime(time_str, sizeof(time_str), "%Y-%m-%dT%H:%M:%SZ", evt->here_image.time_utc);
         log_info("HERE Image: type=%s, seq=%d, n1=%d, n2=%d, time=%s, lat1=%.5f, lon1=%.5f, lat2=%.5f, lon2=%.5f, name=%s, size=%d",
                  evt->here_image.image_type == NRSC5_HERE_IMAGE_TRAFFIC ? "TRAFFIC" : "WEATHER",
                  evt->here_image.seq,

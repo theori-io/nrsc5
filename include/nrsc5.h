@@ -438,9 +438,10 @@ struct nrsc5_event_t
             uint32_t mime;
             const char *name;
             const uint8_t *data;
-            struct tm *expiry_utc;
+            struct tm *expiry_utc;            /**< DEPRECATED: Use `expiry_timestamp` instead */
             nrsc5_sig_service_t *service;
             nrsc5_sig_component_t *component;
+            int64_t expiry_timestamp;         /**< unix timestamp of file expiry time */
         } lot;
         struct {
             unsigned int program;       /**< program number 0, 1, ..., 7 */
@@ -515,18 +516,18 @@ struct nrsc5_event_t
             const int *locations;
         } emergency_alert;
         struct {
-            int image_type;          /**< NRSC5_HERE_IMAGE_TRAFFIC or NRSC5_HERE_IMAGE_WEATHER */
-            int seq;                 /**< sequence number (1-15); increments when traffic/weather image changes */
-            int n1;                  /**< part number (1-9) for traffic, or incrementing sequence number for weather */
-            int n2;                  /**< number of parts (9) for traffic, or incrementing sequence number for weather */
-            unsigned int timestamp;  /**< unix timestamp of traffic or weather image */
-            float latitude1;         /**< latitude of north map edge */
-            float longitude1;        /**< longitude of west map edge */
-            float latitude2;         /**< latitude of south map edge */
-            float longitude2;        /**< longitude of east map edge */
-            const char *name;        /**< filename, e.g. "trafficMap_1_2_rdhs.png" or "WeatherImage_0_0_rdhs.png" */
-            unsigned int size;       /**< size of image file, in bytes */
-            const uint8_t *data;     /**< contents of image file */
+            int image_type;      /**< NRSC5_HERE_IMAGE_TRAFFIC or NRSC5_HERE_IMAGE_WEATHER */
+            int seq;             /**< sequence number (1-15); increments when traffic/weather image changes */
+            int n1;              /**< part number (1-9) for traffic, or incrementing sequence number for weather */
+            int n2;              /**< number of parts (9) for traffic, or incrementing sequence number for weather */
+            int64_t timestamp;   /**< unix timestamp of traffic or weather image */
+            float latitude1;     /**< latitude of north map edge */
+            float longitude1;    /**< longitude of west map edge */
+            float latitude2;     /**< latitude of south map edge */
+            float longitude2;    /**< longitude of east map edge */
+            const char *name;    /**< filename, e.g. "trafficMap_1_2_rdhs.png" or "WeatherImage_0_0_rdhs.png" */
+            unsigned int size;   /**< size of image file, in bytes */
+            const uint8_t *data; /**< contents of image file */
         } here_image;
     };
 };

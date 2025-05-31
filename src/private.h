@@ -80,6 +80,6 @@ void nrsc5_report_dsd(nrsc5_t *st, unsigned int access, unsigned int type, uint3
 void nrsc5_report_emergency_alert(nrsc5_t *st, const char *message, const uint8_t *control_data,
                                   int control_data_length, int category1, int category2,
                                   int location_format, int num_locations, const int *locations);
-void nrsc5_report_here_image(nrsc5_t *st, int image_type, int seq, int n1, int n2, unsigned int timestamp,
+void nrsc5_report_here_image(nrsc5_t *st, int image_type, int seq, int n1, int n2, int64_t timestamp,
                              float latitude1, float longitude1, float latitude2, float longitude2,
                              const char *name, unsigned int size, const uint8_t *data);

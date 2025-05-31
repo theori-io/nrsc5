@@ -778,6 +778,11 @@ void nrsc5_report_lot(nrsc5_t *st, uint16_t port, unsigned int lot, unsigned int
     evt.lot.expiry_utc = expiry_utc;
     evt.lot.service = service;
     evt.lot.component = component;
+#if defined(WIN32) || defined(_WIN32)
+    evt.lot.expiry_timestamp = _mkgmtime64(expiry_utc);
+#else
+    evt.lot.expiry_timestamp = timegm(expiry_utc);
+#endif
     nrsc5_report(st, &evt);
 }
 
@@ -1042,7 +1047,7 @@ void nrsc5_report_emergency_alert(nrsc5_t *st, const char *message, const uint8_
     nrsc5_report(st, &evt);
 }
 
-void nrsc5_report_here_image(nrsc5_t *st, int image_type, int seq, int n1, int n2, unsigned int timestamp,
+void nrsc5_report_here_image(nrsc5_t *st, int image_type, int seq, int n1, int n2, int64_t timestamp,
                              float latitude1, float longitude1, float latitude2, float longitude2,
                              const char *name, unsigned int size, const uint8_t *data)
 {

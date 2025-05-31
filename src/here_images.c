@@ -38,7 +38,7 @@ static void process_packet(here_images_t *st)
 
     int n1 = (st->buffer[2] << 8) | st->buffer[3];
     int n2 = (st->buffer[4] << 8) | st->buffer[5];
-    unsigned int timestamp = ((unsigned int)st->buffer[9] << 24) | (st->buffer[10] << 16)
+    int64_t timestamp = ((int64_t)st->buffer[9] << 24) | (st->buffer[10] << 16)
                            | (st->buffer[11] << 8) | st->buffer[12];
 
     int lat1 = ((st->buffer[14] & 0x7f) << 18) | (st->buffer[15] << 10) | (st->buffer[16] << 2) | (st->buffer[17] >> 6);

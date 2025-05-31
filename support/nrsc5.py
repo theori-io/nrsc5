@@ -388,6 +388,7 @@ class _LOT(ctypes.Structure):
         ("expiry_utc", ctypes.POINTER(_TimeStruct)),
         ("service", ctypes.POINTER(_SIGService)),
         ("component", ctypes.POINTER(_SIGComponent)),
+        ("expiry_timestamp", ctypes.c_int64),
     ]
 
 
@@ -521,7 +522,7 @@ class _HEREImage(ctypes.Structure):
         ("seq", ctypes.c_int),
         ("n1", ctypes.c_int),
         ("n2", ctypes.c_int),
-        ("timestamp", ctypes.c_uint),
+        ("timestamp", ctypes.c_int64),
         ("latitude1", ctypes.c_float),
         ("longitude1", ctypes.c_float),
         ("latitude2", ctypes.c_float),
@@ -683,16 +684,7 @@ class NRSC5:
             lot = c_evt.u.lot
             service = self.services[lot.service.contents.number]
             component = self.components[(lot.service.contents.number, lot.component.contents.id)]
-            expiry_struct = lot.expiry_utc.contents
-            expiry_time = datetime.datetime(
-                expiry_struct.tm_year + 1900,
-                expiry_struct.tm_mon + 1,
-                expiry_struct.tm_mday,
-                expiry_struct.tm_hour,
-                expiry_struct.tm_min,
-                expiry_struct.tm_sec,
-                tzinfo=datetime.timezone.utc
-            )
+            expiry_time = datetime.datetime.fromtimestamp(lot.expiry_timestamp, tz=datetime.timezone.utc)
             evt = LOT(lot.port, lot.lot, MIMEType(lot.mime), self._decode(lot.name), lot.data[:lot.size], expiry_time, service, component)
         elif evt_type == EventType.SIS:
             sis = c_evt.u.sis

@@ -44,6 +44,7 @@
 #define AUDIO_BUFFERS 128
 #define AUDIO_THRESHOLD 8
 #define AUDIO_DATA_LENGTH 8192
+#define TIMESTAMP_LEN 64
 
 typedef struct buffer_t {
     struct buffer_t *next;
@@ -302,6 +303,17 @@ static void change_program(state_t *st, unsigned int program)
     pthread_mutex_unlock(&st->mutex);
 }
 
+static void timestamp_to_iso8601_utc(int64_t timestamp, char *time_str)
+{
+#if defined(WIN32) || defined(_WIN32)
+    __time64_t ts = (__time64_t) timestamp;
+    strftime(time_str, TIMESTAMP_LEN, "%Y-%m-%dT%H:%M:%SZ", _gmtime64(&ts));
+#else
+    time_t ts = (time_t) timestamp;
+    strftime(time_str, TIMESTAMP_LEN, "%Y-%m-%dT%H:%M:%SZ", gmtime(&ts));
+#endif
+}
+
 static void callback(const nrsc5_event_t *evt, void *opaque)
 {
     state_t *st = opaque;
@@ -309,7 +321,7 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
     nrsc5_sig_component_t *sig_component;
     nrsc5_id3_comment_t *comment;
     const char *name;
-    char time_str[64];
+    char time_str[TIMESTAMP_LEN];
 
     switch (evt->event)
     {
@@ -402,7 +414,7 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
     case NRSC5_EVENT_LOT:
         if (st->aas_files_path)
             dump_aas_file(st, evt);
-        strftime(time_str, sizeof(time_str), "%Y-%m-%dT%H:%M:%SZ", evt->lot.expiry_utc);
+        timestamp_to_iso8601_utc(evt->lot.expiry_timestamp, time_str);
         log_info("LOT file: port=%04X lot=%d name=%s size=%d mime=%08X expiry=%s", evt->lot.port, evt->lot.lot, evt->lot.name, evt->lot.size, evt->lot.mime, time_str);
         break;
     case NRSC5_EVENT_STATION_ID:
@@ -495,8 +507,7 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
     case NRSC5_EVENT_HERE_IMAGE:
         if (st->aas_files_path)
             dump_aas_file(st, evt);
-        time_t ts = (time_t) evt->here_image.timestamp;
-        strftime(time_str, sizeof(time_str), "%Y-%m-%dT%H:%M:%SZ", gmtime(&ts));
+        timestamp_to_iso8601_utc(evt->here_image.timestamp, time_str);
         log_info("HERE Image: type=%s, seq=%d, n1=%d, n2=%d, time=%s, lat1=%.5f, lon1=%.5f, lat2=%.5f, lon2=%.5f, name=%s, size=%d",
                  evt->here_image.image_type == NRSC5_HERE_IMAGE_TRAFFIC ? "TRAFFIC" : "WEATHER",
                  evt->here_image.seq,

@@ -173,7 +173,8 @@ enum
     NRSC5_EVENT_STATION_LOCATION,
     NRSC5_EVENT_AUDIO_SERVICE_DESCRIPTOR,
     NRSC5_EVENT_DATA_SERVICE_DESCRIPTOR,
-    NRSC5_EVENT_EMERGENCY_ALERT
+    NRSC5_EVENT_EMERGENCY_ALERT,
+    NRSC5_EVENT_HERE_IMAGE
 };
 
 enum
@@ -247,6 +248,12 @@ enum
     NRSC5_ALERT_CATEGORY_UTILITIES = 11,
     NRSC5_ALERT_CATEGORY_HAZMAT = 12,
     NRSC5_ALERT_CATEGORY_TEST = 30
+};
+
+enum
+{
+    NRSC5_HERE_IMAGE_TRAFFIC = 8,
+    NRSC5_HERE_IMAGE_WEATHER = 13
 };
 
 /**
@@ -363,6 +370,7 @@ struct nrsc5_event_t
  * - `NRSC5_EVENT_AUDIO_SERVICE_DESCRIPTOR` : SIS audio service descriptor, see `asd` member
  * - `NRSC5_EVENT_DATA_SERVICE_DESCRIPTOR` : SIS data service descriptor, see `dsd` member
  * - `NRSC5_EVENT_EMERGENCY_ALERT` : emergency alert, see `emergency_alert` member
+ * - `NRSC5_EVENT_HERE_IMAGE` : HERE Images traffic/weather map, see `here_image` member
  */
     unsigned int event;
     union
@@ -506,6 +514,20 @@ struct nrsc5_event_t
             int num_locations;
             const int *locations;
         } emergency_alert;
+        struct {
+            int image_type;          /**< NRSC5_HERE_IMAGE_TRAFFIC or NRSC5_HERE_IMAGE_WEATHER */
+            int seq;                 /**< sequence number (1-15); increments when traffic/weather image changes */
+            int n1;                  /**< part number (1-9) for traffic, or incrementing sequence number for weather */
+            int n2;                  /**< number of parts (9) for traffic, or incrementing sequence number for weather */
+            unsigned int timestamp;  /**< unix timestamp of traffic or weather image */
+            float latitude1;         /**< latitude of north map edge */
+            float longitude1;        /**< longitude of west map edge */
+            float latitude2;         /**< latitude of south map edge */
+            float longitude2;        /**< longitude of east map edge */
+            const char *name;        /**< filename, e.g. "trafficMap_1_2_rdhs.png" or "WeatherImage_0_0_rdhs.png" */
+            unsigned int size;       /**< size of image file, in bytes */
+            const uint8_t *data;     /**< contents of image file */
+        } here_image;
     };
 };
 /**

@@ -1041,3 +1041,26 @@ void nrsc5_report_emergency_alert(nrsc5_t *st, const char *message, const uint8_
 
     nrsc5_report(st, &evt);
 }
+
+void nrsc5_report_here_image(nrsc5_t *st, int image_type, int seq, int n1, int n2, unsigned int timestamp,
+                             float latitude1, float longitude1, float latitude2, float longitude2,
+                             const char *name, unsigned int size, const uint8_t *data)
+{
+    nrsc5_event_t evt;
+
+    evt.event = NRSC5_EVENT_HERE_IMAGE;
+    evt.here_image.image_type = image_type;
+    evt.here_image.seq = seq;
+    evt.here_image.n1 = n1;
+    evt.here_image.n2 = n2;
+    evt.here_image.timestamp = timestamp;
+    evt.here_image.latitude1 = latitude1;
+    evt.here_image.longitude1 = longitude1;
+    evt.here_image.latitude2 = latitude2;
+    evt.here_image.longitude2 = longitude2;
+    evt.here_image.name = name;
+    evt.here_image.size = size;
+    evt.here_image.data = data;
+
+    nrsc5_report(st, &evt);
+}

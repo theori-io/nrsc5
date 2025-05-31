@@ -227,17 +227,42 @@ static void dump_aas_file(state_t *st, const nrsc5_event_t *evt)
 #else
 #define PATH_SEPARATOR "/"
 #endif
-    char fullpath[strlen(st->aas_files_path) + strlen(evt->lot.name) + 16];
+
+    const char *name;
+    const uint8_t *data;
+    unsigned int size;
+    unsigned int number;
+
+    switch (evt->event)
+    {
+    case NRSC5_EVENT_LOT:
+        name = evt->lot.name;
+        data = evt->lot.data;
+        size = evt->lot.size;
+        number = evt->lot.lot;
+        break;
+    case NRSC5_EVENT_HERE_IMAGE:
+        name = evt->here_image.name;
+        data = evt->here_image.data;
+        size = evt->here_image.size;
+        number = evt->here_image.timestamp;
+        break;
+    default:
+        log_error("invalid event type");
+        return;
+    }
+
+    char fullpath[strlen(st->aas_files_path) + strlen(name) + 16];
     FILE *fp;
 
-    sprintf(fullpath, "%s" PATH_SEPARATOR "%d_%s", st->aas_files_path, evt->lot.lot, evt->lot.name);
+    sprintf(fullpath, "%s" PATH_SEPARATOR "%d_%s", st->aas_files_path, number, name);
     fp = fopen(fullpath, "wb");
     if (fp == NULL)
     {
         log_warn("Failed to open %s (%d)", fullpath, errno);
         return;
     }
-    fwrite(evt->lot.data, 1, evt->lot.size, fp);
+    fwrite(data, 1, size, fp);
     fclose(fp);
 }
 
@@ -284,6 +309,7 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
     nrsc5_sig_component_t *sig_component;
     nrsc5_id3_comment_t *comment;
     const char *name;
+    char time_str[64];
 
     switch (evt->event)
     {
@@ -376,7 +402,6 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
     case NRSC5_EVENT_LOT:
         if (st->aas_files_path)
             dump_aas_file(st, evt);
-        char time_str[64];
         strftime(time_str, sizeof(time_str), "%Y-%m-%dT%H:%M:%SZ", evt->lot.expiry_utc);
         log_info("LOT file: port=%04X lot=%d name=%s size=%d mime=%08X expiry=%s", evt->lot.port, evt->lot.lot, evt->lot.name, evt->lot.size, evt->lot.mime, time_str);
         break;
@@ -466,6 +491,24 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
                 evt->audio_service.digital_audio_gain,
                 evt->audio_service.common_delay,
                 evt->audio_service.latency);
+        break;
+    case NRSC5_EVENT_HERE_IMAGE:
+        if (st->aas_files_path)
+            dump_aas_file(st, evt);
+        time_t ts = (time_t) evt->here_image.timestamp;
+        strftime(time_str, sizeof(time_str), "%Y-%m-%dT%H:%M:%SZ", gmtime(&ts));
+        log_info("HERE Image: type=%s, seq=%d, n1=%d, n2=%d, time=%s, lat1=%.5f, lon1=%.5f, lat2=%.5f, lon2=%.5f, name=%s, size=%d",
+                 evt->here_image.image_type == NRSC5_HERE_IMAGE_TRAFFIC ? "TRAFFIC" : "WEATHER",
+                 evt->here_image.seq,
+                 evt->here_image.n1,
+                 evt->here_image.n2,
+                 time_str,
+                 evt->here_image.latitude1,
+                 evt->here_image.longitude1,
+                 evt->here_image.latitude2,
+                 evt->here_image.longitude2,
+                 evt->here_image.name,
+                 evt->here_image.size);
         break;
     }
 }

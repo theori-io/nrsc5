@@ -36,6 +36,7 @@ class EventType(enum.Enum):
     AUDIO_SERVICE_DESCRIPTOR = 20
     DATA_SERVICE_DESCRIPTOR = 21
     EMERGENCY_ALERT = 22
+    HERE_IMAGE = 23
 
 
 AUDIO_FRAME_SAMPLES = 2048
@@ -167,6 +168,11 @@ class AlertCategory(enum.Enum):
     TEST = 30
 
 
+class HEREImageType(enum.Enum):
+    TRAFFIC = 8
+    WEATHER = 13
+
+
 IQ = collections.namedtuple("IQ", ["data"])
 MER = collections.namedtuple("MER", ["lower", "upper"])
 BER = collections.namedtuple("BER", ["cber"])
@@ -197,6 +203,8 @@ StationLocation = collections.namedtuple("StationLocation", ["latitude", "longit
 EmergencyAlert = collections.namedtuple("EmergencyAlert", ["message", "control_data", "categories", "location_format", "locations"])
 AudioService = collections.namedtuple("AudioService", ["program", "access", "type", "codec_mode", "blend_control",
                                                        "digital_audio_gain", "common_delay", "latency"])
+HEREImage = collections.namedtuple("HEREImage", ["image_type", "seq", "n1", "n2", "timestamp", "latitude1", "longitude1",
+                                                 "latitude2", "longitude2", "name", "data"])
 
 
 class _IQ(ctypes.Structure):
@@ -234,8 +242,10 @@ class _Audio(ctypes.Structure):
         ("count", ctypes.c_size_t),
     ]
 
+
 class _Comment(ctypes.Structure):
     pass
+
 
 _Comment._fields_ = [
     ("next", ctypes.POINTER(_Comment)),
@@ -464,19 +474,19 @@ class _StationLocation(ctypes.Structure):
 
 class _ASD(ctypes.Structure):
     _fields_ = [
-    ("program", ctypes.c_uint),
-    ("access", ctypes.c_uint),
-    ("type", ctypes.c_uint),
-    ("sound_exp", ctypes.c_uint),
-]
+        ("program", ctypes.c_uint),
+        ("access", ctypes.c_uint),
+        ("type", ctypes.c_uint),
+        ("sound_exp", ctypes.c_uint),
+    ]
 
 
 class _DSD(ctypes.Structure):
     _fields_ = [
-    ("access", ctypes.c_uint),
-    ("type", ctypes.c_uint),
-    ("mime_type", ctypes.c_uint32),
-]
+        ("access", ctypes.c_uint),
+        ("type", ctypes.c_uint),
+        ("mime_type", ctypes.c_uint32),
+    ]
 
 
 class _EmergencyAlert(ctypes.Structure):
@@ -505,6 +515,23 @@ class _AudioService(ctypes.Structure):
     ]
 
 
+class _HEREImage(ctypes.Structure):
+    _fields_ = [
+        ("image_type", ctypes.c_int),
+        ("seq", ctypes.c_int),
+        ("n1", ctypes.c_int),
+        ("n2", ctypes.c_int),
+        ("timestamp", ctypes.c_uint),
+        ("latitude1", ctypes.c_float),
+        ("longitude1", ctypes.c_float),
+        ("latitude2", ctypes.c_float),
+        ("longitude2", ctypes.c_float),
+        ("name", ctypes.c_char_p),
+        ("size", ctypes.c_uint),
+        ("data", ctypes.POINTER(ctypes.c_char)),
+    ]
+
+
 class _EventUnion(ctypes.Union):
     _fields_ = [
         ("iq", _IQ),
@@ -526,7 +553,8 @@ class _EventUnion(ctypes.Union):
         ("asd", _ASD),
         ("dsd", _DSD),
         ("emergency_alert", _EmergencyAlert),
-        ("audio_service", _AudioService)
+        ("audio_service", _AudioService),
+        ("here_image", _HEREImage),
     ]
 
 
@@ -732,7 +760,6 @@ class NRSC5:
                                  categories,
                                  None if emergency_alert.location_format == -1 else LocationFormat(emergency_alert.location_format),
                                  emergency_alert.locations[:emergency_alert.num_locations])
-
         elif evt_type == EventType.AUDIO_SERVICE:
             service = c_evt.u.audio_service
             evt = AudioService(
@@ -744,6 +771,21 @@ class NRSC5:
                 service.digital_audio_gain,
                 service.common_delay,
                 service.latency
+            )
+        elif evt_type == EventType.HERE_IMAGE:
+            here_image = c_evt.u.here_image
+            evt = HEREImage(
+                HEREImageType(here_image.image_type),
+                here_image.seq,
+                here_image.n1,
+                here_image.n2,
+                datetime.datetime.fromtimestamp(here_image.timestamp, tz=datetime.timezone.utc),
+                here_image.latitude1,
+                here_image.longitude1,
+                here_image.latitude2,
+                here_image.longitude2,
+                self._decode(here_image.name),
+                here_image.data[:here_image.size]
             )
 
         self.callback(evt_type, evt, *self.callback_args)
@@ -796,7 +838,7 @@ class NRSC5:
         if result != 0:
             raise NRSC5Error("Failed to open rtl_tcp.")
         self._set_callback()
-    
+
     def _check_session(self):
         if not self.radio:
             raise NRSC5Error("No session opened. Call open(), open_pipe(), or open_rtltcp() first.")

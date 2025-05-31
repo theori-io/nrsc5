@@ -120,3 +120,8 @@ void here_images_reset(here_images_t *st)
 {
     st->expected_seq = -1;
 }
+
+void here_images_init(here_images_t *st, nrsc5_t *radio)
+{
+    st->radio = radio;
+}

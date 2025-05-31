@@ -177,7 +177,6 @@ void output_reset(output_t *st)
 void output_init(output_t *st, nrsc5_t *radio)
 {
     st->radio = radio;
-    st->here_images.radio = radio;
 #ifdef USE_FAAD2
     for (int i = 0; i < MAX_PROGRAMS; i++)
         st->aacdec[i] = NULL;
@@ -185,6 +184,7 @@ void output_init(output_t *st, nrsc5_t *radio)
 #endif
 
     memset(st->services, 0, sizeof(st->services));
+    here_images_init(&st->here_images, radio);
 
     output_reset(st);
 }

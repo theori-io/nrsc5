@@ -17,3 +17,4 @@ typedef struct
 
 void here_images_push(here_images_t *st, uint16_t seq, unsigned int len, uint8_t *buf);
 void here_images_reset(here_images_t *st);
+void here_images_init(here_images_t *st, nrsc5_t *radio);

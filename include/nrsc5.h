@@ -79,6 +79,13 @@ enum
     NRSC5_SIG_COMPONENT_DATA
 };
 
+enum
+{
+    NRSC5_AAS_TYPE_STREAM = 0,
+    NRSC5_AAS_TYPE_PACKET = 1,
+    NRSC5_AAS_TYPE_LOT = 3
+};
+
 /**  Represents a service component.
  *
  * An element of a linked list that accompanies a nrsc5_sig_service_t
@@ -98,7 +105,7 @@ struct nrsc5_sig_component_t
             uint16_t port;  /**< distinguishes packets for this service */
             /** e.g. NRSC5_SERVICE_DATA_TYPE_AUDIO_RELATED_DATA */
             uint16_t service_data_type;
-            uint8_t type;   /**< 0 for stream, 1 for packet, 3 for LOT */
+            uint8_t type;   /**< NRSC5_AAS_TYPE_STREAM, NRSC5_AAS_TYPE_PACKET, or NRSC5_AAS_TYPE_LOT */
             uint32_t mime;  /**< content, e.g. NRSC5_MIME_STATION_LOGO */
         } data;
         /*! Audio service information

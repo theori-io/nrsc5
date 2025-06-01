@@ -105,7 +105,7 @@ struct nrsc5_sig_component_t
          */
         struct {
             uint8_t port;   /**< distinguishes packets for this service */
-            uint8_t type;   /**< 0 for stream, 1 for packet, 3 for LOT */
+            uint8_t type;   /**< program type, e.g. NRSC5_PROGRAM_TYPE_JAZZ */
             uint32_t mime;  /**< content, e.g. NRSC5_MIME_HDC */
         } audio;
     };

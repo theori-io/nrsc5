@@ -650,19 +650,19 @@ static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *
 
     switch (component->data.type)
     {
-    case AAS_TYPE_STREAM:
+    case NRSC5_AAS_TYPE_STREAM:
     {
         nrsc5_report_stream(st->radio, port_id, seq, len, buf, component->service_ext, component->component_ext);
         if (component->data.mime == NRSC5_MIME_HERE_IMAGE)
             here_images_push(&st->here_images, seq, len, buf);
         break;
     }
-    case AAS_TYPE_PACKET:
+    case NRSC5_AAS_TYPE_PACKET:
     {
         nrsc5_report_packet(st->radio, port_id, seq, len, buf, component->service_ext, component->component_ext);
         break;
     }
-    case AAS_TYPE_LOT:
+    case NRSC5_AAS_TYPE_LOT:
     {
         if (len < 8)
         {

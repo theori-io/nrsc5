@@ -57,6 +57,12 @@ class ComponentType(enum.Enum):
     DATA = 1
 
 
+class AASType(enum.Enum):
+    STREAM = 0
+    PACKET = 1
+    LOT = 3
+
+
 class MIMEType(enum.Enum):
     PRIMARY_IMAGE = 0xBE4B7536
     STATION_LOGO = 0xD9C72536
@@ -669,7 +675,7 @@ class NRSC5:
                     if component_type == ComponentType.DATA:
                         data = SIGDataComponent(component.u.data.port,
                                                 ServiceDataType(component.u.data.service_data_type),
-                                                component.u.data.type, MIMEType(component.u.data.mime))
+                                                AASType(component.u.data.type), MIMEType(component.u.data.mime))
                     component_obj = SIGComponent(component_type, component.id, audio, data)
                     if component_type == ComponentType.AUDIO:
                         audio_component = component_obj

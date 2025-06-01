@@ -266,7 +266,7 @@ class NRSC5CLI:
                         logging.info("  Data component: id=%s port=%04X service_data_type=%s type=%s mime=%s",
                                      component.id, component.data.port,
                                      component.data.service_data_type.name,
-                                     component.data.type, component.data.mime.name)
+                                     component.data.type.name, component.data.mime.name)
         elif evt_type == nrsc5.EventType.STREAM:
             logging.info("Stream data: port=%04X seq=%04X mime=%s size=%s",
                          evt.port, evt.seq, evt.component.data.mime.name, len(evt.data))

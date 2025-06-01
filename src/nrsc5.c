@@ -912,6 +912,7 @@ void nrsc5_clear_sig(nrsc5_t *st)
         service = service->next;
         free(p);
     }
+    st->sig_table = NULL;
 }
 
 void nrsc5_report_sis(nrsc5_t *st, const char *country_code, int fcc_facility_id, const char *name,

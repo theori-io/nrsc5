@@ -350,6 +350,8 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
         break;
     case NRSC5_EVENT_SYNC:
         log_info("Synchronized");
+        log_info("Frequency offset: %.0f Hz", evt->sync.freq_offset);
+        log_info("Primary service mode: %d", evt->sync.psmi);
         st->audio_ready = 0;
         break;
     case NRSC5_EVENT_LOST_SYNC:

@@ -181,6 +181,7 @@ class HEREImageType(enum.Enum):
 
 
 IQ = collections.namedtuple("IQ", ["data"])
+Sync = collections.namedtuple("Sync", ["freq_offset", "psmi"])
 MER = collections.namedtuple("MER", ["lower", "upper"])
 BER = collections.namedtuple("BER", ["cber"])
 HDC = collections.namedtuple("HDC", ["program", "data"])
@@ -218,6 +219,13 @@ class _IQ(ctypes.Structure):
     _fields_ = [
         ("data", ctypes.POINTER(ctypes.c_char)),
         ("count", ctypes.c_size_t),
+    ]
+
+
+class _Sync(ctypes.Structure):
+    _fields_ = [
+        ("freq_offset", ctypes.c_float),
+        ("psmi", ctypes.c_int),
     ]
 
 
@@ -542,6 +550,7 @@ class _HEREImage(ctypes.Structure):
 class _EventUnion(ctypes.Union):
     _fields_ = [
         ("iq", _IQ),
+        ("sync", _Sync),
         ("mer", _MER),
         ("ber", _BER),
         ("hdc", _HDC),
@@ -625,6 +634,9 @@ class NRSC5:
         if evt_type == EventType.IQ:
             iq = c_evt.u.iq
             evt = IQ(iq.data[:iq.count])
+        elif evt_type == EventType.SYNC:
+            sync = c_evt.u.sync
+            evt = Sync(sync.freq_offset, sync.psmi)
         elif evt_type == EventType.MER:
             mer = c_evt.u.mer
             evt = MER(mer.lower, mer.upper)

@@ -269,16 +269,7 @@ void acquire_keep_extra(acquire_t *st, int extra)
 
 void acquire_cfo_adjust(acquire_t *st, int cfo)
 {
-    float hz;
-
-    if (cfo == 0)
-        return;
-
     st->cfo += cfo;
-    hz = (float) st->cfo * NRSC5_SAMPLE_RATE_CU8 / st->fft;
-    hz /= (st->mode == NRSC5_MODE_FM ? DECIMATION_FACTOR_FM : DECIMATION_FACTOR_AM);
-
-    log_info("CFO: %f Hz", hz);
 }
 
 unsigned int acquire_push(acquire_t *st, cint16_t *buf, unsigned int length)

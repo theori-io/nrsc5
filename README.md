@@ -59,7 +59,7 @@ If this is the first time running pacman, you will be told to close the terminal
     pacman -Su
     pacman -S git
     git clone https://github.com/theori-io/nrsc5.git
-    nrsc5/support/msys2-build
+    nrsc5/support/msys2-build -j4
 
 You can test your installation using the included sample file:
 

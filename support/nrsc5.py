@@ -3,6 +3,7 @@ import ctypes
 import datetime
 import enum
 import math
+import os
 import platform
 import socket
 
@@ -581,6 +582,7 @@ class NRSC5:
     def _load_library(self):
         if NRSC5.libnrsc5 is None:
             if platform.system() == "Windows":
+                dll_dir = os.add_dll_directory(os.path.dirname(__file__))
                 lib_name = "libnrsc5.dll"
             elif platform.system() == "Linux":
                 lib_name = "libnrsc5.so"
@@ -589,6 +591,8 @@ class NRSC5:
             else:
                 raise NRSC5Error("Unsupported platform: " + platform.system())
             NRSC5.libnrsc5 = ctypes.cdll.LoadLibrary(lib_name)
+            if platform.system() == "Windows":
+                dll_dir.close()
             self.radio = ctypes.c_void_p()
 
     @staticmethod

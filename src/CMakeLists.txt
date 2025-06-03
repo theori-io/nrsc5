@@ -32,8 +32,7 @@ link_directories (
     ${LIBUSB_LIBRARY_DIRS}
 )
 
-add_library (
-    nrsc5_object OBJECT
+set (LIBRARY_FILES
     acquire.c
     decode.c
     frame.c
@@ -57,10 +56,6 @@ add_library (
 
     strndup.c
 )
-set_property(TARGET nrsc5_object PROPERTY POSITION_INDEPENDENT_CODE ON)
-if (BUILTIN_LIBRARIES)
-    add_dependencies(nrsc5_object ${BUILTIN_LIBRARIES})
-endif ()
 
 set (
     LibraryDependencies
@@ -74,24 +69,30 @@ set (
 
 add_library (
     nrsc5 SHARED
-    $<TARGET_OBJECTS:nrsc5_object>
+    ${LIBRARY_FILES}
 )
 target_link_libraries (
     nrsc5
     ${LibraryDependencies}
 )
+if (BUILTIN_LIBRARIES)
+    add_dependencies(nrsc5 ${BUILTIN_LIBRARIES})
+endif ()
 set_target_properties(nrsc5 PROPERTIES PUBLIC_HEADER "../include/nrsc5.h")
 set_target_properties(nrsc5 PROPERTIES LINK_FLAGS "${STATIC_LINKER_FLAGS} ${EXPORTS_LINKER_FLAGS}")
-target_compile_definitions(nrsc5_object PUBLIC "-DNRSC5_EXPORTS=1")
+target_compile_definitions(nrsc5 PUBLIC "-DNRSC5_EXPORTS=1")
 
 add_library (
     nrsc5_static
-    $<TARGET_OBJECTS:nrsc5_object>
+    ${LIBRARY_FILES}
 )
 target_link_libraries (
     nrsc5_static
     ${LibraryDependencies}
 )
+if (BUILTIN_LIBRARIES)
+    add_dependencies(nrsc5_static ${BUILTIN_LIBRARIES})
+endif ()
 
 add_executable (
     app

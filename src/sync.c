@@ -326,8 +326,6 @@ void detect_cfo(sync_t *st)
             acquire_keep_extra(&st->input->acq, ((BLKSZ - best_offset) % BLKSZ) * FFTCP_FM);
             acquire_cfo_adjust(&st->input->acq, cfo);
 
-            log_debug("Block @ %d", best_offset);
-
             // Wait until the buffers have cleared before measuring again.
             st->cfo_wait = 8;
             break;
@@ -626,7 +624,6 @@ void sync_process_am(sync_t *st)
         if (offset > 0)
         {
             acquire_keep_extra(&st->input->acq, ((BLKSZ - offset) % BLKSZ) * FFTCP_AM);
-            log_debug("Block @ %d", offset);
             st->cfo_wait = 8;
         }
     }

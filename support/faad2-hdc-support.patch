@@ -1,12 +1,12 @@
-From f90b0f325f66cbcdb45bbc9239b7d0889cb140e9 Mon Sep 17 00:00:00 2001
+From 0b14753ede5c3567d3d5e90801bfedda67bc26b0 Mon Sep 17 00:00:00 2001
 From: Clayton Smith <argilo@gmail.com>
-Date: Fri, 11 Apr 2025 15:53:22 -0400
+Date: Mon, 2 Jun 2025 23:02:44 -0400
 Subject: [PATCH] Support for HDC variant
 
 ---
  CMakeLists.txt       |  10 +-
  frontend/main.c      |   3 +-
- include/neaacdec.h   |   4 +
+ include/neaacdec.h   |   6 +-
  libfaad/bits.c       |   2 +-
  libfaad/bits.h       |   2 +-
  libfaad/common.c     |   5 +
@@ -19,7 +19,7 @@ Subject: [PATCH] Support for HDC variant
  libfaad/sbr_syntax.c |  24 ++++-
  libfaad/syntax.c     | 224 +++++++++++++++++++++++++++++++++++++++++--
  libfaad/syntax.h     |   1 +
- 15 files changed, 406 insertions(+), 44 deletions(-)
+ 15 files changed, 407 insertions(+), 45 deletions(-)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
 index 97b61cc..5956418 100644
@@ -71,9 +71,18 @@ index 895ed18..18aefb7 100644
                          showHelp = 1;
                      }
 diff --git a/include/neaacdec.h b/include/neaacdec.h
-index f7d5f67..b4f36da 100644
+index f7d5f67..e0d114d 100644
 --- a/include/neaacdec.h
 +++ b/include/neaacdec.h
+@@ -60,7 +60,7 @@ extern "C" {
+ 
+ #ifdef _WIN32
+   #pragma pack(push, 8)
+-  #define NEAACDECAPI __declspec(dllexport)
++  #define NEAACDECAPI
+ #elif defined(__GNUC__) && __GNUC__ >= 4
+   #define NEAACDECAPI __attribute__((visibility("default")))
+ #else
 @@ -81,6 +81,7 @@ extern "C" {
  #define ER_LTP    19
  #define LD        23

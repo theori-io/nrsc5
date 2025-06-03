@@ -173,9 +173,6 @@ static int fix_header(frame_t *st, uint8_t *buf)
         if (hdr[i] != 0)
             return 0;
 
-    if (corrections > 0)
-        log_debug("RS corrected %d symbols", corrections);
-
     for (i = 0; i < RS_CODEWORD_LEN; i++)
         buf[i] = hdr[RS_BLOCK_LEN-i-1];
     return 1;
@@ -355,7 +352,8 @@ static void aas_push(frame_t *st, uint8_t* psd, unsigned int length, logical_cha
     }
     else if (fcs16(psd, length) != VALIDFCS16)
     {
-        log_info("psd crc mismatch");
+        // occasional CRC errors are normal, because transmitters abandon their HDLC
+        // frame mid-stream when switching to new PSD data
     }
     else if (psd[0] != 0x21)
     {
@@ -421,7 +419,6 @@ static void process_fixed_ccc(frame_t *st, uint8_t *buf, unsigned int buflen, lo
         {
             uint16_t mode = buf[1 + i * 4] | (buf[2 + i * 4] << 8);
             uint16_t length = buf[3 + i * 4] | (buf[4 + i * 4] << 8);
-            log_info("Logical channel %d, Subchannel %d: mode=%d, length=%d", lc, i, mode, length);
 
             if (mode == 0)
             {
@@ -633,10 +630,6 @@ void frame_process(frame_t *st, size_t length, logical_channel_t lc)
                         output_push(st->input->output, st->pdu[prog][hdr.stream_id], cnt + idx, prog, hdr.stream_id, seq);
                     }
                     st->pdu_idx[prog][hdr.stream_id] = 0;
-                }
-                else
-                {
-                    log_debug("ignoring partial pdu");
                 }
             }
             else if (j == hdr.nop - 1 && hdr.plast)

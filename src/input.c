@@ -192,8 +192,10 @@ void input_set_sync_state(input_t *st, unsigned int new_state)
         nrsc5_report_lost_sync(st->radio);
     if (new_state == SYNC_STATE_FINE)
     {
-        nrsc5_report_sync(st->radio);
-        log_debug("Primary service mode: %d", st->sync.psmi);
+        float freq_offset = (st->acq.prev_angle - 2 * M_PI * st->acq.cfo)
+                          * (st->radio->mode == NRSC5_MODE_FM ? NRSC5_SAMPLE_RATE_CS16_FM : NRSC5_SAMPLE_RATE_CS16_AM)
+                          / (2 * M_PI * st->acq.fft);
+        nrsc5_report_sync(st->radio, freq_offset, st->sync.psmi);
     }
 
     st->sync_state = new_state;

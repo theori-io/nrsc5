@@ -356,7 +356,7 @@ struct nrsc5_event_t
  * The member `event` determines which sort of event occurred:
  * - `NRSC5_EVENT_LOST_DEVICE` : RTL-SDR device was disconnected
  * - `NRSC5_EVENT_IQ` : IQ data, see the `iq` union member
- * - `NRSC5_EVENT_SYNC` : indicates synchronization achieved
+ * - `NRSC5_EVENT_SYNC` : indicates synchronization achieved, see the `sync` union member
  * - `NRSC5_EVENT_LOST_SYNC` : indicates synchronization lost
  * - `NRSC5_EVENT_MER` : modulation error ratio, see the `mer` union member, and NRSC5 document SY_TN_2646s
  * - `NRSC5_EVENT_BER` : Bit Error Ratio data, see the `ber` union member
@@ -386,6 +386,10 @@ struct nrsc5_event_t
             const void *data;
             size_t count;
         } iq;
+        struct {
+            float freq_offset; /**< Frequency offset in Hz */
+            int psmi;          /**< Primary Service Mode Indicator (1, 2, 3, 5, 6, or 11 for FM; 1 or 2 for AM) */
+        } sync;
         struct {
             float cber;
         } ber;

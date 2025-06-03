@@ -673,11 +673,13 @@ void nrsc5_report_iq(nrsc5_t *st, const void *data, size_t count)
     nrsc5_report(st, &evt);
 }
 
-void nrsc5_report_sync(nrsc5_t *st)
+void nrsc5_report_sync(nrsc5_t *st, float freq_offset, int psmi)
 {
     nrsc5_event_t evt;
 
     evt.event = NRSC5_EVENT_SYNC;
+    evt.sync.freq_offset = freq_offset;
+    evt.sync.psmi = psmi;
     nrsc5_report(st, &evt);
 }
 

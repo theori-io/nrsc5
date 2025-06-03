@@ -205,6 +205,8 @@ class NRSC5CLI:
                 self.iq_output.write(evt.data)
         elif evt_type == nrsc5.EventType.SYNC:
             logging.info("Synchronized")
+            logging.info("Frequency offset: %.0f Hz", evt.freq_offset)
+            logging.info("Primary service mode: %d", evt.psmi)
         elif evt_type == nrsc5.EventType.LOST_SYNC:
             logging.info("Lost synchronization")
         elif evt_type == nrsc5.EventType.MER:

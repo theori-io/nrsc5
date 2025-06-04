@@ -400,10 +400,10 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
         }
         break;
     case NRSC5_EVENT_STREAM:
-        log_info("Stream data: port=%04X seq=%04X mime=%08X size=%d", evt->stream.port, evt->stream.seq, evt->stream.component->data.mime, evt->stream.size);
+        log_debug("Stream data: port=%04X seq=%04X mime=%08X size=%d", evt->stream.port, evt->stream.seq, evt->stream.component->data.mime, evt->stream.size);
         break;
     case NRSC5_EVENT_PACKET:
-        log_info("Packet data: port=%04X seq=%04X mime=%08X size=%d", evt->packet.port, evt->packet.seq, evt->packet.component->data.mime, evt->packet.size);
+        log_debug("Packet data: port=%04X seq=%04X mime=%08X size=%d", evt->packet.port, evt->packet.seq, evt->packet.component->data.mime, evt->packet.size);
         break;
     case NRSC5_EVENT_LOT:
         if (st->aas_files_path)
@@ -649,6 +649,7 @@ static int parse_args(state_t *st, int argc, char *argv[])
     st->bias_tee = 0;
     st->direct_sampling = -1;
     st->ppm_error = INT_MIN;
+    log_set_level(LOG_INFO);
 
     while ((opt = getopt_long(argc, argv, "r:w:o:t:d:p:g:ql:vH:TD:", long_opts, NULL)) != -1)
     {

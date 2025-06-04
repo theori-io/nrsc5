@@ -51,7 +51,6 @@ set (LIBRARY_FILES
     rs_init.c
     rs_decode.c
 
-    log.c
     unicode.c
 
     strndup.c
@@ -97,6 +96,7 @@ endif ()
 add_executable (
     app
     main.c
+    log.c
 )
 set_property (TARGET app PROPERTY OUTPUT_NAME nrsc5)
 set_target_properties(app PROPERTIES LINK_FLAGS "${STATIC_LINKER_FLAGS}")

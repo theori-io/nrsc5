@@ -42,7 +42,7 @@ class NRSC5CLI:
         parser.add_argument("-v", action="version", version="nrsc5 revision " + self.nrsc5_version)
         parser.add_argument("-q", action="store_true")
         parser.add_argument("--am", action="store_true")
-        parser.add_argument("-l", metavar="log-level", type=int, default=1)
+        parser.add_argument("-l", metavar="log-level", type=int, default=2)
         parser.add_argument("-d", metavar="device-index", type=int, default=0)
         parser.add_argument("-H", metavar="rtltcp-host")
         parser.add_argument("-p", metavar="ppm-error", type=int)

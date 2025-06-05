@@ -697,7 +697,7 @@ static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *
         }
         file->timestamp = counter++;
 
-        if (seq == 0)
+        if (hdrlen > 0)
         {
             if (hdrlen < 16)
             {
@@ -729,12 +729,6 @@ static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *
             hdrlen = 0;
 
             log_debug("File %s, size %d, lot %d, port %04X, mime %08X", file->name, file->size, file->lot, component->data.port, file->mime);
-        }
-
-        if (hdrlen != 0)
-        {
-            log_warn("unexpected hdrlen (port %04X, hdrlen %d)", port_id, hdrlen);
-            break;
         }
 
         if (!file->fragments[seq])

@@ -697,6 +697,8 @@ static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *
         }
         file->timestamp = counter++;
 
+        int new_data = 0;
+
         if (hdrlen > 0)
         {
             if (hdrlen < 16)
@@ -709,11 +711,25 @@ static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *
             if (version != 1)
                 log_warn("unknown LOT version: %d", version);
 
-            file->expiry_utc.tm_year = ((buf[7] << 4) | (buf[6] >> 4)) - 1900;
-            file->expiry_utc.tm_mon = (buf[6] & 0xf) - 1;
-            file->expiry_utc.tm_mday = (buf[5] >> 3);
-            file->expiry_utc.tm_hour = ((buf[5] & 0x7) << 2) | (buf[4] >> 6);
-            file->expiry_utc.tm_min = (buf[4] & 0x3f);
+            int year = ((buf[7] << 4) | (buf[6] >> 4)) - 1900;
+            int mon = (buf[6] & 0xf) - 1;
+            int mday = (buf[5] >> 3);
+            int hour = ((buf[5] & 0x7) << 2) | (buf[4] >> 6);
+            int min = (buf[4] & 0x3f);
+
+            if ((year != file->expiry_utc.tm_year)
+                || (mon != file->expiry_utc.tm_mon)
+                || (mday != file->expiry_utc.tm_mday)
+                || (hour != file->expiry_utc.tm_hour)
+                || (min != file->expiry_utc.tm_min))
+            {
+                new_data = 1;
+                file->expiry_utc.tm_year = year;
+                file->expiry_utc.tm_mon = mon;
+                file->expiry_utc.tm_mday = mday;
+                file->expiry_utc.tm_hour = hour;
+                file->expiry_utc.tm_min = min;
+            }
 
             file->size = buf[8] | (buf[9] << 8) | (buf[10] << 16) | ((uint32_t)buf[11] << 24);
             file->mime = buf[12] | (buf[13] << 8) | (buf[14] << 16) | ((uint32_t)buf[15] << 24);
@@ -733,6 +749,7 @@ static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *
 
         if (!file->fragments[seq])
         {
+            new_data = 1;
             uint8_t *fragment = calloc(LOT_FRAGMENT_SIZE, 1);
             if (len > LOT_FRAGMENT_SIZE)
             {
@@ -743,7 +760,7 @@ static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *
             file->fragments[seq] = fragment;
         }
 
-        if (file->size)
+        if (new_data && file->size)
         {
             int complete = 1;
             int num_fragments = (file->size + LOT_FRAGMENT_SIZE - 1) / LOT_FRAGMENT_SIZE;
@@ -764,7 +781,6 @@ static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *
                                  file->name, data, &file->expiry_utc,
                                  component->service_ext, component->component_ext);
                 free(data);
-                aas_free_lot(file);
             }
         }
         break;

@@ -400,16 +400,16 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
         }
         break;
     case NRSC5_EVENT_STREAM:
-        log_debug("Stream data: port=%04X seq=%04X mime=%08X size=%d", evt->stream.port, evt->stream.seq, evt->stream.component->data.mime, evt->stream.size);
+        log_debug("Stream data: port=%04X seq=%04X mime=%08X size=%d", evt->stream.component->data.port, evt->stream.seq, evt->stream.component->data.mime, evt->stream.size);
         break;
     case NRSC5_EVENT_PACKET:
-        log_debug("Packet data: port=%04X seq=%04X mime=%08X size=%d", evt->packet.port, evt->packet.seq, evt->packet.component->data.mime, evt->packet.size);
+        log_debug("Packet data: port=%04X seq=%04X mime=%08X size=%d", evt->packet.component->data.port, evt->packet.seq, evt->packet.component->data.mime, evt->packet.size);
         break;
     case NRSC5_EVENT_LOT:
         if (st->aas_files_path)
             dump_aas_file(st, evt);
         strftime(time_str, sizeof(time_str), "%Y-%m-%dT%H:%M:%SZ", evt->lot.expiry_utc);
-        log_info("LOT file: port=%04X lot=%d name=%s size=%d mime=%08X expiry=%s", evt->lot.port, evt->lot.lot, evt->lot.name, evt->lot.size, evt->lot.mime, time_str);
+        log_info("LOT file: port=%04X lot=%d name=%s size=%d mime=%08X expiry=%s", evt->lot.component->data.port, evt->lot.lot, evt->lot.name, evt->lot.size, evt->lot.mime, time_str);
         break;
     case NRSC5_EVENT_STATION_ID:
         log_info("Country: %s, FCC facility ID: %d", evt->station_id.country_code, evt->station_id.fcc_facility_id);

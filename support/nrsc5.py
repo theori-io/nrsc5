@@ -707,18 +707,18 @@ class NRSC5:
             stream = c_evt.u.stream
             service = self.services[stream.service.contents.number]
             component = self.components[(stream.service.contents.number, stream.component.contents.id)]
-            evt = STREAM(stream.port, stream.seq, MIMEType(component.data.mime), stream.data[:stream.size], service, component)
+            evt = STREAM(component.data.port, stream.seq, MIMEType(component.data.mime), stream.data[:stream.size], service, component)
         elif evt_type == EventType.PACKET:
             packet = c_evt.u.packet
             service = self.services[packet.service.contents.number]
             component = self.components[(packet.service.contents.number, packet.component.contents.id)]
-            evt = PACKET(packet.port, packet.seq, MIMEType(component.data.mime), packet.data[:packet.size], service, component)
+            evt = PACKET(component.data.port, packet.seq, MIMEType(component.data.mime), packet.data[:packet.size], service, component)
         elif evt_type == EventType.LOT:
             lot = c_evt.u.lot
             service = self.services[lot.service.contents.number]
             component = self.components[(lot.service.contents.number, lot.component.contents.id)]
             expiry_time = self._timestruct_to_datetime(lot.expiry_utc)
-            evt = LOT(lot.port, lot.lot, MIMEType(lot.mime), self._decode(lot.name), lot.data[:lot.size], expiry_time, service, component)
+            evt = LOT(component.data.port, lot.lot, MIMEType(lot.mime), self._decode(lot.name), lot.data[:lot.size], expiry_time, service, component)
         elif evt_type == EventType.SIS:
             sis = c_evt.u.sis
 

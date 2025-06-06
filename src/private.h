@@ -53,11 +53,11 @@ void nrsc5_report_mer(nrsc5_t *, float lower, float upper);
 void nrsc5_report_ber(nrsc5_t *, float cber);
 void nrsc5_report_hdc(nrsc5_t *, unsigned int program, const uint8_t *data, size_t count);
 void nrsc5_report_audio(nrsc5_t *, unsigned int program, const int16_t *data, size_t count);
-void nrsc5_report_stream(nrsc5_t *, uint16_t port, uint16_t seq, unsigned int size, const uint8_t *data,
+void nrsc5_report_stream(nrsc5_t *, uint16_t seq, unsigned int size, const uint8_t *data,
                          nrsc5_sig_service_t *service, nrsc5_sig_component_t *component);
-void nrsc5_report_packet(nrsc5_t *, uint16_t port, uint16_t seq, unsigned int size, const uint8_t *data,
+void nrsc5_report_packet(nrsc5_t *, uint16_t seq, unsigned int size, const uint8_t *data,
                          nrsc5_sig_service_t *service, nrsc5_sig_component_t *component);
-void nrsc5_report_lot(nrsc5_t *, uint16_t port, unsigned int lot, unsigned int size, uint32_t mime,
+void nrsc5_report_lot(nrsc5_t *, unsigned int lot, unsigned int size, uint32_t mime,
                       const char *name, const uint8_t *data, struct tm *expiry_utc,
                       nrsc5_sig_service_t *service, nrsc5_sig_component_t *component);
 void nrsc5_report_audio_service(nrsc5_t *, unsigned int program, unsigned int access, unsigned int type, 

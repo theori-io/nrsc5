@@ -75,9 +75,27 @@ static void process_packet(here_images_t *st)
 
     st->buffer[28 + filename_len] = '\0';
 
-    nrsc5_report_here_image(st->radio, image_type, seq, n1, n2, timestamp,
-                            lat1 / 100000.f, lon1 / 100000.f, lat2 / 100000.f, lon2 / 100000.f,
-                            (char *)&st->buffer[28], file_len, &st->buffer[34 + filename_len]);
+    int timestamp_index = 0;
+    if (image_type == NRSC5_HERE_IMAGE_TRAFFIC)
+    {
+        if ((n1 >= 1) && (n1 <= HERE_TRAFFIC_TILES))
+        {
+            timestamp_index = n1;
+        }
+        else
+        {
+            log_warn("Invalid traffic tile number: %d", n1);
+            return;
+        }
+    }
+
+    if (st->last_timestamp[timestamp_index] != timestamp)
+    {
+        nrsc5_report_here_image(st->radio, image_type, seq, n1, n2, timestamp,
+                                lat1 / 100000.f, lon1 / 100000.f, lat2 / 100000.f, lon2 / 100000.f,
+                                (char *)&st->buffer[28], file_len, &st->buffer[34 + filename_len]);
+        st->last_timestamp[timestamp_index] = timestamp;
+    }
 }
 
 void here_images_push(here_images_t *st, uint16_t seq, unsigned int len, uint8_t *buf)
@@ -119,6 +137,7 @@ void here_images_push(here_images_t *st, uint16_t seq, unsigned int len, uint8_t
 void here_images_reset(here_images_t *st)
 {
     st->expected_seq = -1;
+    memset(st->last_timestamp, 0, sizeof(st->last_timestamp));
 }
 
 void here_images_init(here_images_t *st, nrsc5_t *radio)

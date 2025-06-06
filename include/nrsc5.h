@@ -425,7 +425,7 @@ struct nrsc5_event_t
             nrsc5_id3_comment_t *comments;
         } id3;
         struct {
-            uint16_t port;
+            uint16_t port;  /**< DEPRECATED: Use `component->data.port` instead */
             uint16_t seq;
             unsigned int size;
             uint32_t mime;  /**< DEPRECATED: Use `component->data.mime` instead */
@@ -434,7 +434,7 @@ struct nrsc5_event_t
             nrsc5_sig_component_t *component;
         } stream;
         struct {
-            uint16_t port;
+            uint16_t port;  /**< DEPRECATED: Use `component->data.port` instead */
             uint16_t seq;
             unsigned int size;
             uint32_t mime;  /**< DEPRECATED: Use `component->data.mime` instead */
@@ -443,7 +443,7 @@ struct nrsc5_event_t
             nrsc5_sig_component_t *component;
         } packet;
         struct {
-            uint16_t port;
+            uint16_t port;  /**< DEPRECATED: Use `component->data.port` instead */
             unsigned int lot;
             unsigned int size;
             uint32_t mime;

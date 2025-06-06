@@ -411,6 +411,17 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
         strftime(time_str, sizeof(time_str), "%Y-%m-%dT%H:%M:%SZ", evt->lot.expiry_utc);
         log_info("LOT file: port=%04X lot=%d name=%s size=%d mime=%08X expiry=%s", evt->lot.component->data.port, evt->lot.lot, evt->lot.name, evt->lot.size, evt->lot.mime, time_str);
         break;
+    case NRSC5_EVENT_LOT_HEADER:
+        strftime(time_str, sizeof(time_str), "%Y-%m-%dT%H:%M:%SZ", evt->lot.expiry_utc);
+        log_debug("LOT header: port=%04X lot=%d name=%s size=%d mime=%08X expiry=%s",
+                  evt->lot.component->data.port, evt->lot.lot, evt->lot.name, evt->lot.size, evt->lot.mime, time_str);
+        break;
+    case NRSC5_EVENT_LOT_FRAGMENT:
+        if (!evt->lot_fragment.is_duplicate)
+            log_debug("LOT fragment: port=%04X lot=%d seq=%d repeat=%d size=%d bytes_so_far=%d",
+                      evt->lot_fragment.component->data.port, evt->lot_fragment.lot, evt->lot_fragment.seq,
+                      evt->lot_fragment.repeat, evt->lot_fragment.size, evt->lot_fragment.bytes_so_far);
+        break;
     case NRSC5_EVENT_STATION_ID:
         log_info("Country: %s, FCC facility ID: %d", evt->station_id.country_code, evt->station_id.fcc_facility_id);
         break;

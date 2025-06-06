@@ -181,7 +181,9 @@ enum
     NRSC5_EVENT_AUDIO_SERVICE_DESCRIPTOR,
     NRSC5_EVENT_DATA_SERVICE_DESCRIPTOR,
     NRSC5_EVENT_EMERGENCY_ALERT,
-    NRSC5_EVENT_HERE_IMAGE
+    NRSC5_EVENT_HERE_IMAGE,
+    NRSC5_EVENT_LOT_HEADER,
+    NRSC5_EVENT_LOT_FRAGMENT
 };
 
 enum
@@ -365,6 +367,8 @@ struct nrsc5_event_t
  * - `NRSC5_EVENT_ID3` : ID3 information packet arrived, see `id3` member and information in HD-Radio document SY_IDD_1028s.
  * - `NRSC5_EVENT_SIG` : service information arrived, see `sig` member
  * - `NRSC5_EVENT_LOT` : LOT file data available, see `lot` member
+ * - `NRSC5_EVENT_LOT_HEADER` : LOT file header metadata available, see `lot` member
+ * - `NRSC5_EVENT_LOT_FRAGMENT` : fragment of a LOT file received, see `lot_fragment` member
  * - `NRSC5_EVENT_SIS` : DEPRECATED. Use `NRSC5_EVENT_STATION_ID`, `NRSC5_EVENT_STATION_NAME`, `NRSC5_EVENT_STATION_SLOGAN`, `NRSC5_EVENT_STATION_MESSAGE`, `NRSC5_EVENT_STATION_LOCATION`, `NRSC5_EVENT_AUDIO_SERVICE_DESCRIPTOR`, `NRSC5_EVENT_DATA_SERVICE_DESCRIPTOR`, and `NRSC5_EVENT_EMERGENCY_ALERT` instead.
  * - `NRSC5_EVENT_STREAM` : stream data available, see `stream` member
  * - `NRSC5_EVENT_PACKET` : packet data available, see `packet` member
@@ -443,16 +447,27 @@ struct nrsc5_event_t
             nrsc5_sig_component_t *component;
         } packet;
         struct {
-            uint16_t port;  /**< DEPRECATED: Use `component->data.port` instead */
-            unsigned int lot;
-            unsigned int size;
-            uint32_t mime;
-            const char *name;
-            const uint8_t *data;
-            struct tm *expiry_utc;
-            nrsc5_sig_service_t *service;
-            nrsc5_sig_component_t *component;
+            uint16_t port;                    /**< DEPRECATED: Use `component->data.port` instead */
+            unsigned int lot;                 /**< LOT id of the file */
+            unsigned int size;                /**< number of bytes in the file */
+            uint32_t mime;                    /**< MIME type of the file, e.g. NRSC5_MIME_PNG */
+            const char *name;                 /**< filename */
+            const uint8_t *data;              /**< contents of the file (if the event type is NRSC5_EVENT_LOT), or NULL (if the event type is NRSC5_EVENT_LOT_HEADER) */
+            struct tm *expiry_utc;            /**< time after which the file should be deleted */
+            nrsc5_sig_service_t *service;     /**< pointer to the associated SIG service */
+            nrsc5_sig_component_t *component; /**< pointer to the associated SIG component */
         } lot;
+        struct {
+            unsigned int lot;                 /**< LOT id of the file this fragment belongs to */
+            unsigned int seq;                 /**< sequence number of this fragment within the LOT file */
+            unsigned int repeat;              /**< number of repetitions remaining */
+            unsigned int size;                /**< number of bytes in this fragment */
+            unsigned int bytes_so_far;        /**< total number of bytes received for this LOT file, across all received fragments */
+            int is_duplicate;                 /**< 1 if this fragment was previously received, otherwise 0 */
+            const uint8_t *data;              /**< pointer to the data bytes of this fragment */
+            nrsc5_sig_service_t *service;     /**< pointer to the associated SIG service */
+            nrsc5_sig_component_t *component; /**< pointer to the associated SIG component */
+        } lot_fragment;
         struct {
             unsigned int program;       /**< program number 0, 1, ..., 7 */
             unsigned int access;        /**< NRSC5_ACCESS_PUBLIC or NRSC5_ACCESS_RESTRICTED */

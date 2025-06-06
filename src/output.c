@@ -670,7 +670,7 @@ static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *
             return;
         }
         uint8_t hdrlen = buf[0];
-        // uint8_t repeat = buf[1];
+        uint8_t repeat = buf[1];
         uint16_t lot = buf[2] | (buf[3] << 8);
         uint32_t seq = buf[4] | (buf[5] << 8) | (buf[6] << 16) | ((uint32_t)buf[7] << 24);
         if (hdrlen < 8 || hdrlen > len)
@@ -744,12 +744,19 @@ static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *
             len -= hdrlen;
             hdrlen = 0;
 
-            log_debug("File %s, size %d, lot %d, port %04X, mime %08X", file->name, file->size, file->lot, component->data.port, file->mime);
+            if (new_data)
+            {
+                nrsc5_report_lot(st->radio, NRSC5_EVENT_LOT_HEADER, file->lot,
+                                 file->size, file->mime, file->name, NULL, &file->expiry_utc,
+                                 component->service_ext, component->component_ext);
+            }
         }
 
+        int is_duplicate = 1;
         if (!file->fragments[seq])
         {
             new_data = 1;
+            is_duplicate = 0;
             uint8_t *fragment = calloc(LOT_FRAGMENT_SIZE, 1);
             if (len > LOT_FRAGMENT_SIZE)
             {
@@ -758,7 +765,10 @@ static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *
             }
             memcpy(fragment, buf, len);
             file->fragments[seq] = fragment;
+            file->bytes_so_far += len;
         }
+        nrsc5_report_lot_fragment(st->radio, file->lot, seq, repeat, is_duplicate, len, file->bytes_so_far, buf,
+                                  component->service_ext, component->component_ext);
 
         if (new_data && file->size)
         {
@@ -777,7 +787,7 @@ static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *
                 uint8_t *data = malloc(num_fragments * LOT_FRAGMENT_SIZE);
                 for (int i = 0; i < num_fragments; i++)
                     memcpy(data + i * LOT_FRAGMENT_SIZE, file->fragments[i], LOT_FRAGMENT_SIZE);
-                nrsc5_report_lot(st->radio, file->lot, file->size, file->mime,
+                nrsc5_report_lot(st->radio, NRSC5_EVENT_LOT, file->lot, file->size, file->mime,
                                  file->name, data, &file->expiry_utc,
                                  component->service_ext, component->component_ext);
                 free(data);

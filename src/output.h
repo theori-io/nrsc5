@@ -39,6 +39,7 @@ typedef struct
     struct tm expiry_utc;
     uint16_t lot;
     uint32_t size;
+    uint32_t bytes_so_far;
     uint8_t **fragments;
 } aas_file_t;
 

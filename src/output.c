@@ -717,29 +717,48 @@ static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *
             int hour = ((buf[5] & 0x7) << 2) | (buf[4] >> 6);
             int min = (buf[4] & 0x3f);
 
-            if ((year != file->expiry_utc.tm_year)
-                || (mon != file->expiry_utc.tm_mon)
-                || (mday != file->expiry_utc.tm_mday)
-                || (hour != file->expiry_utc.tm_hour)
-                || (min != file->expiry_utc.tm_min))
-            {
-                new_data = 1;
-                file->expiry_utc.tm_year = year;
-                file->expiry_utc.tm_mon = mon;
-                file->expiry_utc.tm_mday = mday;
-                file->expiry_utc.tm_hour = hour;
-                file->expiry_utc.tm_min = min;
-            }
-
-            file->size = buf[8] | (buf[9] << 8) | (buf[10] << 16) | ((uint32_t)buf[11] << 24);
-            file->mime = buf[12] | (buf[13] << 8) | (buf[14] << 16) | ((uint32_t)buf[15] << 24);
+            uint32_t size = buf[8] | (buf[9] << 8) | (buf[10] << 16) | ((uint32_t)buf[11] << 24);
+            uint32_t mime = buf[12] | (buf[13] << 8) | (buf[14] << 16) | ((uint32_t)buf[15] << 24);
             buf += 16;
             len -= 16;
             hdrlen -= 16;
-
             // Everything after the fixed header is the filename.
+
+            if (file->name)
+            {
+                if ((memcmp(buf, file->name, hdrlen) != 0)
+                    || (size != file->size)
+                    || (mime != file->mime)
+                    || (year != file->expiry_utc.tm_year)
+                    || (mon != file->expiry_utc.tm_mon)
+                    || (mday != file->expiry_utc.tm_mday)
+                    || (hour != file->expiry_utc.tm_hour)
+                    || (min != file->expiry_utc.tm_min))
+                {
+                    // Reset, since metadata has changed
+                    aas_free_lot(file);
+                    file->lot = lot;
+                    file->fragments = calloc(MAX_LOT_FRAGMENTS, sizeof(uint8_t*));
+                    file->timestamp = counter;
+                    new_data = 1;
+                }
+            }
+            else
+            {
+                // Metadata received for the first time
+                new_data = 1;
+            }
+
             free(file->name);
             file->name = strndup((const char *)buf, hdrlen);
+            file->size = size;
+            file->mime = mime;
+            file->expiry_utc.tm_year = year;
+            file->expiry_utc.tm_mon = mon;
+            file->expiry_utc.tm_mday = mday;
+            file->expiry_utc.tm_hour = hour;
+            file->expiry_utc.tm_min = min;
+
             buf += hdrlen;
             len -= hdrlen;
             hdrlen = 0;

@@ -271,10 +271,10 @@ class NRSC5CLI:
                                      component.data.type.name, component.data.mime.name)
         elif evt_type == nrsc5.EventType.STREAM:
             logging.debug("Stream data: port=%04X seq=%04X mime=%s size=%s",
-                         evt.component.data.port, evt.seq, evt.component.data.mime.name, len(evt.data))
+                          evt.component.data.port, evt.seq, evt.component.data.mime.name, len(evt.data))
         elif evt_type == nrsc5.EventType.PACKET:
             logging.debug("Packet data: port=%04X seq=%04X mime=%s size=%s",
-                         evt.component.data.port, evt.seq, evt.component.data.mime.name, len(evt.data))
+                          evt.component.data.port, evt.seq, evt.component.data.mime.name, len(evt.data))
         elif evt_type == nrsc5.EventType.LOT:
             time_str = evt.expiry_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
             logging.info("LOT file: port=%04X lot=%s name=%s size=%s mime=%s expiry=%s",
@@ -283,6 +283,14 @@ class NRSC5CLI:
                 path = os.path.join(self.args.dump_aas_files, evt.name)
                 with open(path, "wb") as file:
                     file.write(evt.data)
+        elif evt_type == nrsc5.EventType.LOT_HEADER:
+            time_str = evt.expiry_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+            logging.debug("LOT header: port=%04X lot=%s name=%s size=%s mime=%s expiry=%s",
+                          evt.component.data.port, evt.lot, evt.name, evt.size, evt.mime.name, time_str)
+        elif evt_type == nrsc5.EventType.LOT_FRAGMENT:
+            if not evt.is_duplicate:
+                logging.debug("LOT fragment: port=%04X lot=%d seq=%d repeat=%d size=%d bytes_so_far=%d",
+                              evt.component.data.port, evt.lot, evt.seq, evt.repeat, len(evt.data), evt.bytes_so_far)
         elif evt_type == nrsc5.EventType.STATION_ID:
             logging.info("Country: %s, FCC facility ID: %s", evt.country_code, evt.fcc_facility_id)
         elif evt_type == nrsc5.EventType.STATION_NAME:

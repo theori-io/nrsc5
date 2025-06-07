@@ -38,6 +38,8 @@ class EventType(enum.Enum):
     DATA_SERVICE_DESCRIPTOR = 21
     EMERGENCY_ALERT = 22
     HERE_IMAGE = 23
+    LOT_HEADER = 24
+    LOT_FRAGMENT = 25
 
 
 AUDIO_FRAME_SAMPLES = 2048
@@ -198,6 +200,8 @@ SIG = collections.namedtuple("SIG", ["services"])
 STREAM = collections.namedtuple("STREAM", ["port", "seq", "mime", "data", "service", "component"])
 PACKET = collections.namedtuple("PACKET", ["port", "seq", "mime", "data", "service", "component"])
 LOT = collections.namedtuple("LOT", ["port", "lot", "mime", "name", "data", "expiry_utc", "service", "component"])
+LOTHeader = collections.namedtuple("LOTHeader", ["port", "lot", "mime", "name", "size", "expiry_utc", "service", "component"])
+LOTFragment = collections.namedtuple("LOTFragment", ["lot", "seq", "repeat", "bytes_so_far", "is_duplicate", "data", "service", "component"])
 SISAudioService = collections.namedtuple("SISAudioService", ["program", "access", "type", "sound_exp"])
 SISDataService = collections.namedtuple("SISDataService", ["access", "type", "mime_type"])
 SIS = collections.namedtuple("SIS", ["country_code", "fcc_facility_id", "name", "slogan", "message", "alert",
@@ -406,6 +410,20 @@ class _LOT(ctypes.Structure):
     ]
 
 
+class _LOTFragment(ctypes.Structure):
+    _fields_ = [
+        ("lot", ctypes.c_uint),
+        ("seq", ctypes.c_uint),
+        ("repeat", ctypes.c_uint),
+        ("size", ctypes.c_uint),
+        ("bytes_so_far", ctypes.c_uint),
+        ("is_duplicate", ctypes.c_int),
+        ("data", ctypes.POINTER(ctypes.c_char)),
+        ("service", ctypes.POINTER(_SIGService)),
+        ("component", ctypes.POINTER(_SIGComponent)),
+    ]
+
+
 class _SISAudioService(ctypes.Structure):
     pass
 
@@ -560,6 +578,7 @@ class _EventUnion(ctypes.Union):
         ("stream", _STREAM),
         ("packet", _PACKET),
         ("lot", _LOT),
+        ("lot_fragment", _LOTFragment),
         ("sis", _SIS),
         ("station_id", _StationID),
         ("station_name", _StationName),
@@ -719,6 +738,17 @@ class NRSC5:
             component = self.components[(lot.service.contents.number, lot.component.contents.id)]
             expiry_time = self._timestruct_to_datetime(lot.expiry_utc)
             evt = LOT(component.data.port, lot.lot, MIMEType(lot.mime), self._decode(lot.name), lot.data[:lot.size], expiry_time, service, component)
+        elif evt_type == EventType.LOT_HEADER:
+            lot = c_evt.u.lot
+            service = self.services[lot.service.contents.number]
+            component = self.components[(lot.service.contents.number, lot.component.contents.id)]
+            expiry_time = self._timestruct_to_datetime(lot.expiry_utc)
+            evt = LOTHeader(component.data.port, lot.lot, MIMEType(lot.mime), self._decode(lot.name), lot.size, expiry_time, service, component)
+        elif evt_type == EventType.LOT_FRAGMENT:
+            lot_fragment = c_evt.u.lot_fragment
+            service = self.services[lot_fragment.service.contents.number]
+            component = self.components[(lot_fragment.service.contents.number, lot_fragment.component.contents.id)]
+            evt = LOTFragment(lot_fragment.lot, lot_fragment.seq, lot_fragment.repeat, lot_fragment.bytes_so_far, bool(lot_fragment.is_duplicate), lot_fragment.data[:lot_fragment.size], service, component)
         elif evt_type == EventType.SIS:
             sis = c_evt.u.sis
 

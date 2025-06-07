@@ -57,9 +57,12 @@ void nrsc5_report_stream(nrsc5_t *, uint16_t seq, unsigned int size, const uint8
                          nrsc5_sig_service_t *service, nrsc5_sig_component_t *component);
 void nrsc5_report_packet(nrsc5_t *, uint16_t seq, unsigned int size, const uint8_t *data,
                          nrsc5_sig_service_t *service, nrsc5_sig_component_t *component);
-void nrsc5_report_lot(nrsc5_t *, unsigned int lot, unsigned int size, uint32_t mime,
+void nrsc5_report_lot(nrsc5_t *, int event, unsigned int lot, unsigned int size, uint32_t mime,
                       const char *name, const uint8_t *data, struct tm *expiry_utc,
                       nrsc5_sig_service_t *service, nrsc5_sig_component_t *component);
+void nrsc5_report_lot_fragment(nrsc5_t *, unsigned int lot, unsigned int seq, unsigned int repeat, int is_duplicate,
+                               unsigned int size, unsigned int bytes_so_far, const uint8_t *data,
+                               nrsc5_sig_service_t *service, nrsc5_sig_component_t *component);
 void nrsc5_report_audio_service(nrsc5_t *, unsigned int program, unsigned int access, unsigned int type, 
                                 unsigned int codec_mode, unsigned int blend_control, int digital_audio_gain,
                                 unsigned int common_delay, unsigned int latency);

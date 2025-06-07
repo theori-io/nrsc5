@@ -670,7 +670,7 @@ static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *
             return;
         }
         uint8_t hdrlen = buf[0];
-        // uint8_t repeat = buf[1];
+        uint8_t repeat = buf[1];
         uint16_t lot = buf[2] | (buf[3] << 8);
         uint32_t seq = buf[4] | (buf[5] << 8) | (buf[6] << 16) | ((uint32_t)buf[7] << 24);
         if (hdrlen < 8 || hdrlen > len)
@@ -697,6 +697,8 @@ static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *
         }
         file->timestamp = counter++;
 
+        int new_data = 0;
+
         if (hdrlen > 0)
         {
             if (hdrlen < 16)
@@ -709,30 +711,71 @@ static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *
             if (version != 1)
                 log_warn("unknown LOT version: %d", version);
 
-            file->expiry_utc.tm_year = ((buf[7] << 4) | (buf[6] >> 4)) - 1900;
-            file->expiry_utc.tm_mon = (buf[6] & 0xf) - 1;
-            file->expiry_utc.tm_mday = (buf[5] >> 3);
-            file->expiry_utc.tm_hour = ((buf[5] & 0x7) << 2) | (buf[4] >> 6);
-            file->expiry_utc.tm_min = (buf[4] & 0x3f);
+            int year = ((buf[7] << 4) | (buf[6] >> 4)) - 1900;
+            int mon = (buf[6] & 0xf) - 1;
+            int mday = (buf[5] >> 3);
+            int hour = ((buf[5] & 0x7) << 2) | (buf[4] >> 6);
+            int min = (buf[4] & 0x3f);
 
-            file->size = buf[8] | (buf[9] << 8) | (buf[10] << 16) | ((uint32_t)buf[11] << 24);
-            file->mime = buf[12] | (buf[13] << 8) | (buf[14] << 16) | ((uint32_t)buf[15] << 24);
+            uint32_t size = buf[8] | (buf[9] << 8) | (buf[10] << 16) | ((uint32_t)buf[11] << 24);
+            uint32_t mime = buf[12] | (buf[13] << 8) | (buf[14] << 16) | ((uint32_t)buf[15] << 24);
             buf += 16;
             len -= 16;
             hdrlen -= 16;
-
             // Everything after the fixed header is the filename.
+
+            if (file->name)
+            {
+                if ((memcmp(buf, file->name, hdrlen) != 0)
+                    || (size != file->size)
+                    || (mime != file->mime)
+                    || (year != file->expiry_utc.tm_year)
+                    || (mon != file->expiry_utc.tm_mon)
+                    || (mday != file->expiry_utc.tm_mday)
+                    || (hour != file->expiry_utc.tm_hour)
+                    || (min != file->expiry_utc.tm_min))
+                {
+                    // Reset, since metadata has changed
+                    aas_free_lot(file);
+                    file->lot = lot;
+                    file->fragments = calloc(MAX_LOT_FRAGMENTS, sizeof(uint8_t*));
+                    file->timestamp = counter;
+                    new_data = 1;
+                }
+            }
+            else
+            {
+                // Metadata received for the first time
+                new_data = 1;
+            }
+
             free(file->name);
             file->name = strndup((const char *)buf, hdrlen);
+            file->size = size;
+            file->mime = mime;
+            file->expiry_utc.tm_year = year;
+            file->expiry_utc.tm_mon = mon;
+            file->expiry_utc.tm_mday = mday;
+            file->expiry_utc.tm_hour = hour;
+            file->expiry_utc.tm_min = min;
+
             buf += hdrlen;
             len -= hdrlen;
             hdrlen = 0;
 
-            log_debug("File %s, size %d, lot %d, port %04X, mime %08X", file->name, file->size, file->lot, component->data.port, file->mime);
+            if (new_data)
+            {
+                nrsc5_report_lot(st->radio, NRSC5_EVENT_LOT_HEADER, file->lot,
+                                 file->size, file->mime, file->name, NULL, &file->expiry_utc,
+                                 component->service_ext, component->component_ext);
+            }
         }
 
+        int is_duplicate = 1;
         if (!file->fragments[seq])
         {
+            new_data = 1;
+            is_duplicate = 0;
             uint8_t *fragment = calloc(LOT_FRAGMENT_SIZE, 1);
             if (len > LOT_FRAGMENT_SIZE)
             {
@@ -741,9 +784,12 @@ static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *
             }
             memcpy(fragment, buf, len);
             file->fragments[seq] = fragment;
+            file->bytes_so_far += len;
         }
+        nrsc5_report_lot_fragment(st->radio, file->lot, seq, repeat, is_duplicate, len, file->bytes_so_far, buf,
+                                  component->service_ext, component->component_ext);
 
-        if (file->size)
+        if (new_data && file->size)
         {
             int complete = 1;
             int num_fragments = (file->size + LOT_FRAGMENT_SIZE - 1) / LOT_FRAGMENT_SIZE;
@@ -760,11 +806,10 @@ static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *
                 uint8_t *data = malloc(num_fragments * LOT_FRAGMENT_SIZE);
                 for (int i = 0; i < num_fragments; i++)
                     memcpy(data + i * LOT_FRAGMENT_SIZE, file->fragments[i], LOT_FRAGMENT_SIZE);
-                nrsc5_report_lot(st->radio, file->lot, file->size, file->mime,
+                nrsc5_report_lot(st->radio, NRSC5_EVENT_LOT, file->lot, file->size, file->mime,
                                  file->name, data, &file->expiry_utc,
                                  component->service_ext, component->component_ext);
                 free(data);
-                aas_free_lot(file);
             }
         }
         break;

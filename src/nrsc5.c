@@ -764,13 +764,13 @@ void nrsc5_report_packet(nrsc5_t *st, uint16_t seq, unsigned int size, const uin
     nrsc5_report(st, &evt);
 }
 
-void nrsc5_report_lot(nrsc5_t *st, unsigned int lot, unsigned int size, uint32_t mime,
+void nrsc5_report_lot(nrsc5_t *st, int event, unsigned int lot, unsigned int size, uint32_t mime,
                       const char *name, const uint8_t *data, struct tm *expiry_utc,
                       nrsc5_sig_service_t *service, nrsc5_sig_component_t *component)
 {
     nrsc5_event_t evt;
 
-    evt.event = NRSC5_EVENT_LOT;
+    evt.event = event;
     evt.lot.port = component->data.port;
     evt.lot.lot = lot;
     evt.lot.size = size;
@@ -780,6 +780,25 @@ void nrsc5_report_lot(nrsc5_t *st, unsigned int lot, unsigned int size, uint32_t
     evt.lot.expiry_utc = expiry_utc;
     evt.lot.service = service;
     evt.lot.component = component;
+    nrsc5_report(st, &evt);
+}
+
+void nrsc5_report_lot_fragment(nrsc5_t *st, unsigned int lot, unsigned int seq, unsigned int repeat, int is_duplicate,
+                               unsigned int size, unsigned int bytes_so_far, const uint8_t *data,
+                               nrsc5_sig_service_t *service, nrsc5_sig_component_t *component)
+{
+    nrsc5_event_t evt;
+
+    evt.event = NRSC5_EVENT_LOT_FRAGMENT;
+    evt.lot_fragment.lot = lot;
+    evt.lot_fragment.seq = seq;
+    evt.lot_fragment.repeat = repeat;
+    evt.lot_fragment.is_duplicate = is_duplicate;
+    evt.lot_fragment.size = size;
+    evt.lot_fragment.bytes_so_far = bytes_so_far;
+    evt.lot_fragment.data = data;
+    evt.lot_fragment.service = service;
+    evt.lot_fragment.component = component;
     nrsc5_report(st, &evt);
 }
 

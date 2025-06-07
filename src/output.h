@@ -12,7 +12,7 @@
 #define AUDIO_FRAME_BYTES 8192
 #define MAX_SIG_SERVICES 16
 #define MAX_SIG_COMPONENTS 8
-#define MAX_LOT_FILES 8
+#define MAX_LOT_FILES 12
 #define LOT_FRAGMENT_SIZE 256
 #define MAX_FILE_BYTES 65536
 #define MAX_LOT_FRAGMENTS (MAX_FILE_BYTES / LOT_FRAGMENT_SIZE)
@@ -39,6 +39,7 @@ typedef struct
     struct tm expiry_utc;
     uint16_t lot;
     uint32_t size;
+    uint32_t bytes_so_far;
     uint8_t **fragments;
 } aas_file_t;
 

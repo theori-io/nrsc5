@@ -145,6 +145,7 @@ static void aas_reset(output_t *st)
                     aas_free_lot(&component->data.lot_files[k]);
         }
     }
+    st->lot_lru_counter = 1;
 
     memset(st->services, 0, sizeof(st->services));
     nrsc5_clear_sig(st->radio);
@@ -632,7 +633,6 @@ static aas_file_t *find_free_lot(sig_component_t *component)
 
 static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *buf, unsigned int len)
 {
-    static unsigned int counter = 1;
     sig_component_t *component;
 
     if (st->services[0].type == SIG_SERVICE_NONE)
@@ -695,7 +695,7 @@ static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *
             file->lot = lot;
             file->fragments = calloc(MAX_LOT_FRAGMENTS, sizeof(uint8_t*));
         }
-        file->timestamp = counter++;
+        file->timestamp = st->lot_lru_counter++;
 
         int new_data = 0;
 
@@ -739,7 +739,7 @@ static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *
                     aas_free_lot(file);
                     file->lot = lot;
                     file->fragments = calloc(MAX_LOT_FRAGMENTS, sizeof(uint8_t*));
-                    file->timestamp = counter;
+                    file->timestamp = st->lot_lru_counter;
                     new_data = 1;
                 }
             }

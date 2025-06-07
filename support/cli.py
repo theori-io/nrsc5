@@ -276,13 +276,16 @@ class NRSC5CLI:
             logging.debug("Packet data: port=%04X seq=%04X mime=%s size=%s",
                           evt.component.data.port, evt.seq, evt.component.data.mime.name, len(evt.data))
         elif evt_type == nrsc5.EventType.LOT:
+            if self.args.dump_aas_files:
+                path = os.path.join(self.args.dump_aas_files, evt.name)
+                try:
+                    with open(path, "wb") as file:
+                        file.write(evt.data)
+                except OSError as e:
+                    logging.warning(f"Failed to write AAS file: {e}")
             time_str = evt.expiry_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
             logging.info("LOT file: port=%04X lot=%s name=%s size=%s mime=%s expiry=%s",
                          evt.component.data.port, evt.lot, evt.name, len(evt.data), evt.mime.name, time_str)
-            if self.args.dump_aas_files:
-                path = os.path.join(self.args.dump_aas_files, evt.name)
-                with open(path, "wb") as file:
-                    file.write(evt.data)
         elif evt_type == nrsc5.EventType.LOT_HEADER:
             time_str = evt.expiry_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
             logging.debug("LOT header: port=%04X lot=%s name=%s size=%s mime=%s expiry=%s",
@@ -329,15 +332,18 @@ class NRSC5CLI:
                          evt.common_delay,
                          evt.latency)
         elif evt_type == nrsc5.EventType.HERE_IMAGE:
+            if self.args.dump_aas_files:
+                time_int = int(evt.time_utc.timestamp())
+                path = os.path.join(self.args.dump_aas_files, f"{time_int}_{evt.name}")
+                try:
+                    with open(path, "wb") as file:
+                        file.write(evt.data)
+                except OSError as e:
+                    logging.warning(f"Failed to write HERE image: {e}")
             time_str = evt.time_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
             logging.info("HERE Image: type=%s, seq=%d, n1=%d, n2=%d, time=%s, lat1=%.5f, lon1=%.5f, lat2=%.5f, lon2=%.5f, name=%s, size=%d",
                          evt.image_type.name, evt.seq, evt.n1, evt.n2, time_str, evt.latitude1, evt.longitude1,
                          evt.latitude2, evt.longitude2, evt.name, len(evt.data))
-            if self.args.dump_aas_files:
-                time_int = int(evt.time_utc.timestamp())
-                path = os.path.join(self.args.dump_aas_files, f"{time_int}_{evt.name}")
-                with open(path, "wb") as file:
-                    file.write(evt.data)
 
 
 if __name__ == "__main__":

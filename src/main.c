@@ -320,6 +320,12 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
     case NRSC5_EVENT_LOST_DEVICE:
         done_signal(st);
         break;
+    case NRSC5_EVENT_AGC:
+        if (evt->agc.is_final)
+            log_info("Best gain: %.1f dB, Peak amplitude: %.1f dBFS", evt->agc.gain_db, evt->agc.peak_dbfs);
+        else
+            log_debug("Gain: %.1f dB, Peak amplitude: %.1f dBFS", evt->agc.gain_db, evt->agc.peak_dbfs);
+        break;
     case NRSC5_EVENT_BER:
         dump_ber(evt->ber.cber);
         break;

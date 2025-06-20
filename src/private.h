@@ -46,6 +46,7 @@ struct nrsc5_t
 
 void nrsc5_report(nrsc5_t *, const nrsc5_event_t *evt);
 void nrsc5_report_lost_device(nrsc5_t *st);
+void nrsc5_report_agc(nrsc5_t *st, float gain_db, float peak_dbfs, int is_final);
 void nrsc5_report_iq(nrsc5_t *, const void *data, size_t count);
 void nrsc5_report_sync(nrsc5_t *, float freq_offset, int psmi);
 void nrsc5_report_lost_sync(nrsc5_t *);

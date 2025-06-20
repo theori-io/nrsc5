@@ -82,7 +82,7 @@ static int do_auto_gain(nrsc5_t *st)
         }
 
         float amplitude_db = 20 * log10f((max_sample - min_sample + 1) / 256.0f);
-        log_debug("Gain: %.1f dB, Peak amplitude: %.1f dBFS", gain / 10.0f, amplitude_db);
+        nrsc5_report_agc(st, gain / 10.0f, amplitude_db, 0);
 
         if (amplitude_db < -6.0f)
         {
@@ -102,7 +102,7 @@ static int do_auto_gain(nrsc5_t *st)
         }
     }
 
-    log_debug("Best gain: %.1f dB, Peak amplitude: %.1f dBFS", best_gain / 10.0f, best_amplitude_db);
+    nrsc5_report_agc(st, best_gain / 10.0f, best_amplitude_db, 1);
     st->gain = best_gain;
     set_tuner_gain(st, best_gain);
     ret = 0;
@@ -660,6 +660,17 @@ void nrsc5_report_lost_device(nrsc5_t *st)
     nrsc5_event_t evt;
 
     evt.event = NRSC5_EVENT_LOST_DEVICE;
+    nrsc5_report(st, &evt);
+}
+
+void nrsc5_report_agc(nrsc5_t *st, float gain_db, float peak_dbfs, int is_final)
+{
+    nrsc5_event_t evt;
+
+    evt.event = NRSC5_EVENT_AGC;
+    evt.agc.gain_db = gain_db;
+    evt.agc.peak_dbfs = peak_dbfs;
+    evt.agc.is_final = is_final;
     nrsc5_report(st, &evt);
 }
 

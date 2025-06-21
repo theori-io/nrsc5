@@ -200,6 +200,11 @@ class NRSC5CLI:
             logging.info("Lost device")
             with self.device_condition:
                 self.device_condition.notify()
+        elif evt_type == nrsc5.EventType.AGC:
+            if evt.is_final:
+                logging.info("Best gain: %.1f dB, Peak amplitude: %.1f dBFS", evt.gain_db, evt.peak_dbfs)
+            else:
+                logging.debug("Gain: %.1f dB, Peak amplitude: %.1f dBFS", evt.gain_db, evt.peak_dbfs)
         elif evt_type == nrsc5.EventType.IQ:
             if self.args.w:
                 self.iq_output.write(evt.data)

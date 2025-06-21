@@ -183,7 +183,8 @@ enum
     NRSC5_EVENT_EMERGENCY_ALERT,
     NRSC5_EVENT_HERE_IMAGE,
     NRSC5_EVENT_LOT_HEADER,
-    NRSC5_EVENT_LOT_FRAGMENT
+    NRSC5_EVENT_LOT_FRAGMENT,
+    NRSC5_EVENT_AGC
 };
 
 enum
@@ -382,6 +383,7 @@ struct nrsc5_event_t
  * - `NRSC5_EVENT_DATA_SERVICE_DESCRIPTOR` : SIS data service descriptor, see `dsd` member
  * - `NRSC5_EVENT_EMERGENCY_ALERT` : emergency alert, see `emergency_alert` member
  * - `NRSC5_EVENT_HERE_IMAGE` : HERE Images traffic/weather map, see `here_image` member
+ * - `NRSC5_EVENT_AGC` : automatic gain control status, see `agc` member
  */
     unsigned int event;
     union
@@ -554,6 +556,11 @@ struct nrsc5_event_t
             unsigned int size;   /**< size of image file, in bytes */
             const uint8_t *data; /**< contents of image file */
         } here_image;
+        struct {
+            float gain_db;       /**< SDR gain value in dB */
+            float peak_dbfs;     /**< peak signal amplitude in dB, relative to full scale */
+            int is_final;        /**< 1 if this is the final (best) gain value, otherwise 0 */
+        } agc;
     };
 };
 /**

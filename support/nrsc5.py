@@ -40,6 +40,7 @@ class EventType(enum.Enum):
     HERE_IMAGE = 23
     LOT_HEADER = 24
     LOT_FRAGMENT = 25
+    AGC = 26
 
 
 AUDIO_FRAME_SAMPLES = 2048
@@ -217,6 +218,7 @@ AudioService = collections.namedtuple("AudioService", ["program", "access", "typ
                                                        "digital_audio_gain", "common_delay", "latency"])
 HEREImage = collections.namedtuple("HEREImage", ["image_type", "seq", "n1", "n2", "time_utc", "latitude1", "longitude1",
                                                  "latitude2", "longitude2", "name", "data"])
+AGC = collections.namedtuple("AGC", ["gain_db", "peak_dbfs", "is_final"])
 
 
 class _IQ(ctypes.Structure):
@@ -565,6 +567,14 @@ class _HEREImage(ctypes.Structure):
     ]
 
 
+class _AGC(ctypes.Structure):
+    _fields_ = [
+        ("gain_db", ctypes.c_float),
+        ("peak_dbfs", ctypes.c_float),
+        ("is_final", ctypes.c_int),
+    ]
+
+
 class _EventUnion(ctypes.Union):
     _fields_ = [
         ("iq", _IQ),
@@ -590,6 +600,7 @@ class _EventUnion(ctypes.Union):
         ("emergency_alert", _EmergencyAlert),
         ("audio_service", _AudioService),
         ("here_image", _HEREImage),
+        ("agc", _AGC),
     ]
 
 
@@ -843,6 +854,9 @@ class NRSC5:
                 self._decode(here_image.name),
                 here_image.data[:here_image.size]
             )
+        elif evt_type == EventType.AGC:
+            agc = c_evt.u.agc
+            evt = AGC(agc.gain_db, agc.peak_dbfs, bool(agc.is_final))
 
         self.callback(evt_type, evt, *self.callback_args)
 

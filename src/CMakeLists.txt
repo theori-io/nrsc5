@@ -93,24 +93,29 @@ if (BUILTIN_LIBRARIES)
     add_dependencies(nrsc5_static ${BUILTIN_LIBRARIES})
 endif ()
 
-add_executable (
-    app
-    main.c
-    log.c
-)
-set_property (TARGET app PROPERTY OUTPUT_NAME nrsc5)
-set_target_properties(app PROPERTIES LINK_FLAGS "${STATIC_LINKER_FLAGS}")
-target_link_libraries (
-    app
-    nrsc5_static
-    ${AO_LIBRARIES}
-    ${THREAD_LIBRARY}
-    ${SOCKET_LIBRARY}
-)
+if (BUILD_CLI)
+    add_executable (
+        app
+        main.c
+        log.c
+    )
+    set_property (TARGET app PROPERTY OUTPUT_NAME nrsc5)
+    set_target_properties(app PROPERTIES LINK_FLAGS "${STATIC_LINKER_FLAGS}")
+    target_link_libraries (
+        app
+        nrsc5_static
+        ${AO_LIBRARIES}
+        ${THREAD_LIBRARY}
+        ${SOCKET_LIBRARY}
+    )
+    install (
+            TARGETS app
+            RUNTIME DESTINATION bin
+    )
+endif ()
 
 install (
-    TARGETS app nrsc5 nrsc5_static
-    RUNTIME DESTINATION bin
+    TARGETS nrsc5 nrsc5_static
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
     PUBLIC_HEADER DESTINATION include

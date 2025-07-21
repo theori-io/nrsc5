@@ -711,26 +711,32 @@ static void *file_reader_thread(void *arg)
 }
 
 static void help(const char *progname)
-{
-    fprintf(stderr, "Usage: %s [options] [frequency] program\n", progname);
+void print_help(const char *progname) {
+    fprintf(stderr, "Usage: %s [options] [frequency] program\n\n", progname);
+    fprintf(stderr, "Positional Arguments:\n");
+    fprintf(stderr, "  frequency                       center frequency in MHz or Hz\n");
+    fprintf(stderr, "                                  (do not provide frequency when reading from file)\n");
+    fprintf(stderr, "  program                         audio program to decode (0, 1, 2, or 3)\n\n");
     fprintf(stderr, "Options:\n");
-    fprintf(stderr, "  -v, --version              Show version and exit.\n");
-    fprintf(stderr, "  -q                         Be quiet.\n");
-    fprintf(stderr, "  --am                       Set receiver to AM mode.\n");
-    fprintf(stderr, "  -l <log-level>             Set log level (0-5).\n");
-    fprintf(stderr, "  -d <device-index>          Set RTL-SDR device index.\n");
-    fprintf(stderr, "  -H <rtltcp-host>           Connect to rtl_tcp host.\n");
-    fprintf(stderr, "  -p <ppm-error>             Set frequency correction.\n");
-    fprintf(stderr, "  -g <gain>                  Set tuner gain in dB.\n");
-    fprintf(stderr, "  -r <iq-input>              Read IQ data from file ('-' for stdin).\n");
-    fprintf(stderr, "  --iq-input-format <fmt>    Set IQ input format ('cu8' or 'cs16', default: cu8).\n");
-    fprintf(stderr, "  -w <iq-output>             Write IQ data to file ('-' for stdout).\n");
-    fprintf(stderr, "  -o <audio-output>          Write audio to file.\n");
-    fprintf(stderr, "  -t <audio-type>            Set audio output type ('wav' or 'raw', default: wav).\n");
-    fprintf(stderr, "  -T                         Enable bias-T.\n");
-    fprintf(stderr, "  -D <mode>                  Set direct sampling mode.\n");
-    fprintf(stderr, "  --dump-hdc <hdc-output>    Dump HDC (audio) stream to file.\n");
-    fprintf(stderr, "  --dump-aas-files <dir>     Dump AAS (data) files to directory.\n");
+    fprintf(stderr, "  -g gain                         gain (example: 49.6)\n");
+    fprintf(stderr, "                                  (automatic gain selection if not specified)\n");
+    fprintf(stderr, "  -d device-index                 rtl-sdr device\n");
+    fprintf(stderr, "  -p ppm-error                    rtl-sdr ppm error\n");
+    fprintf(stderr, "  -H rtltcp-host                  rtl_tcp host with optional port (example: localhost:1234)\n");
+    fprintf(stderr, "  -r iq-input                     read IQ samples from input file\n");
+    fprintf(stderr, "  --iq-input-format <fmt>         Set IQ input format ('cu8' or 'cs16', default: cu8).\n");
+    fprintf(stderr, "  -w iq-output                    write IQ samples to output file\n");
+    fprintf(stderr, "  -o audio-output                 write audio to output file\n");
+    fprintf(stderr, "  -t audio-type                   type of audio output (wav or raw)\n");
+    fprintf(stderr, "                                  (default is wav. used in conjunction with -o)\n");
+    fprintf(stderr, "  -q                              disable log output\n");
+    fprintf(stderr, "  -l log-level                    set log level (1 = DEBUG, 2 = INFO, 3 = WARN)\n");
+    fprintf(stderr, "  -v                              print the version number and exit\n");
+    fprintf(stderr, "  --am                            receive AM signals (default is FM)\n");
+    fprintf(stderr, "  -T                              enable bias-T\n");
+    fprintf(stderr, "  -D direct-sampling-mode         enable direct sampling (1 = I-ADC input, 2 = Q-ADC input)\n");
+    fprintf(stderr, "  --dump-aas-files dir-name       dump AAS files (WARNING: insecure)\n");
+    fprintf(stderr, "  --dump-hdc file-name            dump HDC packets\n");
 }
 
 static int parse_args(state_t *st, int argc, char *argv[])

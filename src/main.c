@@ -710,8 +710,7 @@ static void *file_reader_thread(void *arg)
     return NULL;
 }
 
-static void help(const char *progname)
-void print_help(const char *progname) {
+static void help(const char *progname) {
     fprintf(stderr, "Usage: %s [options] [frequency] program\n\n", progname);
     fprintf(stderr, "Positional Arguments:\n");
     fprintf(stderr, "  frequency                       center frequency in MHz or Hz\n");

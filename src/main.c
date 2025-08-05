@@ -25,6 +25,7 @@
 #include <limits.h>
 #include <stdio.h>
 #include <string.h>
+#include <errno.h> // For providing detailed error messages when file I/O fails.
 
 #ifdef __MINGW32__
 #include <conio.h>
@@ -44,6 +45,7 @@
 #define AUDIO_BUFFERS 128
 #define AUDIO_THRESHOLD 8
 #define AUDIO_DATA_LENGTH 8192
+#define IQ_BUFFER_SIZE 32768
 
 typedef struct buffer_t {
     struct buffer_t *next;
@@ -60,6 +62,7 @@ typedef struct {
     int direct_sampling;
     int ppm_error;
     char *input_name;
+    char *iq_input_format; // User-specified format for IQ file input ("cu8" or "cs16").
     char *rtltcp_host;
     ao_device *dev;
     FILE *hdc_file;
@@ -75,7 +78,15 @@ typedef struct {
     unsigned int audio_packets;
     unsigned int audio_bytes;
     int done;
+    nrsc5_t *radio; // Store the radio handle so background threads can access it.
 } state_t;
+
+/* Struct to pass multiple arguments (state and file pointer) to the file reader thread. */
+typedef struct {
+    state_t *st;
+    FILE *fp;
+} file_reader_args_t;
+
 
 static ao_sample_format sample_format = {
     16,
@@ -642,17 +653,100 @@ static void *input_main(void *arg)
     return NULL;
 }
 
-static void help(const char *progname)
+/*
+ * Thread function to handle reading from an IQ file.
+ *
+ * This function is the core of the new file input architecture, bringing the C
+ * application's functionality in line with the more flexible Python script.
+ *
+ * Instead of using nrsc5_open_file() and letting the library's internal worker
+ * read the file (which was hardcoded for 8-bit cu8 format), this thread allows
+ * the application to manage the file reading itself.
+ *
+ * It runs in a loop, reading the file in chunks and then "piping" the samples
+ * into the library using the appropriate function (nrsc5_pipe_samples_cu8 or
+ * nrsc5_pipe_samples_cs16) based on the user-specified format.
+ *
+ * When the end of the file is reached, it signals the main thread to begin a
+ * clean shutdown.
+ */
+static void *file_reader_thread(void *arg)
 {
-    fprintf(stderr, "Usage: %s [-v] [-q] [--am] [-l log-level] [-d device-index] [-H rtltcp-host] [-p ppm-error] [-g gain] [-r iq-input] [-w iq-output] [-o audio-output] [-t audio-type] [-T] [-D direct-sampling-mode] [--dump-hdc hdc-output] [--dump-aas-files directory] frequency program\n", progname);
+    file_reader_args_t *args = (file_reader_args_t *)arg;
+    state_t *st = args->st;
+    FILE *fp = args->fp;
+    uint8_t buffer[IQ_BUFFER_SIZE];
+    size_t bytes_read;
+
+    while (!st->done) {
+        bytes_read = fread(buffer, 1, sizeof(buffer), fp);
+        // If fread returns 0, check if it's the end of the file or an error.
+        if (bytes_read == 0) {
+            if (feof(fp)) {
+                log_info("End of IQ file reached.");
+            } else {
+                // Use strerror(errno) to provide a user-friendly error message.
+                log_error("Error reading IQ file: %s", strerror(errno));
+            }
+            break; // Exit the loop on either EOF or a file read error.
+        }
+
+        // Based on the format, call the correct library pipe function.
+        if (strcmp(st->iq_input_format, "cs16") == 0) {
+            nrsc5_pipe_samples_cs16(st->radio, (const int16_t *)buffer, bytes_read / 2);
+        } else { // Default to "cu8"
+            nrsc5_pipe_samples_cu8(st->radio, buffer, bytes_read);
+        }
+    }
+
+    // Clean up the file pointer.
+    if (fp != stdin) {
+        fclose(fp);
+    }
+    // Free the arguments struct that was malloc'd in main.
+    free(args);
+    // Signal the main thread that file processing is complete.
+    done_signal(st);
+    return NULL;
+}
+
+static void help(const char *progname) {
+    fprintf(stderr, "Usage: %s [options] [frequency] program\n\n", progname);
+    fprintf(stderr, "Positional Arguments:\n");
+    fprintf(stderr, "  frequency                       center frequency in MHz or Hz\n");
+    fprintf(stderr, "                                  (do not provide frequency when reading from file)\n");
+    fprintf(stderr, "  program                         audio program to decode (0, 1, 2, or 3)\n\n");
+    fprintf(stderr, "Options:\n");
+    fprintf(stderr, "  -g gain                         gain (example: 49.6)\n");
+    fprintf(stderr, "                                  (automatic gain selection if not specified)\n");
+    fprintf(stderr, "  -d device-index                 rtl-sdr device\n");
+    fprintf(stderr, "  -p ppm-error                    rtl-sdr ppm error\n");
+    fprintf(stderr, "  -H rtltcp-host                  rtl_tcp host with optional port (example: localhost:1234)\n");
+    fprintf(stderr, "  -r iq-input                     read IQ samples from input file\n");
+    fprintf(stderr, "  --iq-input-format <fmt>         Set IQ input format ('cu8' or 'cs16', default: cu8).\n");
+    fprintf(stderr, "  -w iq-output                    write IQ samples to output file\n");
+    fprintf(stderr, "  -o audio-output                 write audio to output file\n");
+    fprintf(stderr, "  -t audio-type                   type of audio output (wav or raw)\n");
+    fprintf(stderr, "                                  (default is wav. used in conjunction with -o)\n");
+    fprintf(stderr, "  -q                              disable log output\n");
+    fprintf(stderr, "  -l log-level                    set log level (1 = DEBUG, 2 = INFO, 3 = WARN)\n");
+    fprintf(stderr, "  -v                              print the version number and exit\n");
+    fprintf(stderr, "  --am                            receive AM signals (default is FM)\n");
+    fprintf(stderr, "  -T                              enable bias-T\n");
+    fprintf(stderr, "  -D direct-sampling-mode         enable direct sampling (1 = I-ADC input, 2 = Q-ADC input)\n");
+    fprintf(stderr, "  --dump-aas-files dir-name       dump AAS files (WARNING: insecure)\n");
+    fprintf(stderr, "  --dump-hdc file-name            dump HDC packets\n");
 }
 
 static int parse_args(state_t *st, int argc, char *argv[])
 {
+    // Add --iq-input-format option.
     static const struct option long_opts[] = {
         { "dump-aas-files", required_argument, NULL, 1 },
         { "dump-hdc", required_argument, NULL, 2 },
         { "am", no_argument, NULL, 3 },
+        { "iq-input-format", required_argument, NULL, 4 },
+        { "version", no_argument, NULL, 'v' },
         { 0 }
     };
     const char *version = NULL;
@@ -666,6 +760,7 @@ static int parse_args(state_t *st, int argc, char *argv[])
     st->bias_tee = 0;
     st->direct_sampling = -1;
     st->ppm_error = INT_MIN;
+    st->iq_input_format = "cu8"; // Set default format
     log_set_level(LOG_INFO);
 
     while ((opt = getopt_long(argc, argv, "r:w:o:t:d:p:g:ql:vH:TD:", long_opts, NULL)) != -1)
@@ -680,6 +775,15 @@ static int parse_args(state_t *st, int argc, char *argv[])
             break;
         case 3:
             st->mode = NRSC5_MODE_AM;
+            break;
+        case 4: // Handle the --iq-input-format argument
+            // Store the user's choice. Default is "cu8".
+            if (strcmp(optarg, "cu8") == 0 || strcmp(optarg, "cs16") == 0) {
+                st->iq_input_format = strdup(optarg);
+            } else {
+                log_fatal("Invalid IQ input format. Use 'cu8' or 'cs16'.");
+                return -1;
+            }
             break;
         case 'r':
             st->input_name = strdup(optarg);
@@ -737,24 +841,24 @@ static int parse_args(state_t *st, int argc, char *argv[])
         }
     }
 
-    if (optind + (!st->input_name + 1) != argc)
-    {
-        help(argv[0]);
-        return 1;
-    }
-
-    if (!st->input_name)
-    {
+    if (st->input_name == NULL && st->rtltcp_host == NULL) {
+        if (optind + 2 != argc) {
+            help(argv[0]);
+            return 1;
+        }
         st->freq = strtof(argv[optind++], &endptr);
-        if (*endptr != 0)
-        {
+        if (*endptr != 0) {
             log_fatal("Invalid frequency.");
             return -1;
         }
-
-        // compatibility with previous versions
-        if (st->freq < 10000.0f)
+        if (st->freq < 10000.0f) {
             st->freq *= 1e6f;
+        }
+    } else {
+        if (optind + 1 != argc) {
+            help(argv[0]);
+            return 1;
+        }
     }
 
     st->program = strtoul(argv[optind++], &endptr, 0);
@@ -830,6 +934,8 @@ static void cleanup(state_t *st)
 
     free(st->input_name);
     free(st->aas_files_path);
+    if (strcmp(st->iq_input_format, "cu8") != 0)
+        free(st->iq_input_format);
 
     if (st->dev)
         ao_close(st->dev);
@@ -839,6 +945,9 @@ int main(int argc, char *argv[])
 {
     pthread_mutex_t log_mutex;
     pthread_t input_thread;
+    // Thread for handling file-based IQ input.
+    pthread_t file_thread;
+    int file_thread_created = 0;
     nrsc5_t *radio = NULL;
     state_t *st = calloc(1, sizeof(state_t));
 
@@ -857,19 +966,34 @@ int main(int argc, char *argv[])
     setmode(fileno(stdout), O_BINARY);
 #endif
 
+    /*
+     * For file-based input, we now use the pipe interface. This allows the
+     * application to control the reading process and handle different IQ formats,
+     * aligning its functionality with the Python wrapper. A background thread
+     * is created to read the file and pipe the samples into the library.
+     */
     if (st->input_name)
     {
         FILE *fp = strcmp(st->input_name, "-") == 0 ? stdin : fopen(st->input_name, "rb");
         if (fp == NULL)
         {
-            log_fatal("Open IQ file failed.");
+            log_fatal("Open IQ file failed: %s", strerror(errno));
             return 1;
         }
-        if (nrsc5_open_file(&radio, fp) != 0)
+        // Open the library in pipe mode, expecting the app to push samples.
+        if (nrsc5_open_pipe(&radio) != 0)
         {
-            log_fatal("Open IQ failed.");
+            log_fatal("Open pipe failed.");
             return 1;
         }
+        st->radio = radio;
+
+        file_reader_args_t *thread_args = malloc(sizeof(file_reader_args_t));
+        thread_args->st = st;
+        thread_args->fp = fp;
+        // Create and start the file reader thread.
+        pthread_create(&file_thread, NULL, file_reader_thread, thread_args);
+        file_thread_created = 1;
     }
     else if (st->rtltcp_host)
     {
@@ -893,6 +1017,8 @@ int main(int argc, char *argv[])
             return 1;
         }
     }
+    st->radio = radio; // Ensure st->radio is set for all paths
+
     if (nrsc5_set_bias_tee(radio, st->bias_tee) != 0)
     {
         log_fatal("Set bias-T failed.");
@@ -911,7 +1037,7 @@ int main(int argc, char *argv[])
         log_fatal("Set frequency correction failed.");
         return 1;
     }
-    if (nrsc5_set_frequency(radio, st->freq) != 0)
+    if (st->freq > 0 && nrsc5_set_frequency(radio, st->freq) != 0)
     {
         log_fatal("Set frequency failed.");
         return 1;
@@ -932,14 +1058,12 @@ int main(int argc, char *argv[])
         while (!st->done && (st->head == NULL || st->audio_ready < AUDIO_THRESHOLD))
             pthread_cond_wait(&st->cond, &st->mutex);
 
-        // exit once done and no more audio buffers
-        if (st->head == NULL)
+        if (st->done && st->head == NULL)
         {
             pthread_mutex_unlock(&st->mutex);
             break;
         }
 
-        // unlink from head list
         b = st->head;
         st->head = b->next;
         if (st->head == NULL)
@@ -949,11 +1073,16 @@ int main(int argc, char *argv[])
         ao_play(st->dev, b->data, sizeof(b->data));
 
         pthread_mutex_lock(&st->mutex);
-        // add to free list
         b->next = st->free;
         st->free = b;
         pthread_cond_signal(&st->cond);
         pthread_mutex_unlock(&st->mutex);
+    }
+
+    // If the file reader thread was started, wait for it to finish cleanly
+    // before we stop and close the library. This prevents race conditions.
+    if (file_thread_created) {
+        pthread_join(file_thread, NULL);
     }
 
     pthread_cancel(input_thread);

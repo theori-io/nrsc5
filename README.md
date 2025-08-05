@@ -1,6 +1,6 @@
 # nrsc5
 
-This program receives NRSC-5 digital radio stations using an RTL-SDR dongle. It offers a command-line interface as well as an API upon which other applications can be built. Before using it, you'll first need to compile the program using the build instructions below.
+This program receives NRSC-5 digital radio stations using an RTL-SDR dongle, or by reading from I/Q files. It offers a command-line interface as well as an API upon which other applications can be built. Before using it, you'll first need to compile the program using the build instructions below.
 
 ## Building on Ubuntu, Debian or Raspbian
 

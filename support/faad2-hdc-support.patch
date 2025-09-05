@@ -11,15 +11,15 @@ Subject: [PATCH] Support for HDC variant
  libfaad/bits.h       |   2 +-
  libfaad/common.c     |   5 +
  libfaad/common.h     |   6 +
- libfaad/decoder.c    |  57 ++++++++-
- libfaad/drm_dec.c    | 108 +++++++++++++----
+ libfaad/decoder.c    |  54 ++++++++-
+ libfaad/drm_dec.c    | 108 +++++++++++++-----
  libfaad/drm_dec.h    |   5 +-
  libfaad/sbr_dec.c    |  10 +-
  libfaad/sbr_dec.h    |   4 +
  libfaad/sbr_syntax.c |  24 +++-
- libfaad/syntax.c     | 267 ++++++++++++++++++++++++++++++++++++++++++-
+ libfaad/syntax.c     | 257 ++++++++++++++++++++++++++++++++++++++++++-
  libfaad/syntax.h     |   6 +
- 15 files changed, 471 insertions(+), 44 deletions(-)
+ 15 files changed, 458 insertions(+), 44 deletions(-)
 
 diff --git a/CMakeLists.txt b/CMakeLists.txt
 index 97b61cc..5956418 100644
@@ -71,7 +71,7 @@ index 895ed18..18aefb7 100644
                          showHelp = 1;
                      }
 diff --git a/include/neaacdec.h b/include/neaacdec.h
-index f7d5f67..e0d114d 100644
+index f7d5f67..dbe1354 100644
 --- a/include/neaacdec.h
 +++ b/include/neaacdec.h
 @@ -60,7 +60,7 @@ extern "C" {
@@ -96,7 +96,7 @@ index f7d5f67..e0d114d 100644
                                   unsigned char channels);
 
 +/* Init the library for HDC */
-+NEAACDECAPI char NeAACDecInitHDC(NeAACDecHandle *hDecoder, unsigned long *samplerate);
++NEAACDECAPI char NeAACDecInitHDC(NeAACDecHandle *hDecoder);
 +
  NEAACDECAPI void NeAACDecPostSeekReset(NeAACDecHandle hDecoder, long frame);
 
@@ -161,7 +161,7 @@ index aba8e90..d6a5c59 100644
  /* LD can't do without LTP */
  #ifdef LD_DEC
 diff --git a/libfaad/decoder.c b/libfaad/decoder.c
-index de3b169..73e9ad2 100644
+index de3b169..731ebe8 100644
 --- a/libfaad/decoder.c
 +++ b/libfaad/decoder.c
 @@ -350,6 +350,13 @@ long NeAACDecInit(NeAACDecHandle hpDecoder,
@@ -178,13 +178,12 @@ index de3b169..73e9ad2 100644
  #if (defined(PS_DEC) || defined(DRM_PS))
      /* check if we have a mono file */
      if (*channels == 1)
-@@ -529,6 +536,41 @@ char NeAACDecInitDRM(NeAACDecHandle *hpDecoder,
+@@ -529,6 +536,38 @@ char NeAACDecInitDRM(NeAACDecHandle *hpDecoder,
  }
  #endif
 
 +#ifdef HDC
-+char NeAACDecInitHDC(NeAACDecHandle *hpDecoder,
-+                                 unsigned long *samplerate)
++char NeAACDecInitHDC(NeAACDecHandle *hpDecoder)
 +{
 +    NeAACDecStruct** hDecoder = (NeAACDecStruct**)hpDecoder;
 +    if (hDecoder == NULL)
@@ -197,7 +196,7 @@ index de3b169..73e9ad2 100644
 +    /* Special object type defined for HDC */
 +    (*hDecoder)->config.defObjectType = HDC_LC;
 +
-+    (*hDecoder)->config.defSampleRate = *samplerate;
++    (*hDecoder)->config.defSampleRate = 22050;
 +#ifdef ERROR_RESILIENCE
 +    (*hDecoder)->aacSectionDataResilienceFlag = 0;
 +    (*hDecoder)->aacScalefactorDataResilienceFlag = 0;
@@ -208,8 +207,6 @@ index de3b169..73e9ad2 100644
 +    (*hDecoder)->object_type = (*hDecoder)->config.defObjectType;
 +
 +    (*hDecoder)->channelConfiguration = 2;
-+
-+    *samplerate *= 2;
 +    (*hDecoder)->forceUpSampling = 1;
 +
 +    (*hDecoder)->fb = filter_bank_init((*hDecoder)->frameLength);
@@ -220,7 +217,7 @@ index de3b169..73e9ad2 100644
  void NeAACDecClose(NeAACDecHandle hpDecoder)
  {
      uint8_t i;
-@@ -987,7 +1029,20 @@ static void* aac_frame_decode(NeAACDecStruct *hDecoder,
+@@ -987,7 +1026,20 @@ static void* aac_frame_decode(NeAACDecStruct *hDecoder,
          DRM_aac_scalable_main_element(hDecoder, hInfo, &ld, &hDecoder->pce, hDecoder->drc);
      } else {
  #endif
@@ -612,7 +609,7 @@ index e27980f..4c2b91c 100644
  }
 
 diff --git a/libfaad/syntax.c b/libfaad/syntax.c
-index 56ae310..c25dbfc 100644
+index 56ae310..2c7ae05 100644
 --- a/libfaad/syntax.c
 +++ b/libfaad/syntax.c
 @@ -86,7 +86,7 @@ static void gain_control_data(bitfile *ld, ic_stream *ics);
@@ -624,7 +621,7 @@ index 56ae310..c25dbfc 100644
  #ifdef LTP_DEC
  static uint8_t ltp_data(NeAACDecStruct *hDecoder, ic_stream *ics, ltp_info *ltp, bitfile *ld);
  #endif
-@@ -446,6 +446,248 @@ static void decode_cpe(NeAACDecStruct *hDecoder, NeAACDecFrameInfo *hInfo, bitfi
+@@ -446,6 +446,238 @@ static void decode_cpe(NeAACDecStruct *hDecoder, NeAACDecFrameInfo *hInfo, bitfi
      hDecoder->fr_ch_ele++;
  }
 
@@ -737,30 +734,20 @@ index 56ae310..c25dbfc 100644
 +    switch (block_type)
 +    {
 +    case 0:
-+        {
 +            return 0;
-+            break;
-+        }
 +    case 1:
-+        {
 +            return 0;
-+            break;
-+        }
 +    case 2:
-+        {
 +            return 1;
-+            break;
-+        }
 +    case 5:
 +    case 6:
-+        {
 +            return 0;
-+            break;
-+        }
 +    case 7:
-+        {
 +            return 1;
-+            break;
++    default:
++        {
++            fprintf(stderr, "Unknown HDC block type: %d\n", block_type);
++            return 0;
 +        }
 +    }
 +}
@@ -873,7 +860,7 @@ index 56ae310..c25dbfc 100644
  void raw_data_block(NeAACDecStruct *hDecoder, NeAACDecFrameInfo *hInfo,
                      bitfile *ld, program_config *pce, drc_info *drc)
  {
-@@ -1172,6 +1414,14 @@ static uint8_t fill_element(NeAACDecStruct *hDecoder, bitfile *ld, drc_info *drc
+@@ -1172,6 +1404,14 @@ static uint8_t fill_element(NeAACDecStruct *hDecoder, bitfile *ld, drc_info *drc
                  hDecoder->ps_used_global = 1;
              }
  #endif
@@ -888,7 +875,7 @@ index 56ae310..c25dbfc 100644
          } else {
  #endif
  #ifndef DRM
-@@ -1362,12 +1612,12 @@ void DRM_aac_scalable_main_element(NeAACDecStruct *hDecoder, NeAACDecFrameInfo *
+@@ -1362,12 +1602,12 @@ void DRM_aac_scalable_main_element(NeAACDecStruct *hDecoder, NeAACDecFrameInfo *
      }
      /* Stereo4 / Mono2 */
      if (ics1->tns_data_present)
@@ -903,7 +890,7 @@ index 56ae310..c25dbfc 100644
      }
 
  #ifdef DRM
-@@ -1617,7 +1867,7 @@ static uint8_t side_info(NeAACDecStruct *hDecoder, element *ele,
+@@ -1617,7 +1857,7 @@ static uint8_t side_info(NeAACDecStruct *hDecoder, element *ele,
  #ifdef ERROR_RESILIENCE
              if (hDecoder->object_type < ER_OBJECT_START)
  #endif
@@ -912,7 +899,7 @@ index 56ae310..c25dbfc 100644
          }
 
          /* get gain control data */
-@@ -1681,7 +1931,7 @@ static uint8_t individual_channel_stream(NeAACDecStruct *hDecoder, element *ele,
+@@ -1681,7 +1921,7 @@ static uint8_t individual_channel_stream(NeAACDecStruct *hDecoder, element *ele,
      if (hDecoder->object_type >= ER_OBJECT_START)
      {
          if (ics->tns_data_present)
@@ -921,7 +908,7 @@ index 56ae310..c25dbfc 100644
      }
 
  #ifdef DRM
-@@ -2016,7 +2266,7 @@ static uint8_t scale_factor_data(NeAACDecStruct *hDecoder, ic_stream *ics, bitfi
+@@ -2016,7 +2256,7 @@ static uint8_t scale_factor_data(NeAACDecStruct *hDecoder, ic_stream *ics, bitfi
  }
 
  /* Table 4.4.27 */
@@ -930,7 +917,7 @@ index 56ae310..c25dbfc 100644
  {
      uint8_t w, filt, i, coef_bits;
      uint8_t n_filt_bits = 2;
-@@ -2033,6 +2283,11 @@ static void tns_data(ic_stream *ics, tns_info *tns, bitfile *ld)
+@@ -2033,6 +2273,11 @@ static void tns_data(ic_stream *ics, tns_info *tns, bitfile *ld)
      for (w = 0; w < ics->num_windows; w++)
      {
          uint8_t start_coef_bits = 3;

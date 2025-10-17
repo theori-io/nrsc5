@@ -480,16 +480,17 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
             switch (evt->emergency_alert.location_format)
             {
             case NRSC5_LOCATION_FORMAT_SAME:
-                strcat(alert_details, "SAME=[");
+                strcat(alert_details, "SAME=");
                 break;
             case NRSC5_LOCATION_FORMAT_FIPS:
-                strcat(alert_details, "FIPS=[");
+                strcat(alert_details, "FIPS=");
                 break;
             case NRSC5_LOCATION_FORMAT_ZIP:
-                strcat(alert_details, "ZIP=[");
+                strcat(alert_details, "ZIP=");
                 break;
             }
 
+            strcat(alert_details, "[");
             for (i = 0; i < evt->emergency_alert.num_locations; i++)
             {
                 if (i > 0)

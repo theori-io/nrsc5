@@ -166,15 +166,80 @@ static char decode_char7(uint8_t *bits, int *off)
     return (char) decode_int(bits, off, 7);
 }
 
+static int* decode_locations(uint8_t *bits, int len, int location_format, int num_locations)
+{
+    int off = 0;
+    int locations[MAX_ALERT_LOCATIONS];
+    int previous_location = 0;
+    int full_len, compressed_len;
+    int *locations_out;
+
+    switch (location_format)
+    {
+    case 0: // SAME
+        full_len = 20;
+        compressed_len = 14;
+        break;
+    case 1: // FIPS
+    case 2: // ZIP
+        full_len = 17;
+        compressed_len = 10;
+        break;
+    default:
+        log_warn("Invalid location format: %d", location_format);
+        return NULL;
+    }
+
+    for (int i = 0; i < num_locations; i++)
+    {
+        if (off + 1 > len)
+        {
+            log_warn("Invalid location data");
+            return NULL;
+        }
+
+        if ((i == 0) || bits[off++])
+        {
+            // Full-length location
+            if (off + full_len > len)
+            {
+                log_warn("Invalid location data");
+                return NULL;
+            }
+            locations[i] = decode_int_reverse(bits, &off, full_len);
+        }
+        else
+        {
+            // Compressed location
+            if (off + compressed_len > len)
+            {
+                log_warn("Invalid location data");
+                return NULL;
+            }
+            int new_digits = decode_int_reverse(bits, &off, compressed_len);
+            int old_digits = (previous_location % 100000) - (previous_location % 1000);
+            locations[i] = ((new_digits / 1000) * 100000) + (new_digits % 1000) + old_digits;
+        }
+
+        previous_location = locations[i];
+    }
+
+    locations_out = malloc(sizeof(int) * num_locations);
+    if (locations_out == NULL)
+    {
+        log_warn("Failed to allocate memory for emergency alert locations");
+        return NULL;
+    }
+    memcpy(locations_out, locations, sizeof(int) * num_locations);
+    return locations_out;
+}
+
 static void decode_control_data(const char *control_data, int len, int *category1, int *category2, int *location_format, int *num_locations, int **locations_out)
 {
     int i, j;
     uint8_t bits[MAX_ALERT_CNT_LEN * 8];
     int off = 0;
-    int locations[MAX_ALERT_LOCATIONS];
-    int previous_location = 0;
-    int full_len, compressed_len;
-    
+
     for (i = 0; i < len; i++)
         for (j = 0; j < 8; j++)
             bits[i*8 + j] = ((unsigned char)control_data[i] >> j) & 1;
@@ -189,58 +254,9 @@ static void decode_control_data(const char *control_data, int len, int *category
     *num_locations = decode_int_reverse(bits, &off, 5);
     off += 1; // unknown
 
-    switch (*location_format)
-    {
-    case 0: // SAME
-        full_len = 20;
-        compressed_len = 14;
-        break;
-    case 1: // FIPS
-    case 2: // ZIP
-        full_len = 17;
-        compressed_len = 10;
-        break;
-    default:
-        log_warn("Invalid location format: %d", *location_format);
-        return;
-    }
-
-    for (int i = 0; i < *num_locations; i++)
-    {
-        if (off + 1 > len*8)
-        {
-            log_warn("Invalid location data");
-            return;
-        }
-
-        if ((i == 0) || bits[off++])
-        {
-            // Full-length location
-            if (off + full_len > len*8)
-            {
-                log_warn("Invalid location data");
-                return;
-            }
-            locations[i] = decode_int_reverse(bits, &off, full_len);
-        }
-        else
-        {
-            // Compressed location
-            if (off + compressed_len > len*8)
-            {
-                log_warn("Invalid location data");
-                return;
-            }
-            int new_digits = decode_int_reverse(bits, &off, compressed_len);
-            int old_digits = (previous_location % 100000) - (previous_location % 1000);
-            locations[i] = ((new_digits / 1000) * 100000) + (new_digits % 1000) + old_digits;
-        }
-
-        previous_location = locations[i];
-    }
-
-    *locations_out = malloc(sizeof(int) * (*num_locations));
-    memcpy(*locations_out, locations, sizeof(int) * (*num_locations));
+    *locations_out = decode_locations(bits + off, len*8 - off, *location_format, *num_locations);
+    if (*locations_out == NULL)
+        *num_locations = 0;
 }
 
 static char *utf8_encode(encoding_t encoding, char *buf, int len)

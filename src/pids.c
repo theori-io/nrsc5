@@ -207,7 +207,7 @@ static void decode_control_data(const char *control_data, int len, int *category
 
     for (int i = 0; i < *num_locations; i++)
     {
-        if (off + 1 >= len*8)
+        if (off + 1 > len*8)
         {
             log_warn("Invalid location data");
             return;
@@ -216,7 +216,7 @@ static void decode_control_data(const char *control_data, int len, int *category
         if ((i == 0) || bits[off++])
         {
             // Full-length location
-            if (off + full_len >= len*8)
+            if (off + full_len > len*8)
             {
                 log_warn("Invalid location data");
                 return;
@@ -226,7 +226,7 @@ static void decode_control_data(const char *control_data, int len, int *category
         else
         {
             // Compressed location
-            if (off + compressed_len >= len*8)
+            if (off + compressed_len > len*8)
             {
                 log_warn("Invalid location data");
                 return;

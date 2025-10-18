@@ -78,8 +78,7 @@ void output_advance(output_t *st)
 
                 if (!st->aacdec[program])
                 {
-                    unsigned long samprate = 22050;
-                    NeAACDecInitHDC(&st->aacdec[program], &samprate);
+                    NeAACDecInitHDC(&st->aacdec[program]);
                 }
 
                 buffer = NeAACDecDecode(st->aacdec[program], &info, pkt, len);

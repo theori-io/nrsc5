@@ -726,7 +726,8 @@ static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *
 
             if (file->name)
             {
-                if ((memcmp(buf, file->name, hdrlen) != 0)
+                if ((hdrlen != strlen(file->name))
+                    || (memcmp(buf, file->name, hdrlen) != 0)
                     || (size != file->size)
                     || (mime != file->mime)
                     || (year != file->expiry_utc.tm_year)

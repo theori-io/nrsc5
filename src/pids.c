@@ -670,7 +670,7 @@ static void decode_sis(pids_t *st, uint8_t *bits)
                 case 1:
                 case 2:
                     if (st->parameters[1] >= 0 && st->parameters[2] >= 0)
-                        log_debug("ALFN of pending leap second adjustment: %d", st->parameters[2] << 16 | st->parameters[1]);
+                        log_debug("ALFN of pending leap second adjustment: %d", (unsigned int)st->parameters[2] << 16 | st->parameters[1]);
                     break;
                 case 3:
                     tzo = (parameter >> 5) & 0x7ff;

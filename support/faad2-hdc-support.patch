@@ -664,7 +664,7 @@ index 56ae310..2c7ae05 100644
 +    if (layer_stereo)
 +    {
 +        ics1->ms_mask_present = (uint8_t)faad_getbits(ld, 2
-+           DEBUGVAR(1,306,"aac_scalable_main_header(): ms_mask_present"));
++           DEBUGVAR(1,306,"hdc_data_frame(): ms_mask_present"));
 +        if (ics1->ms_mask_present == 3)
 +        {
 +            /* bitstream error */

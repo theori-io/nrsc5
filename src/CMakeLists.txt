@@ -116,6 +116,7 @@ endif ()
 
 install (
     TARGETS nrsc5 nrsc5_static
+    RUNTIME DESTINATION bin
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
     PUBLIC_HEADER DESTINATION include

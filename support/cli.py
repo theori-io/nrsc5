@@ -28,6 +28,7 @@ class NRSC5CLI:
         self.hdc_output = None
         self.audio_packets = 0
         self.audio_bytes = 0
+        self.audio_errors = 0
         signal.signal(signal.SIGINT, self._signal_handler)
 
     def _signal_handler(self, sig, frame):
@@ -226,11 +227,17 @@ class NRSC5CLI:
 
                 self.audio_packets += 1
                 self.audio_bytes += len(evt.data)
+                if evt.flags & nrsc5.PacketFlags.CRC_ERROR:
+                    self.audio_errors += 1
+
                 if self.audio_packets >= 32:
                     logging.info("Audio bit rate: %.1f kbps", self.audio_bytes * 8 * nrsc5.SAMPLE_RATE_AUDIO
                                  / nrsc5.AUDIO_FRAME_SAMPLES / self.audio_packets / 1000)
+                    if self.audio_errors > 0:
+                        logging.warning("CRC mismatch: %d/%d", self.audio_errors, self.audio_packets)
                     self.audio_packets = 0
                     self.audio_bytes = 0
+                    self.audio_errors = 0
         elif evt_type == nrsc5.EventType.AUDIO:
             if evt.program == self.args.program:
                 if self.args.o:

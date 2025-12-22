@@ -182,12 +182,16 @@ class HEREImageType(enum.Enum):
     TRAFFIC = 8
     WEATHER = 13
 
+class PacketFlags(enum.IntFlag):
+    NONE = 0
+    CRC_ERROR = 1 << 0
+
 
 IQ = collections.namedtuple("IQ", ["data"])
 Sync = collections.namedtuple("Sync", ["freq_offset", "psmi"])
 MER = collections.namedtuple("MER", ["lower", "upper"])
 BER = collections.namedtuple("BER", ["cber"])
-HDC = collections.namedtuple("HDC", ["program", "data"])
+HDC = collections.namedtuple("HDC", ["program", "data", "flags"])
 Audio = collections.namedtuple("Audio", ["program", "data"])
 Comment = collections.namedtuple("Comment", ["lang", "short_content_desc", "full_text"])
 UFID = collections.namedtuple("UFID", ["owner", "id"])
@@ -253,6 +257,7 @@ class _HDC(ctypes.Structure):
         ("program", ctypes.c_uint),
         ("data", ctypes.POINTER(ctypes.c_char)),
         ("count", ctypes.c_size_t),
+        ("flags", ctypes.c_uint),
     ]
 
 
@@ -675,7 +680,7 @@ class NRSC5:
             evt = BER(ber.cber)
         elif evt_type == EventType.HDC:
             hdc = c_evt.u.hdc
-            evt = HDC(hdc.program, hdc.data[:hdc.count])
+            evt = HDC(hdc.program, hdc.data[:hdc.count], PacketFlags(hdc.flags))
         elif evt_type == EventType.AUDIO:
             audio = c_evt.u.audio
             evt = Audio(audio.program, audio.data[:audio.count * 2])

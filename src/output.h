@@ -19,6 +19,20 @@
 
 enum
 {
+    PACKET_FLAG_NONE = 0,
+    PACKET_FLAG_CRC_ERROR = 1 << 0,
+};
+
+enum
+{
+    PACKET_NONE = 0,
+    PACKET_FULL,
+    PACKET_HALF_FRONT,
+    PACKET_HALF_BACK,
+};
+
+enum
+{
     SIG_COMPONENT_NONE,
     SIG_COMPONENT_DATA,
     SIG_COMPONENT_AUDIO
@@ -79,8 +93,21 @@ typedef struct
 
 typedef struct
 {
+    uint8_t *data;
+    unsigned int size;
+    unsigned int program;
+    unsigned int stream_id;
+    unsigned int seq;
+    unsigned int flags;
+    unsigned int shape;
+} packet_ref_t;
+
+typedef struct
+{
     unsigned int size;
     uint8_t data[MAX_PDU_LEN];
+    unsigned int flags;
+    unsigned int shape;
 } packet_t;
 
 typedef struct
@@ -103,7 +130,7 @@ typedef struct
 } output_t;
 
 void output_align(output_t *st, unsigned int program, unsigned int stream_id, unsigned int offset);
-void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int program, unsigned int stream_id, unsigned int seq);
+void output_push(output_t *st, const packet_ref_t* ref);
 void output_advance(output_t *st);
 void output_reset(output_t *st);
 void output_init(output_t *st, nrsc5_t *);

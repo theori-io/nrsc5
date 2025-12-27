@@ -702,8 +702,7 @@ void nrsc5_report_lost_sync(nrsc5_t *st)
     nrsc5_report(st, &evt);
 }
 
-void nrsc5_report_hdc(nrsc5_t *st, unsigned int program, const packet_t* pkt)
-{
+void nrsc5_report_hdc(nrsc5_t *st, unsigned int program, const packet_ref_t* pkt, const packet_ref_t* enh_pkt){
     nrsc5_event_t evt;
 
     evt.event = NRSC5_EVENT_HDC;
@@ -711,14 +710,27 @@ void nrsc5_report_hdc(nrsc5_t *st, unsigned int program, const packet_t* pkt)
     evt.hdc.data = NULL;
     evt.hdc.count = 0;
     evt.hdc.flags = NRSC5_PKT_FLAGS_NONE;
+    evt.hdc.enh_data = NULL;
+    evt.hdc.enh_count = 0;
+    evt.hdc.enh_flags = NRSC5_PKT_FLAGS_NONE;
 
-    if (pkt->shape == PACKET_FULL)
+    if (pkt != NULL)
     {
         evt.hdc.data = pkt->data;
         evt.hdc.count = pkt->size;
+
+        if (pkt->flags & PACKET_FLAG_CRC_ERROR)
+            evt.hdc.flags |= NRSC5_PKT_FLAGS_CRC_ERROR;
     }
-    if (pkt->flags & PACKET_FLAG_CRC_ERROR)
-        evt.hdc.flags |= NRSC5_PKT_FLAGS_CRC_ERROR;
+
+    if (enh_pkt != NULL)
+    {
+        evt.hdc.enh_data = enh_pkt->data;
+        evt.hdc.enh_count = enh_pkt->size;
+
+        if (enh_pkt->flags & PACKET_FLAG_CRC_ERROR)
+            evt.hdc.enh_flags |= NRSC5_PKT_FLAGS_CRC_ERROR;
+    }
 
     nrsc5_report(st, &evt);
 }

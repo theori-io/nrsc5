@@ -414,6 +414,9 @@ struct nrsc5_event_t
             const uint8_t *data;
             size_t count;
             unsigned int flags; /** The specific status of the hdc packet. Example `NRSC5_PKT_FLAGS_CRC_ERROR` **/
+            const uint8_t *enh_data;
+            size_t enh_count;
+            unsigned int enh_flags;
         } hdc;
         struct {
             unsigned int program;

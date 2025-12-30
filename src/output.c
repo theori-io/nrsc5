@@ -93,7 +93,7 @@ void output_push(output_t *st, const packet_ref_t* ref)
 static void pkt_reset(packet_t* pkt)
 {
     pkt->size = 0;
-    pkt->flags = 0;
+    pkt->flags = PACKET_FLAG_NONE;
     pkt->shape = PACKET_NONE;
 }
 

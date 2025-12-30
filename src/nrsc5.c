@@ -710,7 +710,7 @@ void nrsc5_report_hdc(nrsc5_t *st, unsigned int program, const packet_t* pkt)
     evt.hdc.program = program;
     evt.hdc.data = NULL;
     evt.hdc.count = 0;
-    evt.hdc.flags = 0;
+    evt.hdc.flags = NRSC5_PKT_FLAGS_NONE;
 
     if (pkt->shape == PACKET_FULL)
     {

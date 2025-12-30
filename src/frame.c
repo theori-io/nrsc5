@@ -622,7 +622,7 @@ void frame_process(frame_t *st, size_t length, logical_channel_t lc)
             ref.data = st->buffer + offset;
             ref.size = cnt;
             ref.seq = seq;
-            ref.flags = 0;
+            ref.flags = PACKET_FLAG_NONE;
 
             if (crc != 0)
                 ref.flags |= PACKET_FLAG_CRC_ERROR;

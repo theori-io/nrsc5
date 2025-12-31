@@ -347,6 +347,12 @@ struct nrsc5_id3_comment_t {
  */
 typedef struct nrsc5_id3_comment_t nrsc5_id3_comment_t;
 
+enum
+{
+    NRSC5_PKT_FLAGS_NONE = 0,
+    NRSC5_PKT_FLAGS_CRC_ERROR = 1 << 0, /** Failed the CRC check. Could be corrupted packet. */
+};
+
 /**  Incoming event from receiver.
  *
  * This event structure is passed to your application supplied
@@ -407,6 +413,7 @@ struct nrsc5_event_t
             unsigned int program;
             const uint8_t *data;
             size_t count;
+            unsigned int flags; /** The specific status of the hdc packet. Example `NRSC5_PKT_FLAGS_CRC_ERROR` **/
         } hdc;
         struct {
             unsigned int program;

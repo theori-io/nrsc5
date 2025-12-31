@@ -616,37 +616,24 @@ void frame_process(frame_t *st, size_t length, logical_channel_t lc)
             unsigned int cnt = start + locations[j] - offset;
             uint8_t crc = crc8(st->buffer + offset, cnt + 1);
 
-            if (crc != 0)
-                log_warn("crc mismatch!");
+            packet_ref_t ref;
+            ref.program = prog;
+            ref.stream_id = hdr.stream_id;
+            ref.data = st->buffer + offset;
+            ref.size = cnt;
+            ref.seq = seq;
+            ref.flags = PACKET_FLAG_NONE;
 
+            if (crc != 0)
+                ref.flags |= PACKET_FLAG_CRC_ERROR;
             if (j == 0 && hdr.pfirst)
-            {
-                unsigned int idx = st->pdu_idx[prog][hdr.stream_id];
-                if (idx)
-                {
-                    if (crc == 0)
-                    {
-                        memcpy(&st->pdu[prog][hdr.stream_id][idx], st->buffer + offset, cnt);
-                        output_push(st->input->output, st->pdu[prog][hdr.stream_id], cnt + idx, prog, hdr.stream_id, seq);
-                    }
-                    st->pdu_idx[prog][hdr.stream_id] = 0;
-                }
-            }
+                ref.shape = PACKET_HALF_BACK;
             else if (j == hdr.nop - 1 && hdr.plast)
-            {
-                if (crc == 0)
-                {
-                    memcpy(st->pdu[prog][hdr.stream_id], st->buffer + offset, cnt);
-                    st->pdu_idx[prog][hdr.stream_id] = cnt;
-                }
-            }
+                ref.shape = PACKET_HALF_FRONT;
             else
-            {
-                if (crc == 0)
-                {
-                    output_push(st->input->output, st->buffer + offset, cnt, prog, hdr.stream_id, seq);
-                }
-            }
+                ref.shape = PACKET_FULL;
+
+            output_push(st->input->output, &ref);
 
             offset += cnt + 1;
             seq = (seq + 1) % ELASTIC_BUFFER_LEN;
@@ -742,10 +729,6 @@ void frame_reset(frame_t *st)
     st->pci = 0;
     for (int prog = 0; prog < MAX_PROGRAMS; prog++)
     {
-        for (int stream_id = 0; stream_id < MAX_STREAMS; stream_id++)
-        {
-            st->pdu_idx[prog][stream_id] = 0;
-        }
         st->psd_idx[prog] = -1;
     }
 

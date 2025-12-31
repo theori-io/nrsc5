@@ -34,18 +34,67 @@ void output_align(output_t *st, unsigned int program, unsigned int stream_id, un
     elastic->audio_offset = offset;
 }
 
-void output_push(output_t *st, uint8_t *pkt, unsigned int len, unsigned int program, unsigned int stream_id, unsigned int seq)
+static int is_complete_pkt(const packet_t* pkt)
 {
-    elastic_buffer_t *elastic = &st->elastic[program][stream_id];
+    return pkt->shape == PACKET_FULL;
+}
 
-    if (stream_id != 0)
+static int is_crc_ok(const packet_t* pkt)
+{
+    return !(pkt->flags & PACKET_FLAG_CRC_ERROR);
+}
+
+void output_push(output_t *st, const packet_ref_t* ref)
+{
+    elastic_buffer_t *elastic = &st->elastic[ref->program][ref->stream_id];
+    packet_t* pkt = &elastic->packets[ref->seq];
+
+    if (ref->stream_id != 0)
         return; // TODO: Process enhanced stream
 
-    if (elastic->packets[seq].size != 0)
-       log_warn("Packet %d already exists in elastic buffer for program %d, stream %d. Overwriting.", seq, program, stream_id);
+    if (pkt->shape == PACKET_FULL)
+        log_warn("Packet %d already exists in elastic buffer for program %d, stream %d. Overwriting.", ref->seq, ref->program, ref->stream_id);
 
-    memcpy(elastic->packets[seq].data, pkt, len);
-    elastic->packets[seq].size = len;
+    if (ref->shape == PACKET_HALF_BACK && pkt->shape == PACKET_HALF_FRONT)
+    {
+        pkt->flags |= ref->flags;
+        pkt->shape = PACKET_FULL;
+
+        if (is_crc_ok(pkt))
+        {
+            memcpy(pkt->data + pkt->size, ref->data, ref->size);
+            pkt->size += ref->size;
+        }
+        else
+        {
+            pkt->size = 0;
+        }
+    }
+    else
+    {
+        if (ref->shape == PACKET_HALF_BACK)
+            return;
+
+        pkt->flags = ref->flags;
+        pkt->shape = ref->shape;
+
+        if (is_crc_ok(pkt))
+        {
+            memcpy(pkt->data, ref->data, ref->size);
+            pkt->size = ref->size;
+        }
+        else
+        {
+            pkt->size = 0;
+        }
+    }
+}
+
+static void pkt_reset(packet_t* pkt)
+{
+    pkt->size = 0;
+    pkt->flags = PACKET_FLAG_NONE;
+    pkt->shape = PACKET_NONE;
 }
 
 void output_advance(output_t *st)
@@ -62,16 +111,18 @@ void output_advance(output_t *st)
 
         for (frame = 0; frame < audio_frames; frame++)
         {
-            unsigned int len = elastic->packets[elastic->audio_offset].size;
-            uint8_t *pkt = elastic->packets[elastic->audio_offset].data;
+            packet_t* pkt = &elastic->packets[elastic->audio_offset];
 #ifdef USE_FAAD2
             int produced_audio = 0;
 #endif
 
-            if (len > 0)
+            if (is_complete_pkt(pkt))
             {
-                nrsc5_report_hdc(st->radio, program, pkt, len);
+                nrsc5_report_hdc(st->radio, program, pkt);
+            }
 
+            if (is_complete_pkt(pkt) && is_crc_ok(pkt))
+            {
 #ifdef USE_FAAD2
                 void *buffer;
                 NeAACDecFrameInfo info;
@@ -81,7 +132,7 @@ void output_advance(output_t *st)
                     NeAACDecInitHDC(&st->aacdec[program]);
                 }
 
-                buffer = NeAACDecDecode(st->aacdec[program], &info, pkt, len);
+                buffer = NeAACDecDecode(st->aacdec[program], &info, pkt->data, pkt->size);
                 if (info.error > 0)
                     log_error("Decode error: %s", NeAACDecGetErrorMessage(info.error));
 
@@ -91,8 +142,6 @@ void output_advance(output_t *st)
                     produced_audio = 1;
                 }
 #endif
-
-                elastic->packets[elastic->audio_offset].size = 0;
             }
             else
             {
@@ -105,6 +154,8 @@ void output_advance(output_t *st)
                 }                
 #endif
             }
+
+            pkt_reset(pkt);
 
 #ifdef USE_FAAD2
             if (!produced_audio)
@@ -160,7 +211,7 @@ void output_reset(output_t *st)
         {
             for (int k = 0; k < ELASTIC_BUFFER_LEN; k++)
             {
-                st->elastic[i][j].packets[k].size = 0;
+                pkt_reset(&st->elastic[i][j].packets[k]);
             }
             st->elastic[i][j].audio_offset = -1;
         }

@@ -52,7 +52,7 @@ void nrsc5_report_sync(nrsc5_t *, float freq_offset, int psmi);
 void nrsc5_report_lost_sync(nrsc5_t *);
 void nrsc5_report_mer(nrsc5_t *, float lower, float upper);
 void nrsc5_report_ber(nrsc5_t *, float cber);
-void nrsc5_report_hdc(nrsc5_t *, unsigned int program, const packet_t* pkt);
+void nrsc5_report_hdc(nrsc5_t *, unsigned int program, const packet_ref_t* pkt, const packet_ref_t* enh_pkt);
 void nrsc5_report_audio(nrsc5_t *, unsigned int program, const int16_t *data, size_t count);
 void nrsc5_report_stream(nrsc5_t *, uint16_t seq, unsigned int size, const uint8_t *data,
                          nrsc5_sig_service_t *service, nrsc5_sig_component_t *component);

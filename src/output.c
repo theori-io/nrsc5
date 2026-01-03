@@ -34,60 +34,9 @@ void output_align(output_t *st, unsigned int program, unsigned int stream_id, un
     elastic->audio_offset = offset;
 }
 
-static int is_complete_pkt(const packet_t* pkt)
+static int pkt_is_crc_ok(const unsigned int flags)
 {
-    return pkt->shape == PACKET_FULL;
-}
-
-static int is_crc_ok(const packet_t* pkt)
-{
-    return !(pkt->flags & PACKET_FLAG_CRC_ERROR);
-}
-
-void output_push(output_t *st, const packet_ref_t* ref)
-{
-    elastic_buffer_t *elastic = &st->elastic[ref->program][ref->stream_id];
-    packet_t* pkt = &elastic->packets[ref->seq];
-
-    if (ref->stream_id != 0)
-        return; // TODO: Process enhanced stream
-
-    if (pkt->shape == PACKET_FULL)
-        log_warn("Packet %d already exists in elastic buffer for program %d, stream %d. Overwriting.", ref->seq, ref->program, ref->stream_id);
-
-    if (ref->shape == PACKET_HALF_BACK && pkt->shape == PACKET_HALF_FRONT)
-    {
-        pkt->flags |= ref->flags;
-        pkt->shape = PACKET_FULL;
-
-        if (is_crc_ok(pkt))
-        {
-            memcpy(pkt->data + pkt->size, ref->data, ref->size);
-            pkt->size += ref->size;
-        }
-        else
-        {
-            pkt->size = 0;
-        }
-    }
-    else
-    {
-        if (ref->shape == PACKET_HALF_BACK)
-            return;
-
-        pkt->flags = ref->flags;
-        pkt->shape = ref->shape;
-
-        if (is_crc_ok(pkt))
-        {
-            memcpy(pkt->data, ref->data, ref->size);
-            pkt->size = ref->size;
-        }
-        else
-        {
-            pkt->size = 0;
-        }
-    }
+    return !(flags & PACKET_FLAG_CRC_ERROR);
 }
 
 static void pkt_reset(packet_t* pkt)
@@ -97,31 +46,103 @@ static void pkt_reset(packet_t* pkt)
     pkt->shape = PACKET_NONE;
 }
 
+void output_push(output_t *st, const packet_ref_t* ref)
+{
+    elastic_buffer_t *elastic = &st->elastic[ref->program][ref->stream_id];
+    packet_t* pkt = &elastic->packets[ref->seq];
+    size_t offset = 0;
+
+    if (pkt->shape == PACKET_FULL)
+        log_warn("Packet %d already exists in elastic buffer for program %d, stream %d. Overwriting.", ref->seq, ref->program, ref->stream_id);
+
+    if (ref->shape == PACKET_HALF_BACK)
+    {
+        if (pkt->shape != PACKET_HALF_FRONT)
+            return;
+
+        pkt->flags |= ref->flags;
+        pkt->shape = PACKET_FULL;
+
+        offset = pkt->size;
+    }
+    else
+    {
+        pkt->flags = ref->flags;
+        pkt->shape = ref->shape;
+
+        offset = 0;
+    }
+
+    if (pkt_is_crc_ok(pkt->flags))
+    {
+        memcpy(pkt->data + offset, ref->data, ref->size);
+        pkt->size = offset + ref->size;
+    }
+    else
+    {
+        pkt->size = 0;
+    }
+}
+
+static int is_core_running(output_t *st, unsigned int program)
+{
+    elastic_buffer_t *elastic = &st->elastic[program][0];
+    return elastic->audio_offset != -1;
+}
+
+static int collect_packet(output_t *st, packet_ref_t* ref, unsigned int program, unsigned int stream_id)
+{
+    elastic_buffer_t *elastic = &st->elastic[program][stream_id];
+    if (elastic->audio_offset == -1)
+        return 0;
+
+    packet_t* pkt = &elastic->packets[elastic->audio_offset];
+    if (pkt->shape != PACKET_FULL)
+        return 0;
+
+    ref->program = program;
+    ref->stream_id = stream_id;
+    ref->seq = elastic->audio_offset;
+    ref->flags = pkt->flags;
+
+    if (pkt_is_crc_ok(pkt->flags))
+    {
+        ref->data = pkt->data;
+        ref->size = pkt->size;
+    }
+    else
+    {
+        ref->data = NULL;
+        ref->size = 0;
+    }
+    return 1;
+}
+
 void output_advance(output_t *st)
 {
-    unsigned int program, frame;
+    unsigned int program, stream_id, frame;
     unsigned int audio_frames = (st->radio->mode == NRSC5_MODE_FM ? 2 : 4);
+    packet_ref_t core, enh;
 
     for (program = 0; program < MAX_PROGRAMS; program++)
     {
-        elastic_buffer_t *elastic = &st->elastic[program][0]; // TODO: Process enhanced stream
-
-        if (elastic->audio_offset == -1)
+        if (!is_core_running(st, program))
             continue;
 
         for (frame = 0; frame < audio_frames; frame++)
         {
-            packet_t* pkt = &elastic->packets[elastic->audio_offset];
+            int has_core = collect_packet(st, &core, program, 0);
+            int has_enh = collect_packet(st, &enh, program, 1);
 #ifdef USE_FAAD2
             int produced_audio = 0;
 #endif
 
-            if (is_complete_pkt(pkt))
+            if (has_core)
             {
-                nrsc5_report_hdc(st->radio, program, pkt);
+                nrsc5_report_hdc(st->radio, program, &core, has_enh ? &enh : NULL);
             }
 
-            if (is_complete_pkt(pkt) && is_crc_ok(pkt))
+            if (has_core && core.size > 0)
             {
 #ifdef USE_FAAD2
                 void *buffer;
@@ -132,7 +153,7 @@ void output_advance(output_t *st)
                     NeAACDecInitHDC(&st->aacdec[program]);
                 }
 
-                buffer = NeAACDecDecode(st->aacdec[program], &info, pkt->data, pkt->size);
+                buffer = NeAACDecDecode(st->aacdec[program], &info, core.data, core.size);
                 if (info.error > 0)
                     log_error("Decode error: %s", NeAACDecGetErrorMessage(info.error));
 
@@ -155,14 +176,22 @@ void output_advance(output_t *st)
 #endif
             }
 
-            pkt_reset(pkt);
-
 #ifdef USE_FAAD2
             if (!produced_audio)
                 nrsc5_report_audio(st->radio, program, st->silence, NRSC5_AUDIO_FRAME_SAMPLES * 2);
 #endif
-    
-            elastic->audio_offset = (elastic->audio_offset + 1) % ELASTIC_BUFFER_LEN;
+
+            for (stream_id = 0; stream_id < MAX_STREAMS; stream_id++)
+            {
+                elastic_buffer_t *elastic = &st->elastic[program][stream_id];
+
+                if (elastic->audio_offset == -1)
+                    continue;
+
+                pkt_reset(&elastic->packets[elastic->audio_offset]);
+                elastic->audio_offset = (elastic->audio_offset + 1) % ELASTIC_BUFFER_LEN;
+            }
+
         }
     }
 }

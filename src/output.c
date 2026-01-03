@@ -84,6 +84,12 @@ void output_push(output_t *st, const packet_ref_t* ref)
     }
 }
 
+static int is_core_running(output_t *st, unsigned int program)
+{
+    elastic_buffer_t *elastic = &st->elastic[program][0];
+    return elastic->audio_offset != -1;
+}
+
 static int collect_packet(output_t *st, packet_ref_t* ref, unsigned int program, unsigned int stream_id)
 {
     elastic_buffer_t *elastic = &st->elastic[program][stream_id];
@@ -104,6 +110,11 @@ static int collect_packet(output_t *st, packet_ref_t* ref, unsigned int program,
         ref->data = pkt->data;
         ref->size = pkt->size;
     }
+    else
+    {
+        ref->data = NULL;
+        ref->size = 0;
+    }
     return 1;
 }
 
@@ -115,6 +126,9 @@ void output_advance(output_t *st)
 
     for (program = 0; program < MAX_PROGRAMS; program++)
     {
+        if (!is_core_running(st, program))
+            continue;
+
         for (frame = 0; frame < audio_frames; frame++)
         {
             int has_core = collect_packet(st, &core, program, 0);

@@ -13,7 +13,6 @@
 #include "output.h"
 #include "sync.h"
 
-#define INPUT_BUF_LEN (FFTCP_FM * 512)
 #define AM_DECIM_STAGES 5
 
 enum { SYNC_STATE_NONE, SYNC_STATE_COARSE, SYNC_STATE_FINE };
@@ -23,10 +22,11 @@ typedef struct input_t
     nrsc5_t *radio;
     output_t *output;
 
+    uint8_t buffer[4];
+    unsigned int leftover;
     firdecim_q15 decim[AM_DECIM_STAGES];
     cint16_t stages[AM_DECIM_STAGES][2];
-    cint16_t buffer[INPUT_BUF_LEN];
-    unsigned int avail, used, offset;
+    unsigned int offset;
     unsigned int sync_state;
 
     acquire_t acq;

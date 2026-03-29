@@ -594,33 +594,7 @@ void nrsc5_set_callback(nrsc5_t *st, nrsc5_callback_t callback, void *opaque)
 
 int nrsc5_pipe_samples_cu8(nrsc5_t *st, const uint8_t *samples, unsigned int length)
 {
-    unsigned int sample_groups;
-
-    while (st->leftover_u8_num > 0 && length > 0)
-    {
-        st->leftover_u8[st->leftover_u8_num++] = samples[0];
-        samples++;
-        length--;
-
-        if (st->leftover_u8_num == 4) {
-            input_push_cu8(&st->input, st->leftover_u8, 4);
-            st->leftover_u8_num = 0;
-            break;
-        }
-    }
-
-    sample_groups = length / 4;
-    input_push_cu8(&st->input, samples, sample_groups * 4);
-    samples += (sample_groups * 4);
-    length -= (sample_groups * 4);
-
-    while (length > 0)
-    {
-        st->leftover_u8[st->leftover_u8_num++] = samples[0];
-        samples++;
-        length--;
-    }
-
+    input_push_cu8(&st->input, samples, length);
     return 0;
 }
 

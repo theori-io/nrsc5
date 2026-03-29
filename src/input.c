@@ -92,21 +92,14 @@ unsigned int decimate_samples(input_t *st, const uint8_t in[4], cint16_t *out)
 
 void input_push_cu8(input_t *st, const uint8_t *buf, const uint32_t len)
 {
+    cint16_t out;
+
     nrsc5_report_iq(st->radio, buf, len);
 
-    for (uint32_t i = 0; i < len; i++)
+    for (uint32_t i = 0; i < len; i += 4)
     {
-        st->buffer[st->leftover++] = buf[i];
-
-        if (st->leftover == 4)
-        {
-            cint16_t out;
-            unsigned int size = decimate_samples(st, st->buffer, &out);
-
-            input_push(st, &out, size);
-
-            st->leftover = 0;
-        }
+        if (decimate_samples(st, buf + i, &out))
+            input_push(st, &out, 1);
     }
 }
 

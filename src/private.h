@@ -31,6 +31,8 @@ struct nrsc5_t
     void *callback_opaque;
     nrsc5_sig_service_t *sig_table;
 
+    uint8_t leftover_u8[4];
+    unsigned int leftover_u8_num;
     int16_t leftover_s16[2];
     unsigned int leftover_s16_num;
 

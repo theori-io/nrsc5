@@ -22,8 +22,6 @@ typedef struct input_t
     nrsc5_t *radio;
     output_t *output;
 
-    uint8_t buffer[4];
-    unsigned int leftover;
     firdecim_q15 decim[AM_DECIM_STAGES];
     cint16_t stages[AM_DECIM_STAGES][2];
     unsigned int offset;

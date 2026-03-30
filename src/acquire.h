@@ -12,8 +12,8 @@ typedef struct
     cint16_t in_buffer[FFTCP_FM * (ACQUIRE_SYMBOLS + 1)];
     float complex buffer[FFTCP_FM * (ACQUIRE_SYMBOLS + 1)];
     float complex sums[FFTCP_FM];
-    float complex fftin[FFT_FM];
-    float complex fftout[FFT_FM];
+    float complex *fftin;
+    float complex *fftout;
     float *shape;
     float shape_fm[FFTCP_FM];
     float shape_am[FFTCP_AM];

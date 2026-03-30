@@ -13,7 +13,6 @@
 #include "output.h"
 #include "sync.h"
 
-#define INPUT_BUF_LEN (FFTCP_FM * 512)
 #define AM_DECIM_STAGES 5
 
 enum { SYNC_STATE_NONE, SYNC_STATE_COARSE, SYNC_STATE_FINE };
@@ -25,8 +24,8 @@ typedef struct input_t
 
     firdecim_q15 decim[AM_DECIM_STAGES];
     cint16_t stages[AM_DECIM_STAGES][2];
-    cint16_t buffer[INPUT_BUF_LEN];
-    unsigned int avail, used, offset;
+    unsigned int resample_input_size;
+    unsigned int offset;
     unsigned int sync_state;
 
     acquire_t acq;

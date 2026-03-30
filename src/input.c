@@ -38,63 +38,33 @@ static float decim_taps[] = {
     -0.00410953676328063
 };
 
-int input_shift(input_t *st, unsigned int cnt)
+void input_push(input_t *st, const cint16_t* buf, const uint32_t len)
 {
-    if (cnt + st->avail > INPUT_BUF_LEN)
-    {
-        if (st->avail > st->used)
-        {
-            memmove(&st->buffer[0], &st->buffer[st->used], (st->avail - st->used) * sizeof(st->buffer[0]));
-            st->avail -= st->used;
-            st->used = 0;
-        }
-        else
-        {
-            st->avail = 0;
-            st->used = 0;
-        }
-    }
+    unsigned int consumed = 0;
 
-    if (cnt + st->avail > INPUT_BUF_LEN)
+    while (consumed < len)
     {
-        log_error("input buffer overflow!");
-        return -1;
-    }
-
-    return 0;
-}
-
-void input_push(input_t *st)
-{
-    while (st->avail - st->used >= (st->radio->mode == NRSC5_MODE_FM ? FFTCP_FM : FFTCP_AM))
-    {
-        st->used += acquire_push(&st->acq, &st->buffer[st->used], st->avail - st->used);
+        consumed += acquire_push(&st->acq, buf + consumed, len - consumed);
         acquire_process(&st->acq);
     }
 }
 
-void input_push_cu8(input_t *st, const uint8_t *buf, uint32_t len)
+unsigned int decimate_samples(input_t *st, const uint8_t* in, const uint32_t len, cint16_t *out)
 {
-    unsigned int i;
-    assert(len % 4 == 0);
+    unsigned int avail = 0;
 
-    nrsc5_report_iq(st->radio, buf, len);
-
-    if (input_shift(st, len / 4) != 0)
-        return;
-
-    for (i = 0; i < len; i += 4)
+    for (uint32_t i = 0; i < len; i += 4)
     {
         cint16_t x[2];
 
-        x[0].r = U8_Q15(buf[i]);
-        x[0].i = U8_Q15(buf[i + 1]);
-        x[1].r = U8_Q15(buf[i + 2]);
-        x[1].i = U8_Q15(buf[i + 3]);
+        x[0].r = U8_Q15(in[i]);
+        x[0].i = U8_Q15(in[i + 1]);
+        x[1].r = U8_Q15(in[i + 2]);
+        x[1].i = U8_Q15(in[i + 3]);
 
         if (st->radio->mode == NRSC5_MODE_FM)
         {
-            halfband_q15_execute(st->decim[0], x, &st->buffer[st->avail++]);
+            halfband_q15_execute(st->decim[0], x, &out[avail++]);
         }
         else
         {
@@ -114,33 +84,49 @@ void input_push_cu8(input_t *st, const uint8_t *buf, uint32_t len)
                 halfband_q15_execute(st->decim[3], st->stages[2], &st->stages[3][(st->offset >> 3) & 1]);
             }
             if ((st->offset & 0xf) == 0xf) {
-                halfband_q15_execute(st->decim[4], st->stages[3], &st->buffer[st->avail++]);
+                halfband_q15_execute(st->decim[4], st->stages[3], &out[avail++]);
             }
             st->offset++;
         }
     }
 
-    input_push(st);
+    return avail;
 }
 
-void input_push_cs16(input_t *st, const int16_t *buf, uint32_t len)
+void input_push_cu8(input_t *st, const uint8_t *buf, const uint32_t len)
+{
+    cint16_t out[FFTCP_FM];
+    uint32_t consumed = 0;
+
+    nrsc5_report_iq(st->radio, buf, len);
+
+    assert(len % 4 == 0);
+
+    while (consumed < len)
+    {
+        const uint32_t left = len - consumed;
+        const uint32_t min = st->resample_input_size > left ? left : st->resample_input_size;
+
+        assert(min % 4 == 0);
+
+        const unsigned int avail = decimate_samples(st, buf + consumed, min, out);
+        input_push(st, out, avail);
+
+        consumed += min;
+    }
+}
+
+void input_push_cs16(input_t *st, const int16_t *buf, const uint32_t len)
 {
     assert(len % 2 == 0);
 
-    if (input_shift(st, len / 2) != 0)
-        return;
-
-    memcpy(&st->buffer[st->avail], buf, len * sizeof(int16_t));
-    st->avail += len / 2;
-
-    input_push(st);
+    input_push(st, (cint16_t*) buf, len / 2);
 }
 
 void input_reset(input_t *st)
 {
-    st->avail = 0;
-    st->used = 0;
     st->offset = 0;
+    st->resample_input_size = st->radio->mode == NRSC5_MODE_FM ? (FFTCP_FM * 2) : (FFTCP_AM * 32);
 
     input_set_sync_state(st, SYNC_STATE_NONE);
     for (int i = 0; i < AM_DECIM_STAGES; i++)

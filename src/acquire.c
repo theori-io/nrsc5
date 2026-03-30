@@ -272,17 +272,19 @@ void acquire_cfo_adjust(acquire_t *st, int cfo)
     st->cfo += cfo;
 }
 
-unsigned int acquire_push(acquire_t *st, cint16_t *buf, unsigned int length)
+unsigned int acquire_push(acquire_t *st, const cint16_t *buf, const unsigned int length)
 {
-    unsigned int needed = st->fftcp - st->idx % st->fftcp;
+    const unsigned int size = st->fftcp * (ACQUIRE_SYMBOLS + 1);
+    const unsigned int needed = size - st->idx;
 
-    if (length < needed)
-        return 0;
+    unsigned int pushed = length;
+    if (pushed > needed)
+        pushed = needed;
 
-    memcpy(&st->in_buffer[st->idx], buf, sizeof(cint16_t) * needed);
-    st->idx += needed;
+    memcpy(&st->in_buffer[st->idx], buf, sizeof(cint16_t) * pushed);
+    st->idx += pushed;
 
-    return needed;
+    return pushed;
 }
 
 void acquire_reset(acquire_t *st)

@@ -38,22 +38,22 @@ static float decim_taps[] = {
     -0.00410953676328063
 };
 
-void input_push(input_t *st, const cint16_t* buf, const uint32_t length)
+void input_push(input_t *st, const cint16_t* buf, const uint32_t len)
 {
-    uint32_t consumed = 0;
+    unsigned int consumed = 0;
 
-    while (consumed < length)
+    while (consumed < len)
     {
-        consumed += acquire_push(&st->acq, buf + consumed, length - consumed);
+        consumed += acquire_push(&st->acq, buf + consumed, len - consumed);
         acquire_process(&st->acq);
     }
 }
 
-unsigned int decimate_samples(input_t *st, const uint8_t* in, const uint32_t samples, cint16_t *out)
+unsigned int decimate_samples(input_t *st, const uint8_t* in, const uint32_t len, cint16_t *out)
 {
     unsigned int avail = 0;
 
-    for (uint32_t i = 0; i < samples; i += 4)
+    for (uint32_t i = 0; i < len; i += 4)
     {
         cint16_t x[2];
 
@@ -95,27 +95,28 @@ unsigned int decimate_samples(input_t *st, const uint8_t* in, const uint32_t sam
 
 void input_push_cu8(input_t *st, const uint8_t *buf, const uint32_t len)
 {
-    assert(len % 4 == 0);
     cint16_t out[FFTCP_FM];
     uint32_t consumed = 0;
 
     nrsc5_report_iq(st->radio, buf, len);
 
+    assert(len % 4 == 0);
+
     while (consumed < len)
     {
         const uint32_t left = len - consumed;
-        const uint32_t min = (FFTCP_FM > left) ? left : FFTCP_FM;
+        const uint32_t min = st->resample_input_size > left ? left : st->resample_input_size;
 
         assert(min % 4 == 0);
 
-        const unsigned size = decimate_samples(st, buf + consumed, min, out);
-        input_push(st, out, size);
+        const unsigned int avail = decimate_samples(st, buf + consumed, min, out);
+        input_push(st, out, avail);
 
         consumed += min;
     }
 }
 
-void input_push_cs16(input_t *st, const int16_t *buf, uint32_t len)
+void input_push_cs16(input_t *st, const int16_t *buf, const uint32_t len)
 {
     assert(len % 2 == 0);
 
@@ -125,6 +126,7 @@ void input_push_cs16(input_t *st, const int16_t *buf, uint32_t len)
 void input_reset(input_t *st)
 {
     st->offset = 0;
+    st->resample_input_size = st->radio->mode == NRSC5_MODE_FM ? (FFTCP_FM * 2) : (FFTCP_AM * 32);
 
     input_set_sync_state(st, SYNC_STATE_NONE);
     for (int i = 0; i < AM_DECIM_STAGES; i++)

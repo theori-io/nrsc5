@@ -24,6 +24,7 @@ typedef struct input_t
 
     firdecim_q15 decim[AM_DECIM_STAGES];
     cint16_t stages[AM_DECIM_STAGES][2];
+    unsigned int resample_input_size;
     unsigned int offset;
     unsigned int sync_state;
 

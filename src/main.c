@@ -44,12 +44,18 @@
 #define AUDIO_BUFFERS 128
 #define AUDIO_THRESHOLD 8
 #define AUDIO_DATA_LENGTH 8192
+#define FILE_BUFFER_LENGTH 32768
 
 typedef struct buffer_t {
     struct buffer_t *next;
     // The samples are signed 16-bit integers, but ao_play requires a char buffer.
     char data[AUDIO_DATA_LENGTH];
 } audio_buffer_t;
+
+enum iq_format {
+    IQ_FORMAT_CU8,
+    IQ_FORMAT_CS16
+};
 
 typedef struct {
     float freq;
@@ -65,6 +71,7 @@ typedef struct {
     FILE *hdc_file;
     FILE *iq_file;
     char *aas_files_path;
+    enum iq_format iq_input_format;
 
     audio_buffer_t *head, *tail, *free;
     pthread_mutex_t mutex;
@@ -288,6 +295,17 @@ static void done_signal(state_t *st)
     st->done = 1;
     pthread_cond_signal(&st->cond);
     pthread_mutex_unlock(&st->mutex);
+}
+
+static int is_done(state_t *st)
+{
+    int done;
+
+    pthread_mutex_lock(&st->mutex);
+    done = st->done;
+    pthread_mutex_unlock(&st->mutex);
+
+    return done;
 }
 
 static void change_program(state_t *st, unsigned int program)
@@ -600,6 +618,46 @@ static void restore_termios(void *arg)
 }
 #endif
 
+static void *audio_main(void *arg)
+{
+    state_t *st = arg;
+
+    while (1)
+    {
+        audio_buffer_t *b;
+
+        pthread_mutex_lock(&st->mutex);
+        while (!st->done && (st->head == NULL || st->audio_ready < AUDIO_THRESHOLD))
+            pthread_cond_wait(&st->cond, &st->mutex);
+
+        // exit once done and no more audio buffers
+        if (st->head == NULL)
+        {
+            pthread_mutex_unlock(&st->mutex);
+            break;
+        }
+
+        // unlink from head list
+        b = st->head;
+        st->head = b->next;
+        if (st->head == NULL)
+            st->tail = NULL;
+        pthread_mutex_unlock(&st->mutex);
+
+        ao_play(st->dev, b->data, sizeof(b->data));
+
+        pthread_mutex_lock(&st->mutex);
+        // add to free list
+        b->next = st->free;
+        st->free = b;
+        pthread_cond_signal(&st->cond);
+        pthread_mutex_unlock(&st->mutex);
+    }
+
+    return NULL;
+}
+
+
 static void *input_main(void *arg)
 {
     state_t *st = arg;
@@ -623,7 +681,7 @@ static void *input_main(void *arg)
     tcsetattr(STDIN_FILENO, TCSANOW, &t);
 #endif
 
-    while (!st->done)
+    while (!is_done(st))
     {
         char ch;
         if (read(STDIN_FILENO, &ch, 1) != 1)
@@ -659,7 +717,7 @@ static void *input_main(void *arg)
 
 static void help(const char *progname)
 {
-    fprintf(stderr, "Usage: %s [-v] [-q] [--am] [-l log-level] [-d device-index] [-H rtltcp-host] [-p ppm-error] [-g gain] [-r iq-input] [-w iq-output] [-o audio-output] [-t audio-type] [-T] [-D direct-sampling-mode] [--dump-hdc hdc-output] [--dump-aas-files directory] frequency program\n", progname);
+    fprintf(stderr, "Usage: %s [-v] [-q] [--am] [-l log-level] [-d device-index] [-H rtltcp-host] [-p ppm-error] [-g gain] [-r iq-input] [--iq-input-format {cu8,cs16}] [-w iq-output] [-o audio-output] [-t audio-type] [-T] [-D direct-sampling-mode] [--dump-hdc hdc-output] [--dump-aas-files directory] frequency program\n", progname);
 }
 
 static int parse_args(state_t *st, int argc, char *argv[])
@@ -668,6 +726,7 @@ static int parse_args(state_t *st, int argc, char *argv[])
         { "dump-aas-files", required_argument, NULL, 1 },
         { "dump-hdc", required_argument, NULL, 2 },
         { "am", no_argument, NULL, 3 },
+        { "iq-input-format", required_argument, NULL, 4 },
         { 0 }
     };
     const char *version = NULL;
@@ -681,6 +740,7 @@ static int parse_args(state_t *st, int argc, char *argv[])
     st->bias_tee = 0;
     st->direct_sampling = -1;
     st->ppm_error = INT_MIN;
+    st->iq_input_format = IQ_FORMAT_CU8;
     log_set_level(LOG_INFO);
 
     while ((opt = getopt_long(argc, argv, "r:w:o:t:d:p:g:ql:vH:TD:", long_opts, NULL)) != -1)
@@ -695,6 +755,21 @@ static int parse_args(state_t *st, int argc, char *argv[])
             break;
         case 3:
             st->mode = NRSC5_MODE_AM;
+            break;
+        case 4:
+            if (strcmp(optarg, "cu8") == 0)
+            {
+                st->iq_input_format = IQ_FORMAT_CU8;
+            }
+            else if (strcmp(optarg, "cs16") == 0)
+            {
+                st->iq_input_format = IQ_FORMAT_CS16;
+            }
+            else
+            {
+                log_fatal("I/Q input format must be either cu8 or cs16.");
+                return -1;
+            }
             break;
         case 'r':
             st->input_name = strdup(optarg);
@@ -853,9 +928,11 @@ static void cleanup(state_t *st)
 int main(int argc, char *argv[])
 {
     pthread_mutex_t log_mutex;
+    pthread_t audio_thread;
     pthread_t input_thread;
     nrsc5_t *radio = NULL;
     state_t *st = calloc(1, sizeof(state_t));
+    FILE *fp = NULL;
 
     pthread_mutex_init(&log_mutex, NULL);
     log_set_lock(log_lock);
@@ -874,13 +951,13 @@ int main(int argc, char *argv[])
 
     if (st->input_name)
     {
-        FILE *fp = strcmp(st->input_name, "-") == 0 ? stdin : fopen(st->input_name, "rb");
+        fp = strcmp(st->input_name, "-") == 0 ? stdin : fopen(st->input_name, "rb");
         if (fp == NULL)
         {
-            log_fatal("Open IQ file failed.");
+            log_fatal("Open IQ file failed: %s", strerror(errno));
             return 1;
         }
-        if (nrsc5_open_file(&radio, fp) != 0)
+        if (nrsc5_open_pipe(&radio) != 0)
         {
             log_fatal("Open IQ failed.");
             return 1;
@@ -937,46 +1014,50 @@ int main(int argc, char *argv[])
     nrsc5_set_callback(radio, callback, st);
     nrsc5_start(radio);
 
+    pthread_create(&audio_thread, NULL, audio_main, st);
     pthread_create(&input_thread, NULL, input_main, st);
 
-    while (1)
+    if (st->input_name)
     {
-        audio_buffer_t *b;
+        uint8_t buffer[FILE_BUFFER_LENGTH];
 
-        pthread_mutex_lock(&st->mutex);
-        while (!st->done && (st->head == NULL || st->audio_ready < AUDIO_THRESHOLD))
-            pthread_cond_wait(&st->cond, &st->mutex);
-
-        // exit once done and no more audio buffers
-        if (st->head == NULL)
+        while (!is_done(st))
         {
-            pthread_mutex_unlock(&st->mutex);
-            break;
+            size_t samples_read;
+            
+            if (st->iq_input_format == IQ_FORMAT_CU8) {
+                samples_read = fread(buffer, 2, sizeof(buffer) / 2, fp);
+            } else if (st->iq_input_format == IQ_FORMAT_CS16) {
+                samples_read = fread(buffer, 4, sizeof(buffer) / 4, fp);
+            }
+
+            if (samples_read == 0)
+            {
+                done_signal(st);
+                break;
+            }
+
+            if (st->iq_input_format == IQ_FORMAT_CU8) {
+                nrsc5_pipe_samples_cu8(radio, buffer, samples_read * 2);
+            } else if (st->iq_input_format == IQ_FORMAT_CS16) {
+                nrsc5_pipe_samples_cs16(radio, (int16_t *)buffer, samples_read * 2);
+            }
         }
-
-        // unlink from head list
-        b = st->head;
-        st->head = b->next;
-        if (st->head == NULL)
-            st->tail = NULL;
-        pthread_mutex_unlock(&st->mutex);
-
-        ao_play(st->dev, b->data, sizeof(b->data));
-
-        pthread_mutex_lock(&st->mutex);
-        // add to free list
-        b->next = st->free;
-        st->free = b;
-        pthread_cond_signal(&st->cond);
-        pthread_mutex_unlock(&st->mutex);
     }
 
+    pthread_join(audio_thread, NULL);
     pthread_cancel(input_thread);
     pthread_join(input_thread, NULL);
 
     nrsc5_stop(radio);
     nrsc5_set_bias_tee(radio, 0);
     nrsc5_close(radio);
+
+    if (st->input_name)
+    {
+        fclose(fp);
+    }
+
     cleanup(st);
     free(st);
     ao_shutdown();

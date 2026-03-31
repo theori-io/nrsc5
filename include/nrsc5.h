@@ -402,6 +402,10 @@ struct nrsc5_event_t
         struct {
             float freq_offset; /**< Frequency offset in Hz */
             int psmi;          /**< Primary Service Mode Indicator (1, 2, 3, 5, 6, or 11 for FM; 1 or 2 for AM) */
+            int pli;           /**< Power Level Indicator (AM only; set to -1 for FM) */
+            int hppi;          /**< High-Power PIDS Indicator (AM only; set to -1 for FM) */
+            int aabi;          /**< Analog Audio Bandwidth Indicator (AM only; set to -1 for FM) */
+            int rdbi;          /**< Reduced Digital Bandwidth Indicator (AM only; set to -1 for FM) */
         } sync;
         struct {
             float cber;

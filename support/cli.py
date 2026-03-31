@@ -214,6 +214,8 @@ class NRSC5CLI:
             logging.info("Synchronized")
             logging.info("Frequency offset: %.0f Hz", evt.freq_offset)
             logging.info("Primary service mode: %d", evt.psmi)
+            if evt.pli != -1:
+                logging.info("PLI=%d, HPPI=%d, AABI=%d, RDBI=%d", evt.pli, evt.hppi, evt.aabi, evt.rdbi)
         elif evt_type == nrsc5.EventType.LOST_SYNC:
             logging.info("Lost synchronization")
         elif evt_type == nrsc5.EventType.MER:

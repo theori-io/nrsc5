@@ -11,6 +11,10 @@ typedef struct
     float phases[FFT_FM][BLKSZ];
     unsigned int idx;
     int psmi;
+    int pli;
+    int hppi;
+    int aabi;
+    int rdbi;
     int cfo_wait;
     unsigned int bc;
     unsigned int offset_history;

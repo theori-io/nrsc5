@@ -197,6 +197,15 @@ class NRSC5CLI:
             0xfc
         ])
 
+    def format_am_flags(self, evt):
+        parts = [f'Digital bandwidth: {"reduced" if evt.rdbi else "full"}']
+        if not evt.rdbi:
+            if evt.psmi != 2:
+                parts.append(f'analog bandwidth: {"8 kHz" if evt.aabi else "5 kHz"}')
+                parts.append(f'secondary/tertiary power: {"high" if evt.pli else "low"}')
+            parts.append(f'PIDS power: {"high" if evt.hppi else "low"}')
+        return ", ".join(parts)
+
     def callback(self, evt_type, evt):
         if evt_type == nrsc5.EventType.LOST_DEVICE:
             logging.info("Lost device")
@@ -214,6 +223,8 @@ class NRSC5CLI:
             logging.info("Synchronized")
             logging.info("Frequency offset: %.0f Hz", evt.freq_offset)
             logging.info("Primary service mode: %d", evt.psmi)
+            if evt.pli != -1:
+                logging.info(self.format_am_flags(evt))
         elif evt_type == nrsc5.EventType.LOST_SYNC:
             logging.info("Lost synchronization")
         elif evt_type == nrsc5.EventType.MER:

@@ -189,7 +189,7 @@ class PacketFlags(enum.IntFlag):
 
 
 IQ = collections.namedtuple("IQ", ["data"])
-Sync = collections.namedtuple("Sync", ["freq_offset", "psmi"])
+Sync = collections.namedtuple("Sync", ["freq_offset", "psmi", "pli", "hppi", "aabi", "rdbi"])
 MER = collections.namedtuple("MER", ["lower", "upper"])
 BER = collections.namedtuple("BER", ["cber"])
 HDC = collections.namedtuple("HDC", ["program", "data", "flags"])
@@ -237,6 +237,10 @@ class _Sync(ctypes.Structure):
     _fields_ = [
         ("freq_offset", ctypes.c_float),
         ("psmi", ctypes.c_int),
+        ("pli", ctypes.c_int),
+        ("hppi", ctypes.c_int),
+        ("aabi", ctypes.c_int),
+        ("rdbi", ctypes.c_int),
     ]
 
 
@@ -672,7 +676,7 @@ class NRSC5:
             evt = IQ(iq.data[:iq.count])
         elif evt_type == EventType.SYNC:
             sync = c_evt.u.sync
-            evt = Sync(sync.freq_offset, sync.psmi)
+            evt = Sync(sync.freq_offset, sync.psmi, sync.pli, sync.hppi, sync.aabi, sync.rdbi)
         elif evt_type == EventType.MER:
             mer = c_evt.u.mer
             evt = MER(mer.lower, mer.upper)

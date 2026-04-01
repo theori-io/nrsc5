@@ -231,7 +231,13 @@ static int find_block_am(sync_t *st, unsigned int ref)
 
     bc = (data[17] << 2) | (data[18] << 1) | data[19];
     if (bc == 0)
+    {
         st->psmi = (data[26] << 4) | (data[27] << 3) | (data[28] << 2) | (data[29] << 1) | data[30];
+        st->pli = data[7];
+        st->hppi = data[11];
+        st->aabi = data[12];
+        st->rdbi = data[15];
+    }
     return bc;
 }
 
@@ -796,6 +802,10 @@ void sync_reset(sync_t *st)
 
     st->idx = 0;
     st->psmi = 1;
+    st->pli = -1;
+    st->hppi = -1;
+    st->aabi = -1;
+    st->rdbi = -1;
     st->cfo_wait = 0;
     st->offset_history = 0;
     st->mer_cnt = 0;

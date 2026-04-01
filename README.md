@@ -108,6 +108,9 @@ Replace `64` with `32` if you want a 32-bit build. Once the build is complete, c
     -H rtltcp-host                  rtl_tcp host with optional port
                                       (example: localhost:1234)
     -r iq-input                     read IQ samples from input file
+    --iq-input-format {cu8,cs16}    IQ input format (complex unsigned 8-bit @ 1488375 SPS or
+                                      complex signed 16-bit @ 744188 SPS (FM) / 46512 SPS (AM).
+                                      default is cu8.)
     -w iq-output                    write IQ samples to output file
     -o audio-output                 write audio to output file
     -t audio-type                   type of audio output (wav or raw)

@@ -391,7 +391,24 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
         log_info("Frequency offset: %.0f Hz", evt->sync.freq_offset);
         log_info("Primary service mode: %d", evt->sync.psmi);
         if (evt->sync.pli != -1)
-            log_info("PLI=%d, HPPI=%d, AABI=%d, RDBI=%d", evt->sync.pli, evt->sync.hppi, evt->sync.aabi, evt->sync.rdbi);
+        {
+            char am_flags[128] = "";
+            strcat(am_flags, "Digital bandwidth: ");
+            strcat(am_flags, evt->sync.rdbi ? "reduced" : "full");
+            if (!evt->sync.rdbi)
+            {
+                if (evt->sync.psmi != 2)
+                {
+                    strcat(am_flags, ", analog bandwidth: ");
+                    strcat(am_flags, evt->sync.aabi ? "8 kHz" : "5 kHz");
+                    strcat(am_flags, ", secondary/tertiary power: ");
+                    strcat(am_flags, evt->sync.pli ? "high" : "low");
+                }
+                strcat(am_flags, ", PIDS power: ");
+                strcat(am_flags, evt->sync.hppi ? "high" : "low");
+            }
+            log_info(am_flags);
+        }
         st->audio_ready = 0;
         break;
     case NRSC5_EVENT_LOST_SYNC:

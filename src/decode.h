@@ -4,7 +4,17 @@
 #include "defines.h"
 #include "pids.h"
 
-#define DIVERSITY_DELAY_AM (18000 * 3)
+#define DIVERSITY_DELAY_AM 3
+#define BL_LENGTH 18000
+#define BU_LENGTH 18000
+#define ML_LENGTH 18000
+#define MU_LENGTH 18000
+#define EL_LENGTH 12000
+#define EU_LENGTH 24000
+#define EBL_LENGTH 18000
+#define EBU_LENGTH 18000
+#define EML_LENGTH 18000
+#define EMU_LENGTH 18000
 
 typedef struct
 {
@@ -34,16 +44,16 @@ typedef struct
     unsigned int am_errors;
     unsigned int am_diversity_wait;
 
-    uint8_t bl[18000];
-    uint8_t bu[18000];
-    uint8_t ml[18000 + DIVERSITY_DELAY_AM];
-    uint8_t mu[18000 + DIVERSITY_DELAY_AM];
-    uint8_t el[12000];
-    uint8_t eu[24000];
-    uint8_t ebl[18000];
-    uint8_t ebu[18000];
-    uint8_t eml[18000 + DIVERSITY_DELAY_AM];
-    uint8_t emu[18000 + DIVERSITY_DELAY_AM];
+    uint8_t bl[BL_LENGTH];
+    uint8_t bu[BU_LENGTH];
+    uint8_t ml[ML_LENGTH * (1 + DIVERSITY_DELAY_AM)];
+    uint8_t mu[MU_LENGTH * (1 + DIVERSITY_DELAY_AM)];
+    uint8_t el[EL_LENGTH * (1 + DIVERSITY_DELAY_AM)];
+    uint8_t eu[EU_LENGTH * (1 + DIVERSITY_DELAY_AM)];
+    uint8_t ebl[EBL_LENGTH];
+    uint8_t ebu[EBU_LENGTH];
+    uint8_t eml[EML_LENGTH * (1 + DIVERSITY_DELAY_AM)];
+    uint8_t emu[EMU_LENGTH * (1 + DIVERSITY_DELAY_AM)];
 
     int8_t viterbi_p1[P1_FRAME_LEN_FM * 3];
     uint8_t scrambler_p1[P1_FRAME_LEN_FM];

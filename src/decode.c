@@ -43,7 +43,7 @@ static int bit_map(unsigned char matrix[PARTITION_WIDTH_AM * BLKSZ * 8], int b, 
 static void interleaver_ma1(decode_t *st)
 {
     int b, k, p;
-    for (int n = 0; n < 18000; n++)
+    for (int n = 0; n < BL_LENGTH; n++)
     {
         b = n/2250;
         k = (n + n/750 + 1) % 750;
@@ -53,7 +53,7 @@ static void interleaver_ma1(decode_t *st)
         b = (3*n + 3) % 8;
         k = (n + n/3000 + 3) % 750;
         p = 3 + (n % 3);
-        st->ml[DIVERSITY_DELAY_AM + n] = bit_map(st->buffer_pl, b, k, p);
+        st->ml[ML_LENGTH * DIVERSITY_DELAY_AM + n] = bit_map(st->buffer_pl, b, k, p);
 
         b = n/2250;
         k = (n + n/750) % 750;
@@ -63,29 +63,29 @@ static void interleaver_ma1(decode_t *st)
         b = (3*n) % 8;
         k = (n + n/3000 + 2) % 750;
         p = 3 + (n % 3);
-        st->mu[DIVERSITY_DELAY_AM + n] = bit_map(st->buffer_pu, b, k, p);
+        st->mu[MU_LENGTH * DIVERSITY_DELAY_AM + n] = bit_map(st->buffer_pu, b, k, p);
     }
 
     if (st->input->sync.psmi != SERVICE_MODE_MA3)
     {
-        for (int n = 0; n < 12000; n++)
+        for (int n = 0; n < EL_LENGTH; n++)
         {
             b = (3*n + n/3000) % 8;
             k = (n + (n/6000)) % 750;
             p = n % 2;
-            st->el[n] = bit_map(st->buffer_t, b, k, p);
+            st->el[EL_LENGTH * DIVERSITY_DELAY_AM + n] = bit_map(st->buffer_t, b, k, p);
         }
-        for (int n = 0; n < 24000; n++)
+        for (int n = 0; n < EU_LENGTH; n++)
         {
             b = (3*n + n/3000 + 2*(n/12000)) % 8;
             k = (n + (n/6000)) % 750;
             p = n % 4;
-            st->eu[n] = bit_map(st->buffer_s, b, k, p);
+            st->eu[EU_LENGTH * DIVERSITY_DELAY_AM + n] = bit_map(st->buffer_s, b, k, p);
         }
     }
     else
     {
-        for (int n = 0; n < 18000; n++)
+        for (int n = 0; n < EBL_LENGTH; n++)
         {
             b = (3*n + 3) % 8;
             k = (n + n/3000 + 3) % 750;
@@ -95,7 +95,7 @@ static void interleaver_ma1(decode_t *st)
             b = (3*n + 3) % 8;
             k = (n + n/3000 + 3) % 750;
             p = 3 + (n % 3);
-            st->eml[DIVERSITY_DELAY_AM + n] = bit_map(st->buffer_t, b, k, p);
+            st->eml[EML_LENGTH * DIVERSITY_DELAY_AM + n] = bit_map(st->buffer_t, b, k, p);
 
             b = (3*n) % 8;
             k = (n + n/3000 + 2) % 750;
@@ -105,7 +105,7 @@ static void interleaver_ma1(decode_t *st)
             b = (3*n) % 8;
             k = (n + n/3000 + 2) % 750;
             p = 3 + (n % 3);
-            st->emu[DIVERSITY_DELAY_AM + n] = bit_map(st->buffer_s, b, k, p);
+            st->emu[EMU_LENGTH * DIVERSITY_DELAY_AM + n] = bit_map(st->buffer_s, b, k, p);
         }
     }
 
@@ -141,12 +141,17 @@ static void interleaver_ma1(decode_t *st)
         }
     }
 
-    memmove(st->ml, st->ml + 18000, DIVERSITY_DELAY_AM);
-    memmove(st->mu, st->mu + 18000, DIVERSITY_DELAY_AM);
-    if (st->input->sync.psmi == SERVICE_MODE_MA3)
+    memmove(st->ml, st->ml + ML_LENGTH, ML_LENGTH * DIVERSITY_DELAY_AM);
+    memmove(st->mu, st->mu + MU_LENGTH, MU_LENGTH * DIVERSITY_DELAY_AM);
+    if (st->input->sync.psmi != SERVICE_MODE_MA3)
     {
-        memmove(st->eml, st->eml + 18000, DIVERSITY_DELAY_AM);
-        memmove(st->emu, st->emu + 18000, DIVERSITY_DELAY_AM);
+        memmove(st->el, st->el + EL_LENGTH, EL_LENGTH * DIVERSITY_DELAY_AM);
+        memmove(st->eu, st->eu + EU_LENGTH, EU_LENGTH * DIVERSITY_DELAY_AM);
+    }
+    else
+    {
+        memmove(st->eml, st->eml + EML_LENGTH, EML_LENGTH * DIVERSITY_DELAY_AM);
+        memmove(st->emu, st->emu + EMU_LENGTH, EMU_LENGTH * DIVERSITY_DELAY_AM);
     }
 
     int offset = 0;

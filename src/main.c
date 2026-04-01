@@ -36,6 +36,7 @@
 #include <netdb.h>
 #include <sys/socket.h>
 #include <termios.h>
+#include <poll.h>
 #endif
 
 #include "bitwriter.h"
@@ -45,6 +46,7 @@
 #define AUDIO_THRESHOLD 8
 #define AUDIO_DATA_LENGTH 8192
 #define FILE_BUFFER_LENGTH 32768
+#define STDIN_POLL_RATE_MS 100
 
 typedef struct buffer_t {
     struct buffer_t *next;
@@ -630,13 +632,6 @@ static int connect_tcp(char *host, const char *default_port)
     return s;
 }
 
-#ifndef __MINGW32__
-static void restore_termios(void *arg)
-{
-    tcsetattr(STDIN_FILENO, TCSANOW, arg);
-}
-#endif
-
 static void *audio_main(void *arg)
 {
     state_t *st = arg;
@@ -676,6 +671,27 @@ static void *audio_main(void *arg)
     return NULL;
 }
 
+static void on_key_press(state_t *st, char ch)
+{
+    switch (ch)
+    {
+    case 'q':
+        done_signal(st);
+        // user wants to immediately exit, so reset audio buffer
+        change_program(st, -1);
+        break;
+    case '0':
+    case '1':
+    case '2':
+    case '3':
+    case '4':
+    case '5':
+    case '6':
+    case '7':
+        change_program(st, ch - '0');
+        break;
+    }
+}
 
 static void *input_main(void *arg)
 {
@@ -694,41 +710,72 @@ static void *input_main(void *arg)
 
     // disable terminal canonical mode
     tcgetattr(STDIN_FILENO, &prev_termios);
-    pthread_cleanup_push(restore_termios, &prev_termios);
     t = prev_termios;
     t.c_lflag &= ~ICANON;
     tcsetattr(STDIN_FILENO, TCSANOW, &t);
+
+    struct pollfd pfd;
+    pfd.fd = STDIN_FILENO;
+    pfd.events = POLLIN;
 #endif
 
     while (!is_done(st))
     {
-        char ch;
-        if (read(STDIN_FILENO, &ch, 1) != 1)
-            break;
+#ifdef __MINGW32__
+        INPUT_RECORD r;
+        DWORD read;
 
-        switch (ch)
+        switch (WaitForSingleObject(hStdin, STDIN_POLL_RATE_MS))
         {
-        case 'q':
-            done_signal(st);
-            // user wants to immediately exit, so reset audio buffer
-            change_program(st, -1);
+        case WAIT_TIMEOUT:
+            continue;
+        case WAIT_OBJECT_0:
+            if (!ReadConsoleInput(hStdin, &r, 1, &read))
+            {
+                log_error("Stdin read failed: ReadConsoleInput error %d", GetLastError());
+                break;
+            }
+
+            const KEY_EVENT_RECORD key = r.Event.KeyEvent;
+
+            if (r.EventType == KEY_EVENT && key.bKeyDown)
+                on_key_press(st, key.uChar.AsciiChar);
             break;
-        case '0':
-        case '1':
-        case '2':
-        case '3':
-        case '4':
-        case '5':
-        case '6':
-        case '7':
-            change_program(st, ch - '0');
+        case WAIT_ABANDONED:
+            log_error("Waiting for stdin failed: WAIT_ABANDONED");
+            break;
+        case WAIT_FAILED:
+            log_error("Waiting for stdin failed: WAIT_FAILED");
+            break;
+        default:
             break;
         }
+
+#else
+        int ret = poll(&pfd, 1, STDIN_POLL_RATE_MS);
+        char ch;
+
+        if (ret > 0)
+        {
+            if (pfd.revents & POLLIN)
+            {
+                if (read(STDIN_FILENO, &ch, 1))
+                    on_key_press(st, ch);
+            }
+        }
+        else if (ret == 0)
+            continue;
+        else
+        {
+            log_error("Stdin read failed: poll error %d", errno);
+            break;
+        }
+#endif
     }
 
 #ifndef __MINGW32__
     // restore terminal settings
-    pthread_cleanup_pop(1);
+    tcsetattr(STDIN_FILENO, TCSANOW, &prev_termios);
 #endif
 
     return NULL;
@@ -1065,7 +1112,6 @@ int main(int argc, char *argv[])
     }
 
     pthread_join(audio_thread, NULL);
-    pthread_cancel(input_thread);
     pthread_join(input_thread, NULL);
 
     nrsc5_stop(radio);

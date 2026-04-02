@@ -1089,7 +1089,7 @@ int main(int argc, char *argv[])
 
         while (!is_done(st))
         {
-            size_t samples_read;
+            size_t samples_read = 0;
             
             if (st->iq_input_format == IQ_FORMAT_CU8) {
                 samples_read = fread(buffer, 2, sizeof(buffer) / 2, fp);

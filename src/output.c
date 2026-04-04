@@ -207,6 +207,9 @@ void output_reset(output_t *st)
 
     for (int i = 0; i < MAX_PROGRAMS; i++)
     {
+        free(st->last_psd[i]);
+        st->last_psd[i] = NULL;
+        st->last_psd_len[i] = 0;
         for (int j = 0; j < MAX_STREAMS; j++)
         {
             for (int k = 0; k < ELASTIC_BUFFER_LEN; k++)
@@ -286,6 +289,18 @@ static void output_id3(output_t *st, unsigned int program, uint8_t *buf, unsigne
 
     evt.event = NRSC5_EVENT_ID3;
     evt.id3.comments = NULL;
+
+    if ((len == st->last_psd_len[program]) && (memcmp(buf, st->last_psd[program], len) == 0))
+    {
+        return;
+    }
+    else
+    {
+        free(st->last_psd[program]);
+        st->last_psd_len[program] = len;
+        st->last_psd[program] = malloc(len);
+        memcpy(st->last_psd[program], buf, len);
+    }
 
     if (len < 10 || memcmp(buf, "ID3\x03\x00", 5) || buf[5]) return;
     id3_len = id3_length(buf + 6) + 10;

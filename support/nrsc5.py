@@ -41,6 +41,8 @@ class EventType(enum.Enum):
     LOT_HEADER = 24
     LOT_FRAGMENT = 25
     AGC = 26
+    EXCITER_INFO = 27
+    IMPORTER_INFO = 28
 
 
 AUDIO_FRAME_SAMPLES = 2048
@@ -224,7 +226,7 @@ AudioService = collections.namedtuple("AudioService", ["program", "access", "typ
 HEREImage = collections.namedtuple("HEREImage", ["image_type", "seq", "n1", "n2", "time_utc", "latitude1", "longitude1",
                                                  "latitude2", "longitude2", "name", "data"])
 AGC = collections.namedtuple("AGC", ["gain_db", "peak_dbfs", "is_final"])
-
+DeviceInfo = collections.namedtuple("DeviceInfo", ["id", "core_version", "manufacturer_version", "core_status", "manufacturer_status", "importer_connected"])
 
 class _IQ(ctypes.Structure):
     _fields_ = [
@@ -584,6 +586,16 @@ class _AGC(ctypes.Structure):
         ("is_final", ctypes.c_int),
     ]
 
+class _DeviceInfo(ctypes.Structure):
+    _fields_ = [
+        ("id", ctypes.c_char * 2),
+        ("core_version", ctypes.c_int * 4),
+        ("manufacturer_version", ctypes.c_int * 4),
+        ("core_status", ctypes.c_int),
+        ("manufacturer_status", ctypes.c_int),
+        ("importer_connected", ctypes.c_int),
+    ]
+
 
 class _EventUnion(ctypes.Union):
     _fields_ = [
@@ -611,6 +623,7 @@ class _EventUnion(ctypes.Union):
         ("audio_service", _AudioService),
         ("here_image", _HEREImage),
         ("agc", _AGC),
+        ("device_info", _DeviceInfo)
     ]
 
 
@@ -867,6 +880,10 @@ class NRSC5:
         elif evt_type == EventType.AGC:
             agc = c_evt.u.agc
             evt = AGC(agc.gain_db, agc.peak_dbfs, bool(agc.is_final))
+        elif evt_type == EventType.EXCITER_INFO or evt_type == EventType.IMPORTER_INFO:
+            device_info = c_evt.u.device_info
+            evt = DeviceInfo(device_info.id, device_info.core_version, device_info.manufacturer_version,
+                             device_info.core_status, device_info.manufacturer_status, device_info.importer_connected)
 
         self.callback(evt_type, evt, *self.callback_args)
 

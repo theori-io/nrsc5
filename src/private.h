@@ -87,3 +87,6 @@ void nrsc5_report_emergency_alert(nrsc5_t *st, const char *message, const uint8_
 void nrsc5_report_here_image(nrsc5_t *st, int image_type, int seq, int n1, int n2, unsigned int timestamp,
                              float latitude1, float longitude1, float latitude2, float longitude2,
                              const char *name, unsigned int size, const uint8_t *data);
+void nrsc5_report_device_info(nrsc5_t *st, int device, const char id[2], const int core_version[4],
+                              const int manufacturer_version[4], int core_status, int manufacturer_status,
+                              int importer_connected);

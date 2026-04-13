@@ -586,6 +586,23 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
                  evt->here_image.name,
                  evt->here_image.size);
         break;
+    case NRSC5_EVENT_EXCITER_INFO:
+        log_debug("Exciter manuf. \"%c%c\", core version %d.%d.%d.%d, core status %d, manuf. version %d.%d.%d.%d, manuf. status %d, importer connected? %s",
+                  evt->device_info.id[0], evt->device_info.id[1],
+                  evt->device_info.core_version[0], evt->device_info.core_version[1], evt->device_info.core_version[2],
+                  evt->device_info.core_version[3], evt->device_info.core_status,
+                  evt->device_info.manufacturer_version[0], evt->device_info.manufacturer_version[1], evt->device_info.manufacturer_version[2],
+                  evt->device_info.manufacturer_version[3], evt->device_info.manufacturer_status,
+                  evt->device_info.importer_connected ? "yes" : "no");
+        break;
+    case NRSC5_EVENT_IMPORTER_INFO:
+        log_debug("Importer manuf. \"%c%c\", core version %d.%d.%d.%d, core status %d, manuf. version %d.%d.%d.%d, manuf. status %d",
+                  evt->device_info.id[0], evt->device_info.id[1],
+                  evt->device_info.core_version[0], evt->device_info.core_version[1], evt->device_info.core_version[2],
+                  evt->device_info.core_version[3], evt->device_info.core_status,
+                  evt->device_info.manufacturer_version[0], evt->device_info.manufacturer_version[1], evt->device_info.manufacturer_version[2],
+                  evt->device_info.manufacturer_version[3], evt->device_info.manufacturer_status);
+        break;
     }
 }
 

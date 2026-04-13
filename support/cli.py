@@ -372,6 +372,19 @@ class NRSC5CLI:
             logging.info("HERE Image: type=%s, seq=%d, n1=%d, n2=%d, time=%s, lat1=%.5f, lon1=%.5f, lat2=%.5f, lon2=%.5f, name=%s, size=%d",
                          evt.image_type.name, evt.seq, evt.n1, evt.n2, time_str, evt.latitude1, evt.longitude1,
                          evt.latitude2, evt.longitude2, evt.name, len(evt.data))
+        elif evt_type == nrsc5.EventType.EXCITER_INFO:
+            logging.debug("Exciter manuf. \"%c%c\", core version %d.%d.%d.%d, core status %d, manuf. version %d.%d.%d.%d, manuf. status %d, importer connected? %s",
+                          evt.id[0], evt.id[1], evt.core_version[0], evt.core_version[1], evt.core_version[2],
+                          evt.core_version[3], evt.core_status,
+                          evt.manufacturer_version[0], evt.manufacturer_version[1], evt.manufacturer_version[2],
+                          evt.manufacturer_version[3], evt.manufacturer_status,
+                          evt.importer_connected)
+        elif evt_type == nrsc5.EventType.IMPORTER_INFO:
+            logging.debug("Importer manuf. \"%c%c\", core version %d.%d.%d.%d, core status %d, manuf. version %d.%d.%d.%d, manuf. status %d",
+                          evt.id[0], evt.id[1], evt.core_version[0], evt.core_version[1], evt.core_version[2],
+                          evt.core_version[3], evt.core_status,
+                          evt.manufacturer_version[0], evt.manufacturer_version[1], evt.manufacturer_version[2],
+                          evt.manufacturer_version[3], evt.manufacturer_status)
 
 
 if __name__ == "__main__":

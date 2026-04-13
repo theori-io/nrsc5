@@ -684,13 +684,24 @@ static void decode_sis(pids_t *st, uint8_t *bits)
                 case 7:
                     if (st->parameters[4] >= 0 && st->parameters[5] >= 0 && st->parameters[6] >= 0 && st->parameters[7] >= 0)
                     {
-                        log_debug("Exciter manuf. \"%c%c\", core version %d.%d.%d.%d-%d, manuf. version %d.%d.%d.%d-%d",
-                            (st->parameters[4] >> 8) & 0x7f, st->parameters[4] & 0x7f,
+                        const char id[2] = {
+                            (char)((st->parameters[4] >> 8) & 0x7f), (char)(st->parameters[4] & 0x7f)
+                        };
+                        const int core_version[4] = {
                             (st->parameters[5] >> 11) & 0x1f, (st->parameters[5] >> 6) & 0x1f, (st->parameters[5] >> 1) & 0x1f,
-                            (st->parameters[7] >> 11) & 0x1f, (st->parameters[7] >> 3) & 0x7,
+                            (st->parameters[7] >> 11) & 0x1f
+                        };
+                        const int manufacturer[4] = {
                             (st->parameters[6] >> 11) & 0x1f, (st->parameters[6] >> 6) & 0x1f, (st->parameters[6] >> 1) & 0x1f,
-                            (st->parameters[7] >> 6) & 0x1f, st->parameters[7] & 0x7
-                        );
+                            (st->parameters[7] >> 6) & 0x1f,
+                        };
+
+                        const int core_status = (st->parameters[7] >> 3) & 0x7;
+                        const int manufacturer_status = st->parameters[7] & 0x7;
+                        const int importer_connected = (st->parameters[4] >> 7) & 1;
+
+                        nrsc5_report_device_info(st->input->radio, 0, id, core_version, manufacturer,
+                            core_status, manufacturer_status, importer_connected);
                     }
                     break;
                 case 8:
@@ -699,13 +710,22 @@ static void decode_sis(pids_t *st, uint8_t *bits)
                 case 11:
                     if (st->parameters[8] >= 0 && st->parameters[9] >= 0 && st->parameters[10] >= 0 && st->parameters[11] >= 0)
                     {
-                        log_debug("Importer manuf. \"%c%c\", core version %d.%d.%d.%d-%d, manuf. version %d.%d.%d.%d-%d",
-                            (st->parameters[8] >> 8) & 0x7f, st->parameters[8] & 0x7f,
+                        const char id[2] = {
+                            (char)((st->parameters[8] >> 8) & 0x7f), (char)(st->parameters[8] & 0x7f)
+                        };
+                        const int core_version[4] = {
                             (st->parameters[9] >> 11) & 0x1f, (st->parameters[9] >> 6) & 0x1f, (st->parameters[9] >> 1) & 0x1f,
-                            (st->parameters[11] >> 11) & 0x1f, (st->parameters[11] >> 3) & 0x7,
+                            (st->parameters[11] >> 11) & 0x1f,
+                        };
+                        const int manufacturer[4] = {
                             (st->parameters[10] >> 11) & 0x1f, (st->parameters[10] >> 6) & 0x1f, (st->parameters[10] >> 1) & 0x1f,
-                            (st->parameters[11] >> 6) & 0x1f, st->parameters[11] & 0x7
-                        );
+                            (st->parameters[11] >> 6) & 0x1f
+                        };
+                        const int core_status = (st->parameters[11] >> 3) & 0x7;
+                        const int manufacturer_status = st->parameters[11] & 0x7;
+
+                        nrsc5_report_device_info(st->input->radio, 1, id, core_version, manufacturer,
+                            core_status, manufacturer_status, -1);
                     }
                     break;
                 case 12:

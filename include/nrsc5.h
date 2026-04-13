@@ -185,7 +185,9 @@ enum
     NRSC5_EVENT_HERE_IMAGE,
     NRSC5_EVENT_LOT_HEADER,
     NRSC5_EVENT_LOT_FRAGMENT,
-    NRSC5_EVENT_AGC
+    NRSC5_EVENT_AGC,
+    NRSC5_EVENT_EXCITER_INFO,
+    NRSC5_EVENT_IMPORTER_INFO,
 };
 
 enum
@@ -391,6 +393,8 @@ struct nrsc5_event_t
  * - `NRSC5_EVENT_EMERGENCY_ALERT` : emergency alert, see `emergency_alert` member
  * - `NRSC5_EVENT_HERE_IMAGE` : HERE Images traffic/weather map, see `here_image` member
  * - `NRSC5_EVENT_AGC` : automatic gain control status, see `agc` member
+ * - `NRSC5_EVENT_EXCITER_INFO` : exciter data, see `device_info` member
+ * - `NRSC5_EVENT_IMPORTER_INFO` : importer data, see `device_info` member
  */
     unsigned int event;
     union
@@ -573,6 +577,14 @@ struct nrsc5_event_t
             float peak_dbfs;     /**< peak signal amplitude in dB, relative to full scale */
             int is_final;        /**< 1 if this is the final (best) gain value, otherwise 0 */
         } agc;
+        struct {
+            char id[2];                  /**< 2-character identifier of the device, e.g. "GG" or "L7" */
+            int core_version[4];         /**< Core Version number. */
+            int manufacturer_version[4]; /**< Manufacturer-assigned Version number. */
+            int core_status;             /**< Core status. Values such like 0 (Commercial Release), 1 (Engineering Release), 2 (Patch). */
+            int manufacturer_status;     /**< Manufacturer status. Values such like 0 (Commercial Release), 1 (Engineering Release), 2 (Patch). */
+            int importer_connected;      /**< 1 if an importer is connected, otherwise 0 for EXCITER_INFO event. Set to -1 for IMPORTER_INFO event. */
+        } device_info;
     };
 };
 /**

@@ -1089,6 +1089,29 @@ void nrsc5_report_emergency_alert(nrsc5_t *st, const char *message, const uint8_
     nrsc5_report(st, &evt);
 }
 
+void nrsc5_report_device_info(nrsc5_t *st, const int device, const char id[2],
+                              const int core_version[4], const int manufacturer_version[4],
+                              const int core_status, const int manufacturer_status,
+                              const int importer_connected)
+{
+    nrsc5_event_t evt;
+
+    if (device)
+        evt.event = NRSC5_EVENT_IMPORTER_INFO;
+    else
+        evt.event = NRSC5_EVENT_EXCITER_INFO;
+
+    memcpy(evt.device_info.id, id, sizeof(char) * 2);
+    memcpy(evt.device_info.core_version, core_version, sizeof(int) * 4);
+    memcpy(evt.device_info.manufacturer_version, manufacturer_version, sizeof(int) * 4);
+
+    evt.device_info.core_status = core_status;
+    evt.device_info.manufacturer_status = manufacturer_status;
+    evt.device_info.importer_connected = importer_connected;
+
+    nrsc5_report(st, &evt);
+}
+
 void nrsc5_report_here_image(nrsc5_t *st, int image_type, int seq, int n1, int n2, unsigned int timestamp,
                              float latitude1, float longitude1, float latitude2, float longitude2,
                              const char *name, unsigned int size, const uint8_t *data)

@@ -674,7 +674,7 @@ static void decode_sis(pids_t *st, uint8_t *bits)
                     break;
                 case 3:
                     tzo = (parameter >> 5) & 0x7ff;
-                    if (tzo > 1024) tzo -= 2048;
+                    if (tzo >= 1024) tzo -= 2048;
                     log_debug("Local time zone offset: %d minutes, DST sched. %d, local DST? %s, regional DST? %s",
                         tzo, (parameter >> 2) & 0x7, parameter & 0x2 ? "yes" : "no", parameter & 0x1 ? "yes" : "no");
                     break;

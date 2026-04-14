@@ -1089,38 +1089,55 @@ void nrsc5_report_emergency_alert(nrsc5_t *st, const char *message, const uint8_
     nrsc5_report(st, &evt);
 }
 
-void nrsc5_report_device_info(nrsc5_t *st, const int device, const char id[2],
-                              const int core_version[4], const int manufacturer_version[4],
-                              const int core_status, const int manufacturer_status,
-                              const int importer_connected)
+void nrsc5_report_exciter_info(nrsc5_t *st, const char* manufacturer_id,
+                               const int core_version[NRSC5_DEVICE_VERSION_LENGTH],
+                               const int manufacturer_version[NRSC5_DEVICE_VERSION_LENGTH],
+                               const int core_status, const int manufacturer_status,
+                               const int importer_connected)
 {
     nrsc5_event_t evt;
 
-    if (device)
-        evt.event = NRSC5_EVENT_IMPORTER_INFO;
-    else
-        evt.event = NRSC5_EVENT_EXCITER_INFO;
+    evt.event = NRSC5_EVENT_EXCITER_INFO;
 
-    memcpy(evt.device_info.id, id, sizeof(char) * 2);
-    memcpy(evt.device_info.core_version, core_version, sizeof(int) * 4);
-    memcpy(evt.device_info.manufacturer_version, manufacturer_version, sizeof(int) * 4);
+    memcpy(evt.exciter_info.core_version, core_version, sizeof(int) * NRSC5_DEVICE_VERSION_LENGTH);
+    memcpy(evt.exciter_info.manufacturer_version, manufacturer_version, sizeof(int) * NRSC5_DEVICE_VERSION_LENGTH);
 
-    evt.device_info.core_status = core_status;
-    evt.device_info.manufacturer_status = manufacturer_status;
-    evt.device_info.importer_connected = importer_connected;
+    evt.exciter_info.manufacturer_id = manufacturer_id;
+    evt.exciter_info.core_status = core_status;
+    evt.exciter_info.manufacturer_status = manufacturer_status;
+    evt.exciter_info.importer_connected = importer_connected;
+
+    nrsc5_report(st, &evt);
+}
+
+void nrsc5_report_importer_info(nrsc5_t *st, const char* manufacturer_id,
+                                const int core_version[NRSC5_DEVICE_VERSION_LENGTH],
+                                const int manufacturer_version[NRSC5_DEVICE_VERSION_LENGTH],
+                                const int core_status, const int manufacturer_status)
+{
+    nrsc5_event_t evt;
+
+    evt.event = NRSC5_EVENT_IMPORTER_INFO;
+
+    memcpy(evt.importer_info.core_version, core_version, sizeof(int) * NRSC5_DEVICE_VERSION_LENGTH);
+    memcpy(evt.importer_info.manufacturer_version, manufacturer_version, sizeof(int) * NRSC5_DEVICE_VERSION_LENGTH);
+
+    evt.importer_info.manufacturer_id = manufacturer_id;
+    evt.importer_info.core_status = core_status;
+    evt.importer_info.manufacturer_status = manufacturer_status;
 
     nrsc5_report(st, &evt);
 }
 
 void nrsc5_report_leap(nrsc5_t *st, const int pending_leap_offset, const int current_leap_offset,
-                       const int alfn_leap_adjustment)
+                       const unsigned int alfn_leap_adjustment)
 {
     nrsc5_event_t evt;
 
-    evt.event = NRSC5_EVENT_LEAP_OFFSET;
-    evt.leap_offset.pending_leap_offset = pending_leap_offset;
-    evt.leap_offset.current_leap_offset = current_leap_offset;
-    evt.leap_offset.alfn_pending_leap_adjustment = alfn_leap_adjustment;
+    evt.event = NRSC5_EVENT_LEAP_SECOND_OFFSET;
+    evt.leap_second_offset.pending_offset = pending_leap_offset;
+    evt.leap_second_offset.current_offset = current_leap_offset;
+    evt.leap_second_offset.pending_alfn = alfn_leap_adjustment;
 
     nrsc5_report(st, &evt);
 }
@@ -1134,7 +1151,7 @@ void nrsc5_report_local_time(nrsc5_t *st, const int tzo, const int dst_regional,
     evt.local_time.utc_offset = tzo;
     evt.local_time.dst_regional = dst_regional;
     evt.local_time.dst_local = dst_local;
-    evt.local_time.dst_scheduled = dst_schedule;
+    evt.local_time.dst_schedule = dst_schedule;
 
     nrsc5_report(st, &evt);
 }

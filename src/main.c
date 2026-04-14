@@ -587,32 +587,32 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
                  evt->here_image.size);
         break;
     case NRSC5_EVENT_EXCITER_INFO:
-        log_debug("Exciter manuf. \"%c%c\", core version %d.%d.%d.%d, core status %d, manuf. version %d.%d.%d.%d, manuf. status %d, importer connected? %s",
-                  evt->device_info.id[0], evt->device_info.id[1],
-                  evt->device_info.core_version[0], evt->device_info.core_version[1], evt->device_info.core_version[2],
-                  evt->device_info.core_version[3], evt->device_info.core_status,
-                  evt->device_info.manufacturer_version[0], evt->device_info.manufacturer_version[1], evt->device_info.manufacturer_version[2],
-                  evt->device_info.manufacturer_version[3], evt->device_info.manufacturer_status,
-                  evt->device_info.importer_connected ? "yes" : "no");
+        log_debug("Exciter manuf. \"%s\", core version %d.%d.%d.%d, core status %d, manuf. version %d.%d.%d.%d, manuf. status %d, importer connected? %s",
+                  evt->exciter_info.manufacturer_id,
+                  evt->exciter_info.core_version[0], evt->exciter_info.core_version[1], evt->exciter_info.core_version[2],
+                  evt->exciter_info.core_version[3], evt->exciter_info.core_status,
+                  evt->exciter_info.manufacturer_version[0], evt->exciter_info.manufacturer_version[1], evt->exciter_info.manufacturer_version[2],
+                  evt->exciter_info.manufacturer_version[3], evt->exciter_info.manufacturer_status,
+                  evt->exciter_info.importer_connected ? "yes" : "no");
         break;
     case NRSC5_EVENT_IMPORTER_INFO:
-        log_debug("Importer manuf. \"%c%c\", core version %d.%d.%d.%d, core status %d, manuf. version %d.%d.%d.%d, manuf. status %d",
-                  evt->device_info.id[0], evt->device_info.id[1],
-                  evt->device_info.core_version[0], evt->device_info.core_version[1], evt->device_info.core_version[2],
-                  evt->device_info.core_version[3], evt->device_info.core_status,
-                  evt->device_info.manufacturer_version[0], evt->device_info.manufacturer_version[1], evt->device_info.manufacturer_version[2],
-                  evt->device_info.manufacturer_version[3], evt->device_info.manufacturer_status);
+        log_debug("Importer manuf. \"%s\", core version %d.%d.%d.%d, core status %d, manuf. version %d.%d.%d.%d, manuf. status %d",
+                  evt->importer_info.manufacturer_id,
+                  evt->importer_info.core_version[0], evt->importer_info.core_version[1], evt->importer_info.core_version[2],
+                  evt->importer_info.core_version[3], evt->importer_info.core_status,
+                  evt->importer_info.manufacturer_version[0], evt->importer_info.manufacturer_version[1], evt->importer_info.manufacturer_version[2],
+                  evt->importer_info.manufacturer_version[3], evt->importer_info.manufacturer_status);
         break;
-    case NRSC5_EVENT_LEAP_OFFSET:
-        log_debug("Leap second offset: pending=%d, current=%d, ALFN adjustment=%d",
-                 evt->leap_offset.pending_leap_offset,
-                 evt->leap_offset.current_leap_offset,
-                 evt->leap_offset.alfn_pending_leap_adjustment);
+    case NRSC5_EVENT_LEAP_SECOND_OFFSET:
+        log_debug("Leap second offset: pending=%d, current=%d, ALFN of pending adjustment=%d",
+                 evt->leap_second_offset.pending_offset,
+                 evt->leap_second_offset.current_offset,
+                 evt->leap_second_offset.pending_alfn);
         break;
     case NRSC5_EVENT_LOCAL_TIME:
-        log_debug("Local time: UTC offset=%d minutes, DST scheduled=%d, DST regional? %s, DST local? %s",
+        log_debug("Local time: UTC offset=%d minutes, DST schedule=%d, DST in effect regionally? %s, DST practiced locally? %s",
                  evt->local_time.utc_offset,
-                 evt->local_time.dst_scheduled,
+                 evt->local_time.dst_schedule,
                  evt->local_time.dst_regional ? "yes" : "no",
                  evt->local_time.dst_local ? "yes" : "no");
         break;

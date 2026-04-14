@@ -408,7 +408,7 @@ static void decode_sis(pids_t *st, uint8_t *bits)
         int category, prog_num;
         asd_t audio_service;
         dsd_t data_service;
-        int index, parameter, tzo, dst_scheduled, dst_local, dst_regional;
+        int index, parameter, tzo, dst_schedule, dst_local, dst_regional;
 
         if (off > 60) break;
         msg_id = decode_int(bits, &off, 4);
@@ -668,23 +668,23 @@ static void decode_sis(pids_t *st, uint8_t *bits)
                 case 2:
                     if (st->parameters[0] >= 0 && st->parameters[1] >= 0 && st->parameters[2] >= 0)
                     {
-                        const int pending_leap_offset = st->parameters[0] >> 8;
-                        const int current_leap_offset = st->parameters[0] & 0xff;
-                        const int alfn_pending_leap_adjustment = (unsigned int)st->parameters[2] << 16 | st->parameters[1];
+                        const int pending_offset = st->parameters[0] >> 8;
+                        const int current_offset = st->parameters[0] & 0xff;
+                        const unsigned int pending_alfn = (unsigned int)st->parameters[2] << 16 | st->parameters[1];
 
-                        nrsc5_report_leap(st->input->radio, pending_leap_offset, current_leap_offset, alfn_pending_leap_adjustment);
+                        nrsc5_report_leap(st->input->radio, pending_offset, current_offset, pending_alfn);
                     }
                     break;
                 case 3:
                     dst_regional = st->parameters[3] & 0x1;
                     dst_local = (st->parameters[3] >> 1) & 0x1;
-                    dst_scheduled = (st->parameters[3] >> 2) & 0x7;
+                    dst_schedule = (st->parameters[3] >> 2) & 0x7;
                     tzo = (st->parameters[3] >> 5) & 0x7ff;
 
                     if (tzo >= 1024)
                         tzo -= 2048;
 
-                    nrsc5_report_local_time(st->input->radio, tzo, dst_regional, dst_local, dst_scheduled);
+                    nrsc5_report_local_time(st->input->radio, tzo, dst_regional, dst_local, dst_schedule);
                     break;
                 case 4:
                 case 5:
@@ -692,14 +692,15 @@ static void decode_sis(pids_t *st, uint8_t *bits)
                 case 7:
                     if (st->parameters[4] >= 0 && st->parameters[5] >= 0 && st->parameters[6] >= 0 && st->parameters[7] >= 0)
                     {
-                        const char id[2] = {
-                            (char)((st->parameters[4] >> 8) & 0x7f), (char)(st->parameters[4] & 0x7f)
+                        const char manufacturer_id[3] = {
+                            (char)((st->parameters[4] >> 8) & 0x7f), (char)(st->parameters[4] & 0x7f),
+                            '\0'
                         };
-                        const int core_version[4] = {
+                        const int core_version[NRSC5_DEVICE_VERSION_LENGTH] = {
                             (st->parameters[5] >> 11) & 0x1f, (st->parameters[5] >> 6) & 0x1f, (st->parameters[5] >> 1) & 0x1f,
                             (st->parameters[7] >> 11) & 0x1f
                         };
-                        const int manufacturer[4] = {
+                        const int manufacturer[NRSC5_DEVICE_VERSION_LENGTH] = {
                             (st->parameters[6] >> 11) & 0x1f, (st->parameters[6] >> 6) & 0x1f, (st->parameters[6] >> 1) & 0x1f,
                             (st->parameters[7] >> 6) & 0x1f,
                         };
@@ -708,7 +709,7 @@ static void decode_sis(pids_t *st, uint8_t *bits)
                         const int manufacturer_status = st->parameters[7] & 0x7;
                         const int importer_connected = (st->parameters[4] >> 7) & 0x1;
 
-                        nrsc5_report_device_info(st->input->radio, 0, id, core_version, manufacturer,
+                        nrsc5_report_exciter_info(st->input->radio, manufacturer_id, core_version, manufacturer,
                             core_status, manufacturer_status, importer_connected);
                     }
                     break;
@@ -718,22 +719,23 @@ static void decode_sis(pids_t *st, uint8_t *bits)
                 case 11:
                     if (st->parameters[8] >= 0 && st->parameters[9] >= 0 && st->parameters[10] >= 0 && st->parameters[11] >= 0)
                     {
-                        const char id[2] = {
-                            (char)((st->parameters[8] >> 8) & 0x7f), (char)(st->parameters[8] & 0x7f)
+                        const char manufacturer_id[3] = {
+                            (char)((st->parameters[8] >> 8) & 0x7f), (char)(st->parameters[8] & 0x7f),
+                            '\0'
                         };
-                        const int core_version[4] = {
+                        const int core_version[NRSC5_DEVICE_VERSION_LENGTH] = {
                             (st->parameters[9] >> 11) & 0x1f, (st->parameters[9] >> 6) & 0x1f, (st->parameters[9] >> 1) & 0x1f,
                             (st->parameters[11] >> 11) & 0x1f,
                         };
-                        const int manufacturer[4] = {
+                        const int manufacturer[NRSC5_DEVICE_VERSION_LENGTH] = {
                             (st->parameters[10] >> 11) & 0x1f, (st->parameters[10] >> 6) & 0x1f, (st->parameters[10] >> 1) & 0x1f,
                             (st->parameters[11] >> 6) & 0x1f
                         };
                         const int core_status = (st->parameters[11] >> 3) & 0x7;
                         const int manufacturer_status = st->parameters[11] & 0x7;
 
-                        nrsc5_report_device_info(st->input->radio, 1, id, core_version, manufacturer,
-                            core_status, manufacturer_status, -1);
+                        nrsc5_report_importer_info(st->input->radio, manufacturer_id, core_version, manufacturer,
+                            core_status, manufacturer_status);
                     }
                     break;
                 case 12:

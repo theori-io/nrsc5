@@ -373,27 +373,27 @@ class NRSC5CLI:
                          evt.image_type.name, evt.seq, evt.n1, evt.n2, time_str, evt.latitude1, evt.longitude1,
                          evt.latitude2, evt.longitude2, evt.name, len(evt.data))
         elif evt_type == nrsc5.EventType.EXCITER_INFO:
-            logging.debug("Exciter manuf. \"%c%c\", core version %d.%d.%d.%d, core status %d, manuf. version %d.%d.%d.%d, manuf. status %d, importer connected? %s",
-                          evt.id[0], evt.id[1], evt.core_version[0], evt.core_version[1], evt.core_version[2],
+            logging.debug("Exciter manuf. \"%s\", core version %d.%d.%d.%d, core status %d, manuf. version %d.%d.%d.%d, manuf. status %d, importer connected? %s",
+                          evt.manufacturer_id, evt.core_version[0], evt.core_version[1], evt.core_version[2],
                           evt.core_version[3], evt.core_status,
                           evt.manufacturer_version[0], evt.manufacturer_version[1], evt.manufacturer_version[2],
                           evt.manufacturer_version[3], evt.manufacturer_status,
-                          evt.importer_connected)
+                          "yes" if evt.importer_connected else "no")
         elif evt_type == nrsc5.EventType.IMPORTER_INFO:
-            logging.debug("Importer manuf. \"%c%c\", core version %d.%d.%d.%d, core status %d, manuf. version %d.%d.%d.%d, manuf. status %d",
-                          evt.id[0], evt.id[1], evt.core_version[0], evt.core_version[1], evt.core_version[2],
+            logging.debug("Importer manuf. \"%s\", core version %d.%d.%d.%d, core status %d, manuf. version %d.%d.%d.%d, manuf. status %d",
+                          evt.manufacturer_id, evt.core_version[0], evt.core_version[1], evt.core_version[2],
                           evt.core_version[3], evt.core_status,
                           evt.manufacturer_version[0], evt.manufacturer_version[1], evt.manufacturer_version[2],
                           evt.manufacturer_version[3], evt.manufacturer_status)
-        elif evt_type == nrsc5.EventType.LEAP_OFFSET:
-            logging.debug("Leap second offset: pending=%d, current=%d, ALFN adjustment=%d",
-                          evt.pending_leap_offset, evt.current_leap_offset,
-                          evt.alfn_pending_leap_adjustment)
+        elif evt_type == nrsc5.EventType.LEAP_SECOND_OFFSET:
+            logging.debug("Leap second offset: pending=%d, current=%d, ALFN of pending adjustment=%d",
+                          evt.pending_offset, evt.current_offset,
+                          evt.pending_alfn)
         elif evt_type == nrsc5.EventType.LOCAL_TIME:
-            logging.debug("Local time: UTC offset=%d minutes, DST scheduled=%d, DST regional? %s, DST local? %s",
+            logging.debug("Local time: UTC offset=%d minutes, DST schedule=%d, DST in effect regionally? %s, DST practiced locally? %s",
                           evt.utc_offset,
-                          evt.dst_scheduled,
-                          evt.dst_regional if 'yes' else "no", evt.dst_local if 'yes' else 'no')
+                          evt.dst_schedule,
+                          "yes" if evt.dst_regional else "no", "yes" if evt.dst_local else "no")
 
 
 if __name__ == "__main__":

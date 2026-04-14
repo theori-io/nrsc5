@@ -55,6 +55,8 @@
 #define NRSC5_SAMPLE_RATE_CS16_AM  46511.71875 /**< Sample rate at which nrsc5_pipe_samples_cs16() expects samples (AM only) */
 #define NRSC5_SAMPLE_RATE_AUDIO    44100       /**< Sample rate of outgoing audio */
 
+#define NRSC5_DEVICE_VERSION_LENGTH 4          /**< Length of Core Version & Manufacture Version in SIS Parameter messages. */
+
 #ifdef NRSC5_EXPORTS
 #ifdef __MINGW32__
 #define NRSC5_API __declspec(dllexport)
@@ -185,7 +187,11 @@ enum
     NRSC5_EVENT_HERE_IMAGE,
     NRSC5_EVENT_LOT_HEADER,
     NRSC5_EVENT_LOT_FRAGMENT,
-    NRSC5_EVENT_AGC
+    NRSC5_EVENT_AGC,
+    NRSC5_EVENT_EXCITER_INFO,
+    NRSC5_EVENT_IMPORTER_INFO,
+    NRSC5_EVENT_LEAP_SECOND_OFFSET,
+    NRSC5_EVENT_LOCAL_TIME,
 };
 
 enum
@@ -391,6 +397,10 @@ struct nrsc5_event_t
  * - `NRSC5_EVENT_EMERGENCY_ALERT` : emergency alert, see `emergency_alert` member
  * - `NRSC5_EVENT_HERE_IMAGE` : HERE Images traffic/weather map, see `here_image` member
  * - `NRSC5_EVENT_AGC` : automatic gain control status, see `agc` member
+ * - `NRSC5_EVENT_EXCITER_INFO` : exciter data, see `exciter_info` member
+ * - `NRSC5_EVENT_IMPORTER_INFO` : importer data, see `importer_info` member
+ * - `NRSC5_EVENT_LEAP_SECOND_OFFSET` : leap second offset, see `leap_second_offset` member
+ * - `NRSC5_EVENT_LOCAL_TIME` : local time data, see `local_time` member
  */
     unsigned int event;
     union
@@ -573,6 +583,32 @@ struct nrsc5_event_t
             float peak_dbfs;     /**< peak signal amplitude in dB, relative to full scale */
             int is_final;        /**< 1 if this is the final (best) gain value, otherwise 0 */
         } agc;
+        struct {
+            const char* manufacturer_id;                           /**< Manufacturer ID, e.g. "GG" or "L7" */
+            int core_version[NRSC5_DEVICE_VERSION_LENGTH];         /**< Core Version number. */
+            int core_status;                                       /**< Core Version status. 0 (Commercial Release), 1 (Engineering Release), 2 (Patch). */
+            int manufacturer_version[NRSC5_DEVICE_VERSION_LENGTH]; /**< Manufacturer-assigned Version number. */
+            int manufacturer_status;                               /**< Manufacturer Version status. 0 (Commercial Release), 1 (Engineering Release), 2 (Patch). */
+            int importer_connected;                                /**< 1 if an importer is connected, otherwise 0. */
+        } exciter_info;
+        struct {
+            const char* manufacturer_id;                           /**< Manufacturer ID, e.g. "GG" or "L7" */
+            int core_version[NRSC5_DEVICE_VERSION_LENGTH];         /**< Core Version number. */
+            int core_status;                                       /**< Core Version status. 0 (Commercial Release), 1 (Engineering Release), 2 (Patch). */
+            int manufacturer_version[NRSC5_DEVICE_VERSION_LENGTH]; /**< Manufacturer-assigned Version number. */
+            int manufacturer_status;                               /**< Manufacturer Version status. 0 (Commercial Release), 1 (Engineering Release), 2 (Patch). */
+        } importer_info;
+        struct {
+            int pending_offset;           /**< Future GPS-UTC offset in seconds. Meant to be broadcasted months before the leap seconds and a few hours afterward. */
+            int current_offset;           /**< Current GPS-UTC offset in seconds. */
+            unsigned int pending_alfn;    /**< ALFN representing the GPS time of a pending leap second adjustment, or 0 if a leap second is not pending.*/
+        } leap_second_offset;
+        struct {
+            int utc_offset;    /**< Local Time Zone UTC Offset in minutes. */
+            int dst_regional;  /**< 1 if DST is currently in effect regionally, otherwise 0. */
+            int dst_local;     /**< 1 if DST is practiced locally, otherwise 0. */
+            int dst_schedule;  /**< DST Schedule. 0 means Daylight Saving Time is not practiced. 1 means U.S./Canada schedule. 2 means EU schedule. */
+        } local_time;
     };
 };
 /**

@@ -87,3 +87,11 @@ void nrsc5_report_emergency_alert(nrsc5_t *st, const char *message, const uint8_
 void nrsc5_report_here_image(nrsc5_t *st, int image_type, int seq, int n1, int n2, unsigned int timestamp,
                              float latitude1, float longitude1, float latitude2, float longitude2,
                              const char *name, unsigned int size, const uint8_t *data);
+void nrsc5_report_exciter_info(nrsc5_t *st, const char* manufacturer_id, const int core_version[4], const int manufacturer_version[4],
+                               int core_status, int manufacturer_status, int importer_connected);
+void nrsc5_report_importer_info(nrsc5_t *st, const char* manufacturer_id, const int core_version[4], const int manufacturer_version[4],
+                                int core_status, int manufacturer_status);
+void nrsc5_report_leap(nrsc5_t *st, int pending_leap_offset, int current_leap_offset,
+                       unsigned int alfn_leap_adjustment);
+void nrsc5_report_local_time(nrsc5_t *st, int utc_offset, int dst_regional, int dst_local,
+                             int dst_schedule);

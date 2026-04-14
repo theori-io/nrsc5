@@ -41,6 +41,10 @@ class EventType(enum.Enum):
     LOT_HEADER = 24
     LOT_FRAGMENT = 25
     AGC = 26
+    EXCITER_INFO = 27
+    IMPORTER_INFO = 28
+    LEAP_SECOND_OFFSET = 29
+    LOCAL_TIME = 30
 
 
 AUDIO_FRAME_SAMPLES = 2048
@@ -50,6 +54,7 @@ SAMPLE_RATE_CS16_FM = 744187.5
 SAMPLE_RATE_CS16_AM = 46511.71875
 SAMPLE_RATE_AUDIO = 44100
 
+DEVICE_VERSION_LENGTH = 4
 
 class ServiceType(enum.Enum):
     AUDIO = 0
@@ -224,7 +229,10 @@ AudioService = collections.namedtuple("AudioService", ["program", "access", "typ
 HEREImage = collections.namedtuple("HEREImage", ["image_type", "seq", "n1", "n2", "time_utc", "latitude1", "longitude1",
                                                  "latitude2", "longitude2", "name", "data"])
 AGC = collections.namedtuple("AGC", ["gain_db", "peak_dbfs", "is_final"])
-
+ExciterInfo = collections.namedtuple("ExciterInfo", ["manufacturer_id", "core_version", "core_status", "manufacturer_version", "manufacturer_status", "importer_connected"])
+ImporterInfo = collections.namedtuple("ImporterInfo", ["manufacturer_id", "core_version", "core_status", "manufacturer_version", "manufacturer_status"])
+LeapSecondOffset = collections.namedtuple("LeapOffset", ["pending_offset", "current_offset", "pending_alfn"])
+LocalTime = collections.namedtuple("LocalTime", ["utc_offset", "dst_regional", "dst_local", "dst_schedule"])
 
 class _IQ(ctypes.Structure):
     _fields_ = [
@@ -584,6 +592,39 @@ class _AGC(ctypes.Structure):
         ("is_final", ctypes.c_int),
     ]
 
+class _ExciterInfo(ctypes.Structure):
+    _fields_ = [
+        ("manufacturer_id", ctypes.c_char_p),
+        ("core_version", ctypes.c_int * DEVICE_VERSION_LENGTH),
+        ("core_status", ctypes.c_int),
+        ("manufacturer_version", ctypes.c_int * DEVICE_VERSION_LENGTH),
+        ("manufacturer_status", ctypes.c_int),
+        ("importer_connected", ctypes.c_int),
+    ]
+
+class _ImporterInfo(ctypes.Structure):
+    _fields_ = [
+        ("manufacturer_id", ctypes.c_char_p),
+        ("core_version", ctypes.c_int * DEVICE_VERSION_LENGTH),
+        ("core_status", ctypes.c_int),
+        ("manufacturer_version", ctypes.c_int * DEVICE_VERSION_LENGTH),
+        ("manufacturer_status", ctypes.c_int),
+    ]
+
+class _LeapOffset(ctypes.Structure):
+    _fields_ = [
+        ("pending_offset", ctypes.c_int),
+        ("current_offset", ctypes.c_int),
+        ("pending_alfn", ctypes.c_uint)
+    ]
+
+class _LocalTime(ctypes.Structure):
+    _fields_ = [
+        ("utc_offset", ctypes.c_int),
+        ("dst_regional", ctypes.c_int),
+        ("dst_local", ctypes.c_int),
+        ("dst_schedule", ctypes.c_int)
+    ]
 
 class _EventUnion(ctypes.Union):
     _fields_ = [
@@ -611,6 +652,10 @@ class _EventUnion(ctypes.Union):
         ("audio_service", _AudioService),
         ("here_image", _HEREImage),
         ("agc", _AGC),
+        ("exciter_info", _ExciterInfo),
+        ("importer_info", _ImporterInfo),
+        ("leap_second_offset", _LeapOffset),
+        ("local_time", _LocalTime)
     ]
 
 
@@ -867,6 +912,19 @@ class NRSC5:
         elif evt_type == EventType.AGC:
             agc = c_evt.u.agc
             evt = AGC(agc.gain_db, agc.peak_dbfs, bool(agc.is_final))
+        elif evt_type == EventType.EXCITER_INFO:
+            exciter_info = c_evt.u.exciter_info
+            evt = ExciterInfo(self._decode(exciter_info.manufacturer_id), exciter_info.core_version, exciter_info.core_status, exciter_info.manufacturer_version, exciter_info.manufacturer_status,
+                             bool(exciter_info.importer_connected))
+        elif evt_type == EventType.IMPORTER_INFO:
+            importer_info = c_evt.u.importer_info
+            evt = ImporterInfo(self._decode(importer_info.manufacturer_id), importer_info.core_version, importer_info.core_status, importer_info.manufacturer_version, importer_info.manufacturer_status)
+        elif evt_type == EventType.LEAP_SECOND_OFFSET:
+            leap_second_offset = c_evt.u.leap_second_offset
+            evt = LeapSecondOffset(leap_second_offset.pending_offset, leap_second_offset.current_offset, leap_second_offset.pending_alfn)
+        elif evt_type == EventType.LOCAL_TIME:
+            local_time = c_evt.u.local_time
+            evt = LocalTime(local_time.utc_offset, bool(local_time.dst_regional), bool(local_time.dst_local), local_time.dst_schedule)
 
         self.callback(evt_type, evt, *self.callback_args)
 

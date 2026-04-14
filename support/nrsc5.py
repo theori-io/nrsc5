@@ -43,6 +43,8 @@ class EventType(enum.Enum):
     AGC = 26
     EXCITER_INFO = 27
     IMPORTER_INFO = 28
+    LEAP_OFFSET = 29
+    LOCAL_TIME = 30
 
 
 AUDIO_FRAME_SAMPLES = 2048
@@ -227,6 +229,8 @@ HEREImage = collections.namedtuple("HEREImage", ["image_type", "seq", "n1", "n2"
                                                  "latitude2", "longitude2", "name", "data"])
 AGC = collections.namedtuple("AGC", ["gain_db", "peak_dbfs", "is_final"])
 DeviceInfo = collections.namedtuple("DeviceInfo", ["id", "core_version", "manufacturer_version", "core_status", "manufacturer_status", "importer_connected"])
+LeapOffset = collections.namedtuple("LeapOffset", ["pending_leap_offset", "current_leap_offset", "alfn_pending_leap_adjustment"])
+LocalTime = collections.namedtuple("LocalTime", ["utc_offset", "dst_regional", "dst_local", "dst_scheduled"])
 
 class _IQ(ctypes.Structure):
     _fields_ = [
@@ -596,6 +600,20 @@ class _DeviceInfo(ctypes.Structure):
         ("importer_connected", ctypes.c_int),
     ]
 
+class _LeapOffset(ctypes.Structure):
+    _fields_ = [
+        ("pending_leap_offset", ctypes.c_int),
+        ("current_leap_offset", ctypes.c_int),
+        ("alfn_pending_leap_adjustment", ctypes.c_int)
+    ]
+
+class _LocalTime(ctypes.Structure):
+    _fields_ = [
+        ("utc_offset", ctypes.c_int),
+        ("dst_regional", ctypes.c_int),
+        ("dst_local", ctypes.c_int),
+        ("dst_scheduled", ctypes.c_int)
+    ]
 
 class _EventUnion(ctypes.Union):
     _fields_ = [
@@ -623,7 +641,9 @@ class _EventUnion(ctypes.Union):
         ("audio_service", _AudioService),
         ("here_image", _HEREImage),
         ("agc", _AGC),
-        ("device_info", _DeviceInfo)
+        ("device_info", _DeviceInfo),
+        ("leap_offset", _LeapOffset),
+        ("local_time", _LocalTime)
     ]
 
 
@@ -884,6 +904,12 @@ class NRSC5:
             device_info = c_evt.u.device_info
             evt = DeviceInfo(device_info.id, device_info.core_version, device_info.manufacturer_version,
                              device_info.core_status, device_info.manufacturer_status, device_info.importer_connected)
+        elif evt_type == EventType.LEAP_OFFSET:
+            leap_offset = c_evt.u.leap_offset
+            evt = LeapOffset(leap_offset.pending_leap_offset, leap_offset.current_leap_offset, leap_offset.alfn_pending_leap_adjustment)
+        elif evt_type == EventType.LOCAL_TIME:
+            local_time = c_evt.u.local_time
+            evt = LocalTime(local_time.utc_offset, bool(local_time.dst_regional), bool(local_time.dst_local), local_time.dst_scheduled)
 
         self.callback(evt_type, evt, *self.callback_args)
 

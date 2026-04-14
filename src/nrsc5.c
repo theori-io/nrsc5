@@ -1112,6 +1112,33 @@ void nrsc5_report_device_info(nrsc5_t *st, const int device, const char id[2],
     nrsc5_report(st, &evt);
 }
 
+void nrsc5_report_leap(nrsc5_t *st, const int pending_leap_offset, const int current_leap_offset,
+                       const int alfn_leap_adjustment)
+{
+    nrsc5_event_t evt;
+
+    evt.event = NRSC5_EVENT_LEAP_OFFSET;
+    evt.leap_offset.pending_leap_offset = pending_leap_offset;
+    evt.leap_offset.current_leap_offset = current_leap_offset;
+    evt.leap_offset.alfn_pending_leap_adjustment = alfn_leap_adjustment;
+
+    nrsc5_report(st, &evt);
+}
+
+void nrsc5_report_local_time(nrsc5_t *st, const int tzo, const int dst_regional,
+                             const int dst_local, const int dst_schedule)
+{
+    nrsc5_event_t evt;
+
+    evt.event = NRSC5_EVENT_LOCAL_TIME;
+    evt.local_time.utc_offset = tzo;
+    evt.local_time.dst_regional = dst_regional;
+    evt.local_time.dst_local = dst_local;
+    evt.local_time.dst_scheduled = dst_schedule;
+
+    nrsc5_report(st, &evt);
+}
+
 void nrsc5_report_here_image(nrsc5_t *st, int image_type, int seq, int n1, int n2, unsigned int timestamp,
                              float latitude1, float longitude1, float latitude2, float longitude2,
                              const char *name, unsigned int size, const uint8_t *data)

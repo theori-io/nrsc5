@@ -385,6 +385,15 @@ class NRSC5CLI:
                           evt.core_version[3], evt.core_status,
                           evt.manufacturer_version[0], evt.manufacturer_version[1], evt.manufacturer_version[2],
                           evt.manufacturer_version[3], evt.manufacturer_status)
+        elif evt_type == nrsc5.EventType.LEAP_OFFSET:
+            logging.debug("Leap second offset: pending=%d, current=%d, ALFN adjustment=%d",
+                          evt.pending_leap_offset, evt.current_leap_offset,
+                          evt.alfn_pending_leap_adjustment)
+        elif evt_type == nrsc5.EventType.LOCAL_TIME:
+            logging.debug("Local time: UTC offset=%d minutes, DST scheduled=%d, DST regional? %s, DST local? %s",
+                          evt.utc_offset,
+                          evt.dst_scheduled,
+                          evt.dst_regional if 'yes' else "no", evt.dst_local if 'yes' else 'no')
 
 
 if __name__ == "__main__":

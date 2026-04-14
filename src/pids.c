@@ -408,7 +408,7 @@ static void decode_sis(pids_t *st, uint8_t *bits)
         int category, prog_num;
         asd_t audio_service;
         dsd_t data_service;
-        int index, parameter, tzo;
+        int index, parameter, tzo, dst_scheduled, dst_local, dst_regional;
 
         if (off > 60) break;
         msg_id = decode_int(bits, &off, 4);
@@ -664,19 +664,27 @@ static void decode_sis(pids_t *st, uint8_t *bits)
                 switch (index)
                 {
                 case 0:
-                    log_debug("Pending leap second offset: %d, current leap second offset: %d",
-                        parameter >> 8, parameter & 0xff);
-                    break;
                 case 1:
                 case 2:
-                    if (st->parameters[1] >= 0 && st->parameters[2] >= 0)
-                        log_debug("ALFN of pending leap second adjustment: %d", (unsigned int)st->parameters[2] << 16 | st->parameters[1]);
+                    if (st->parameters[0] >= 0 && st->parameters[1] >= 0 && st->parameters[2] >= 0)
+                    {
+                        const int pending_leap_offset = st->parameters[0] >> 8;
+                        const int current_leap_offset = st->parameters[0] & 0xff;
+                        const int alfn_pending_leap_adjustment = (unsigned int)st->parameters[2] << 16 | st->parameters[1];
+
+                        nrsc5_report_leap(st->input->radio, pending_leap_offset, current_leap_offset, alfn_pending_leap_adjustment);
+                    }
                     break;
                 case 3:
-                    tzo = (parameter >> 5) & 0x7ff;
-                    if (tzo >= 1024) tzo -= 2048;
-                    log_debug("Local time zone offset: %d minutes, DST sched. %d, local DST? %s, regional DST? %s",
-                        tzo, (parameter >> 2) & 0x7, parameter & 0x2 ? "yes" : "no", parameter & 0x1 ? "yes" : "no");
+                    dst_regional = st->parameters[3] & 0x1;
+                    dst_local = (st->parameters[3] >> 1) & 0x1;
+                    dst_scheduled = (st->parameters[3] >> 2) & 0x7;
+                    tzo = (st->parameters[3] >> 5) & 0x7ff;
+
+                    if (tzo >= 1024)
+                        tzo -= 2048;
+
+                    nrsc5_report_local_time(st->input->radio, tzo, dst_regional, dst_local, dst_scheduled);
                     break;
                 case 4:
                 case 5:
@@ -698,7 +706,7 @@ static void decode_sis(pids_t *st, uint8_t *bits)
 
                         const int core_status = (st->parameters[7] >> 3) & 0x7;
                         const int manufacturer_status = st->parameters[7] & 0x7;
-                        const int importer_connected = (st->parameters[4] >> 7) & 1;
+                        const int importer_connected = (st->parameters[4] >> 7) & 0x1;
 
                         nrsc5_report_device_info(st->input->radio, 0, id, core_version, manufacturer,
                             core_status, manufacturer_status, importer_connected);

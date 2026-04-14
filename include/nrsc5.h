@@ -188,6 +188,8 @@ enum
     NRSC5_EVENT_AGC,
     NRSC5_EVENT_EXCITER_INFO,
     NRSC5_EVENT_IMPORTER_INFO,
+    NRSC5_EVENT_LEAP_OFFSET,
+    NRSC5_EVENT_LOCAL_TIME,
 };
 
 enum
@@ -395,6 +397,8 @@ struct nrsc5_event_t
  * - `NRSC5_EVENT_AGC` : automatic gain control status, see `agc` member
  * - `NRSC5_EVENT_EXCITER_INFO` : exciter data, see `device_info` member
  * - `NRSC5_EVENT_IMPORTER_INFO` : importer data, see `device_info` member
+ * - `NRSC5_EVENT_LEAP_OFFSET` : leap offset, see `leap_offset` member
+ * - `NRSC5_EVENT_LOCAL_TIME` : local time data, see `local_time` member
  */
     unsigned int event;
     union
@@ -585,6 +589,17 @@ struct nrsc5_event_t
             int manufacturer_status;     /**< Manufacturer status. Values such like 0 (Commercial Release), 1 (Engineering Release), 2 (Patch). */
             int importer_connected;      /**< 1 if an importer is connected, otherwise 0 for EXCITER_INFO event. Set to -1 for IMPORTER_INFO event. */
         } device_info;
+        struct {
+            int pending_leap_offset;          /**< Future GPS-UTC offset in seconds. Meant to be broadcasted months before the leap seconds and a few hours afterward. */
+            int current_leap_offset;          /**< Current GPS-UTC offset in seconds. */
+            int alfn_pending_leap_adjustment; /**< Represents GPS time of a pending leap second adjustment in ALFN.*/
+        } leap_offset;
+        struct {
+            int utc_offset;    /**< Local Time Zone UTC Offset in MINUTES. */
+            int dst_regional;  /**< 1 if DST is currently in effect regionally, otherwise 0. */
+            int dst_local;     /**< 1 if DST is currently in effect in the station's region, otherwise 0. */
+            int dst_scheduled; /**< DST Schedule. 0 means Daylight Savings is not practiced. 1 means U.S./Canada Schedule. 2 means EU Daylight savings schedule. */
+        } local_time;
     };
 };
 /**

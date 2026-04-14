@@ -90,3 +90,7 @@ void nrsc5_report_here_image(nrsc5_t *st, int image_type, int seq, int n1, int n
 void nrsc5_report_device_info(nrsc5_t *st, int device, const char id[2], const int core_version[4],
                               const int manufacturer_version[4], int core_status, int manufacturer_status,
                               int importer_connected);
+void nrsc5_report_leap(nrsc5_t *st, int pending_leap_offset, int current_leap_offset,
+                       int alfn_leap_adjustment);
+void nrsc5_report_local_time(nrsc5_t *st, int utc_offset, int dst_regional, int dst_local,
+                             int dst_schedule);

@@ -603,6 +603,20 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
                   evt->device_info.manufacturer_version[0], evt->device_info.manufacturer_version[1], evt->device_info.manufacturer_version[2],
                   evt->device_info.manufacturer_version[3], evt->device_info.manufacturer_status);
         break;
+    case NRSC5_EVENT_LEAP_OFFSET:
+        log_debug("Leap second offset: pending=%d, current=%d, ALFN adjustment=%d",
+                 evt->leap_offset.pending_leap_offset,
+                 evt->leap_offset.current_leap_offset,
+                 evt->leap_offset.alfn_pending_leap_adjustment);
+        break;
+    case NRSC5_EVENT_LOCAL_TIME:
+        log_debug("Local time: UTC offset=%d minutes, DST scheduled=%d, DST regional? %s, DST local? %s",
+                 evt->local_time.utc_offset,
+                 evt->local_time.dst_scheduled,
+                 evt->local_time.dst_regional ? "yes" : "no",
+                 evt->local_time.dst_local ? "yes" : "no");
+        break;
+
     }
 }
 

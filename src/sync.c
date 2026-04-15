@@ -659,19 +659,19 @@ void sync_process_am(sync_t *st)
 
     if (st->input->sync_state == SYNC_STATE_FINE)
     {
-        int pids_0_index = (st->psmi != SERVICE_MODE_MA3) ? PIDS_INNER_INDEX_AM : -PIDS_INNER_INDEX_AM;
-        int pids_1_index = (st->psmi != SERVICE_MODE_MA3) ? PIDS_OUTER_INDEX_AM : PIDS_INNER_INDEX_AM;
+        int pids1_index = (st->psmi != SERVICE_MODE_MA3) ? PIDS_INNER_INDEX_AM : -PIDS_INNER_INDEX_AM;
+        int pids2_index = (st->psmi != SERVICE_MODE_MA3) ? PIDS_OUTER_INDEX_AM : PIDS_INNER_INDEX_AM;
 
-        float complex pids1_mult = 2 * CMPLXF(1.5, -0.5) / (st->buffer[CENTER_AM + pids_0_index][8] + st->buffer[CENTER_AM + pids_0_index][24]);
-        float complex pids2_mult = 2 * CMPLXF(1.5, -0.5) / (st->buffer[CENTER_AM + pids_1_index][8] + st->buffer[CENTER_AM + pids_1_index][24]);
+        float complex pids1_mult = 2 * CMPLXF(1.5, -0.5) / (st->buffer[CENTER_AM + pids1_index][8] + st->buffer[CENTER_AM + pids1_index][24]);
+        float complex pids2_mult = 2 * CMPLXF(1.5, -0.5) / (st->buffer[CENTER_AM + pids2_index][8] + st->buffer[CENTER_AM + pids2_index][24]);
 
         for (int n = 0; n < BLKSZ; n++)
         {
-            st->buffer[CENTER_AM + pids_0_index][n] *= pids1_mult;
-            decode_push_pids(&st->input->decode, qam16(st->buffer[CENTER_AM + pids_0_index][n]));
+            st->buffer[CENTER_AM + pids1_index][n] *= pids1_mult;
+            decode_push_pids(&st->input->decode, qam16(st->buffer[CENTER_AM + pids1_index][n]));
 
-            st->buffer[CENTER_AM + pids_1_index][n] *= pids2_mult;
-            decode_push_pids(&st->input->decode, qam16(st->buffer[CENTER_AM + pids_1_index][n]));
+            st->buffer[CENTER_AM + pids2_index][n] *= pids2_mult;
+            decode_push_pids(&st->input->decode, qam16(st->buffer[CENTER_AM + pids2_index][n]));
         }
 
         float complex pl_mult[PARTITION_WIDTH_AM];

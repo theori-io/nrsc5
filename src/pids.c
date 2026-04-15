@@ -38,9 +38,9 @@
 #define SIS_SERVICE_CATEGORY_AUDIO 0
 #define SIS_SERVICE_CATEGORY_DATA 1
 
-#define SIS_EMERGENCY_ALERTS_SAME 0
-#define SIS_EMERGENCY_ALERTS_FIPS 1
-#define SIS_EMERGENCY_ALERTS_ZIP  2
+#define SIS_EA_LOCATION_FORMAT_SAME 0
+#define SIS_EA_LOCATION_FORMAT_FIPS 1
+#define SIS_EA_LOCATION_FORMAT_ZIP  2
 
 
 static char *chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ ?-*$ ";
@@ -195,12 +195,12 @@ static int decode_locations(const uint8_t *bits, const int len, int locations[MA
 
     switch (location_format)
     {
-    case SIS_EMERGENCY_ALERTS_SAME:
+    case SIS_EA_LOCATION_FORMAT_SAME:
         full_len = 20;
         compressed_len = 14;
         break;
-    case SIS_EMERGENCY_ALERTS_FIPS:
-    case SIS_EMERGENCY_ALERTS_ZIP:
+    case SIS_EA_LOCATION_FORMAT_FIPS:
+    case SIS_EA_LOCATION_FORMAT_ZIP:
         full_len = 17;
         compressed_len = 10;
         break;

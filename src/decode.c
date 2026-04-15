@@ -377,9 +377,10 @@ void decode_process_pids_am(decode_t *st)
     }
 
     /* 1012s.pdf figure 10-5 */
+    int pids1_disabled = (st->input->sync.psmi == 1) && st->input->sync.rdbi;
     for (int i = 0; i < 10; i++) {
       for (int j = 0; j < 12; j++) {
-        st->viterbi_pids[i*24 + pids_il_delay[j]] = il[i*12 + j] ? 1 : -1;
+        st->viterbi_pids[i*24 + pids_il_delay[j]] = pids1_disabled ? 0 : (il[i*12 + j] ? 1 : -1);
         st->viterbi_pids[i*24 + pids_iu_delay[j]] = iu[i*12 + j] ? 1 : -1;
       }
     }
@@ -405,24 +406,29 @@ void decode_process_p1_p3_am(decode_t *st)
 
         if (block == 7)
         {
-            if (st->input->sync.psmi != SERVICE_MODE_MA3)
+            unsigned int total_frame_length = 8 * P1_FRAME_LEN_ENCODED_AM;
+
+            if (!st->input->sync.rdbi)
             {
-                nrsc5_conv_decode_e2(st->viterbi_p3_am, st->scrambler_p3_am, P3_FRAME_LEN_MA1);
-                st->am_errors += bit_errors_p3_ma1(st->viterbi_p3_am, st->scrambler_p3_am);
-                descramble(st->scrambler_p3_am, P3_FRAME_LEN_MA1);
-                frame_push(&st->input->frame, st->scrambler_p3_am, P3_FRAME_LEN_MA1, P3_LOGICAL_CHANNEL);
-        
-                nrsc5_report_ber(st->input->radio, (float) st->am_errors / (8 * P1_FRAME_LEN_ENCODED_AM + P3_FRAME_LEN_ENCODED_MA1));
+                if (st->input->sync.psmi != SERVICE_MODE_MA3)
+                {
+                    total_frame_length += P3_FRAME_LEN_ENCODED_MA1;
+                    nrsc5_conv_decode_e2(st->viterbi_p3_am, st->scrambler_p3_am, P3_FRAME_LEN_MA1);
+                    st->am_errors += bit_errors_p3_ma1(st->viterbi_p3_am, st->scrambler_p3_am);
+                    descramble(st->scrambler_p3_am, P3_FRAME_LEN_MA1);
+                    frame_push(&st->input->frame, st->scrambler_p3_am, P3_FRAME_LEN_MA1, P3_LOGICAL_CHANNEL);
+                }
+                else
+                {
+                    total_frame_length += P3_FRAME_LEN_ENCODED_MA3;
+                    nrsc5_conv_decode_e1(st->viterbi_p3_am, st->scrambler_p3_am, P3_FRAME_LEN_MA3);
+                    st->am_errors += bit_errors_p3_ma3(st->viterbi_p3_am, st->scrambler_p3_am);
+                    descramble(st->scrambler_p3_am, P3_FRAME_LEN_MA3);
+                    frame_push(&st->input->frame, st->scrambler_p3_am, P3_FRAME_LEN_MA3, P3_LOGICAL_CHANNEL);
+                }
             }
-            else
-            {
-                nrsc5_conv_decode_e1(st->viterbi_p3_am, st->scrambler_p3_am, P3_FRAME_LEN_MA3);
-                st->am_errors += bit_errors_p3_ma3(st->viterbi_p3_am, st->scrambler_p3_am);
-                descramble(st->scrambler_p3_am, P3_FRAME_LEN_MA3);
-                frame_push(&st->input->frame, st->scrambler_p3_am, P3_FRAME_LEN_MA3, P3_LOGICAL_CHANNEL);
-        
-                nrsc5_report_ber(st->input->radio, (float) st->am_errors / (8 * P1_FRAME_LEN_ENCODED_AM + P3_FRAME_LEN_ENCODED_MA3));
-            }        
+
+            nrsc5_report_ber(st->input->radio, (float) st->am_errors / total_frame_length);
         }
     }
 

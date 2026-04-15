@@ -35,6 +35,14 @@
 #define SIS_MSG_ID_EMERGENCY_ALERTS_MESSAGE 9
 #define SIS_MSG_ID_ADV_SERVICE_INFORMATION 10
 
+#define SIS_SERVICE_CATEGORY_AUDIO 0
+#define SIS_SERVICE_CATEGORY_DATA 1
+
+#define SIS_EMERGENCY_ALERTS_SAME 0
+#define SIS_EMERGENCY_ALERTS_FIPS 1
+#define SIS_EMERGENCY_ALERTS_ZIP  2
+
+
 static char *chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ ?-*$ ";
 static int payload_sizes[] = {
     32, 22, 58, 32, 27, 58, 27, 22,
@@ -179,28 +187,26 @@ static char decode_char7(const uint8_t *bits, int *off)
     return (char) decode_int(bits, off, 7);
 }
 
-static int* decode_locations(const uint8_t *bits, const int len, const int location_format, const int num_locations)
+static int decode_locations(const uint8_t *bits, const int len, int locations[MAX_ALERT_LOCATIONS], const int location_format, const int num_locations)
 {
     int off = 0;
-    int locations[MAX_ALERT_LOCATIONS];
     int previous_location = 0;
     int full_len, compressed_len;
-    int *locations_out;
 
     switch (location_format)
     {
-    case 0: // SAME
+    case SIS_EMERGENCY_ALERTS_SAME:
         full_len = 20;
         compressed_len = 14;
         break;
-    case 1: // FIPS
-    case 2: // ZIP
+    case SIS_EMERGENCY_ALERTS_FIPS:
+    case SIS_EMERGENCY_ALERTS_ZIP:
         full_len = 17;
         compressed_len = 10;
         break;
     default:
         log_warn("Invalid location format: %d", location_format);
-        return NULL;
+        return -1;
     }
 
     for (int i = 0; i < num_locations; i++)
@@ -208,7 +214,7 @@ static int* decode_locations(const uint8_t *bits, const int len, const int locat
         if (off + 1 > len)
         {
             log_warn("Invalid location data");
-            return NULL;
+            return -1;
         }
 
         if ((i == 0) || bits[off++])
@@ -217,9 +223,9 @@ static int* decode_locations(const uint8_t *bits, const int len, const int locat
             if (off + full_len > len)
             {
                 log_warn("Invalid location data");
-                return NULL;
+                return -1;
             }
-            locations[i] = decode_int_reverse(bits, &off, full_len);
+            locations[i] = (int)decode_int_reverse(bits, &off, full_len);
         }
         else
         {
@@ -227,7 +233,7 @@ static int* decode_locations(const uint8_t *bits, const int len, const int locat
             if (off + compressed_len > len)
             {
                 log_warn("Invalid location data");
-                return NULL;
+                return -1;
             }
             int new_digits = (int)decode_int_reverse(bits, &off, compressed_len);
             int old_digits = (previous_location % 100000) - (previous_location % 1000);
@@ -237,17 +243,10 @@ static int* decode_locations(const uint8_t *bits, const int len, const int locat
         previous_location = locations[i];
     }
 
-    locations_out = malloc(sizeof(int) * num_locations);
-    if (locations_out == NULL)
-    {
-        log_warn("Failed to allocate memory for emergency alert locations");
-        return NULL;
-    }
-    memcpy(locations_out, locations, sizeof(int) * num_locations);
-    return locations_out;
+    return 0;
 }
 
-static void decode_control_data(const char *control_data, const int len, int *category1, int *category2, int *location_format, int *num_locations, int **locations_out)
+static void decode_control_data(const char *control_data, const int len, int *category1, int *category2, int locations[MAX_ALERT_LOCATIONS], int *location_format, int *num_locations)
 {
     uint8_t bits[MAX_ALERT_CNT_LEN * 8];
     int off = 0;
@@ -266,8 +265,7 @@ static void decode_control_data(const char *control_data, const int len, int *ca
     *num_locations = (int)decode_int_reverse(bits, &off, 5);
     off += 1; // unknown
 
-    *locations_out = decode_locations(bits + off, len*8 - off, *location_format, *num_locations);
-    if (*locations_out == NULL)
+    if (decode_locations(bits + off, len*8 - off, locations, *location_format, *num_locations) < 0)
         *num_locations = 0;
 }
 
@@ -300,7 +298,7 @@ static void report(pids_t *st)
     int category2 = -1;
     int location_format = -1;
     int num_locations = -1;
-    int *locations = NULL;
+    int locations[MAX_ALERT_LOCATIONS];
 
     if (st->country_code[0] != 0)
         country_code = st->country_code;
@@ -323,7 +321,7 @@ static void report(pids_t *st)
     if (st->alert_displayed)
     {
         alert = utf8_encode(st->alert_encoding, st->alert + st->alert_cnt_len, st->alert_len - st->alert_cnt_len);
-        decode_control_data(st->alert, st->alert_cnt_len, &category1, &category2, &location_format, &num_locations, &locations);
+        decode_control_data(st->alert, st->alert_cnt_len, &category1, &category2, locations, &location_format, &num_locations);
     }
 
     if (!isnan(st->latitude) && !isnan(st->longitude))
@@ -368,7 +366,6 @@ static void report(pids_t *st)
     free(slogan);
     free(message);
     free(alert);
-    free(locations);
 
     while (audio_services)
     {
@@ -599,7 +596,7 @@ static int sis_decode_service_information(pids_t *st, const uint8_t* bits)
 
     switch (category)
     {
-    case 0:
+    case SIS_SERVICE_CATEGORY_AUDIO:
         audio_service.access = (int)decode_int(bits, &off, 1);
         prog_num = (int)decode_int(bits, &off, 6);
         audio_service.type = (int)decode_int(bits, &off, 8);
@@ -621,7 +618,7 @@ static int sis_decode_service_information(pids_t *st, const uint8_t* bits)
             updated = 1;
         }
         break;
-    case 1:
+    case SIS_SERVICE_CATEGORY_DATA:
         data_service.access = (int)decode_int(bits, &off, 1);
         data_service.type = (int)decode_int(bits, &off, 9);
         off += 3; // reserved
@@ -750,6 +747,7 @@ static void sis_decode_parameter(pids_t *st, const uint8_t* bits)
             log_debug("Importer configuration number: %d", parameter);
             break;
         default:
+            log_warn("Unknown SIS parameter index: %d", index);
             break;
         }
     }
@@ -916,12 +914,11 @@ static int sis_decode_emergency_alerts(pids_t *st, const uint8_t *bits)
                 int category2 = -1;
                 int location_format = -1;
                 int num_locations = -1;
-                int *locations = NULL;
+                int locations[MAX_ALERT_LOCATIONS];
                 char *message = utf8_encode(st->alert_encoding, st->alert + st->alert_cnt_len, st->alert_len - st->alert_cnt_len);
-                decode_control_data(st->alert, st->alert_cnt_len, &category1, &category2, &location_format, &num_locations, &locations);
+                decode_control_data(st->alert, st->alert_cnt_len, &category1, &category2, locations, &location_format, &num_locations);
                 nrsc5_report_emergency_alert(st->input->radio, message, (uint8_t *)st->alert, st->alert_cnt_len, category1, category2, location_format, num_locations, locations);
                 free(message);
-                free(locations);
 
                 updated = 1;
             }
@@ -1016,6 +1013,7 @@ static void sis_decode(pids_t *st, const uint8_t *bits)
             off += 58;
             break;
         default:
+            log_warn("Unknown SIS MSG ID: %d", msg_id);
             break;
         }
     }
@@ -1033,10 +1031,9 @@ static void sis_decode(pids_t *st, const uint8_t *bits)
 
 void pids_frame_push(pids_t *st, const uint8_t *bits)
 {
-    int i;
     uint8_t pids[PIDS_FRAME_LEN];
 
-    for (i = 0; i < PIDS_FRAME_LEN; i++)
+    for (int i = 0; i < PIDS_FRAME_LEN; i++)
     {
         pids[i] = bits[((i>>3)<<3) + 7 - (i & 7)];
     }
@@ -1048,7 +1045,7 @@ void pids_frame_push(pids_t *st, const uint8_t *bits)
         if (type == PIDS_TYPE_SIS)
             sis_decode(st, pids + 1);
         else if (type == PIDS_TYPE_LLDS)
-            log_debug("Ignoring LLDS frame.");
+            log_debug("Ignoring LLDS frame");
     }
 }
 

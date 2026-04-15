@@ -95,5 +95,5 @@ typedef struct
     int alert_timeout;
 } pids_t;
 
-void pids_frame_push(pids_t *st, uint8_t *bits);
+void pids_frame_push(pids_t *st, const uint8_t *bits);
 void pids_init(pids_t *st, struct input_t *input);

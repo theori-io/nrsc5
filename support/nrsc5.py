@@ -611,7 +611,7 @@ class _ImporterInfo(ctypes.Structure):
         ("manufacturer_status", ctypes.c_int),
     ]
 
-class _LeapOffset(ctypes.Structure):
+class _LeapSecondOffset(ctypes.Structure):
     _fields_ = [
         ("pending_offset", ctypes.c_int),
         ("current_offset", ctypes.c_int),
@@ -654,7 +654,7 @@ class _EventUnion(ctypes.Union):
         ("agc", _AGC),
         ("exciter_info", _ExciterInfo),
         ("importer_info", _ImporterInfo),
-        ("leap_second_offset", _LeapOffset),
+        ("leap_second_offset", _LeapSecondOffset),
         ("local_time", _LocalTime)
     ]
 

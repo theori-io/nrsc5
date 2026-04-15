@@ -1129,15 +1129,15 @@ void nrsc5_report_importer_info(nrsc5_t *st, const char* manufacturer_id,
     nrsc5_report(st, &evt);
 }
 
-void nrsc5_report_leap(nrsc5_t *st, const int pending_leap_offset, const int current_leap_offset,
-                       const unsigned int alfn_leap_adjustment)
+void nrsc5_report_leap_second_offset(nrsc5_t *st, const int pending_offset, const int current_offset,
+                                     const unsigned int pending_alfn)
 {
     nrsc5_event_t evt;
 
     evt.event = NRSC5_EVENT_LEAP_SECOND_OFFSET;
-    evt.leap_second_offset.pending_offset = pending_leap_offset;
-    evt.leap_second_offset.current_offset = current_leap_offset;
-    evt.leap_second_offset.pending_alfn = alfn_leap_adjustment;
+    evt.leap_second_offset.pending_offset = pending_offset;
+    evt.leap_second_offset.current_offset = current_offset;
+    evt.leap_second_offset.pending_alfn = pending_alfn;
 
     nrsc5_report(st, &evt);
 }

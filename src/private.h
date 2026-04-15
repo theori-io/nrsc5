@@ -91,7 +91,7 @@ void nrsc5_report_exciter_info(nrsc5_t *st, const char* manufacturer_id, const i
                                int core_status, int manufacturer_status, int importer_connected);
 void nrsc5_report_importer_info(nrsc5_t *st, const char* manufacturer_id, const int core_version[4], const int manufacturer_version[4],
                                 int core_status, int manufacturer_status);
-void nrsc5_report_leap(nrsc5_t *st, int pending_leap_offset, int current_leap_offset,
-                       unsigned int alfn_leap_adjustment);
+void nrsc5_report_leap_second_offset(nrsc5_t *st, int pending_offset, int current_offset,
+                                     unsigned int pending_alfn);
 void nrsc5_report_local_time(nrsc5_t *st, int utc_offset, int dst_regional, int dst_local,
                              int dst_schedule);

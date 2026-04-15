@@ -55,7 +55,7 @@
 #define NRSC5_SAMPLE_RATE_CS16_AM  46511.71875 /**< Sample rate at which nrsc5_pipe_samples_cs16() expects samples (AM only) */
 #define NRSC5_SAMPLE_RATE_AUDIO    44100       /**< Sample rate of outgoing audio */
 
-#define NRSC5_DEVICE_VERSION_LENGTH 4          /**< Length of Core Version & Manufacture Version in SIS Parameter messages. */
+#define NRSC5_DEVICE_VERSION_LENGTH 4          /**< Length of Core Version & Manufacturer Version in SIS Parameter messages. */
 
 #ifdef NRSC5_EXPORTS
 #ifdef __MINGW32__

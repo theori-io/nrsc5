@@ -18,7 +18,6 @@
 #include <math.h>
 #include <nrsc5.h>
 #include <pthread.h>
-#include <sys/time.h>
 #include <unistd.h>
 
 #include <assert.h>
@@ -42,8 +41,7 @@
 #include "bitwriter.h"
 #include "log.h"
 
-#define AUDIO_BUFFERS 128
-#define AUDIO_THRESHOLD 8
+#define AUDIO_BUFFERS 16
 #define AUDIO_DATA_LENGTH 8192
 #define FILE_BUFFER_LENGTH 32768
 #define STDIN_POLL_RATE_MS 100
@@ -80,7 +78,6 @@ typedef struct {
     pthread_cond_t cond;
 
     unsigned int program;
-    unsigned int audio_ready;
     unsigned int audio_packets_valid;
     unsigned int audio_packets;
     unsigned int audio_bytes;
@@ -127,44 +124,30 @@ static void reset_audio_buffers(state_t *st)
 static void push_audio_buffer(state_t *st, unsigned int program, const int16_t *data, size_t count)
 {
     audio_buffer_t *b;
-    struct timespec ts;
-    struct timeval now;
-
-    gettimeofday(&now, NULL);
-    ts.tv_sec = now.tv_sec;
-    ts.tv_nsec = (now.tv_usec + 100000) * 1000;
-    if (ts.tv_nsec >= 1000000000)
-    {
-        ts.tv_nsec -= 1000000000;
-        ts.tv_sec += 1;
-    }
 
     pthread_mutex_lock(&st->mutex);
     if (program != st->program)
         goto unlock;
 
-    while (st->free == NULL)
+    if (st->input_name)
     {
-        if (pthread_cond_timedwait(&st->cond, &st->mutex, &ts) == ETIMEDOUT)
+        while (st->free == NULL)
+            pthread_cond_wait(&st->cond, &st->mutex);
+    }
+    else
+    {
+        if (st->free == NULL)
         {
-            log_warn("Audio output timed out, dropping samples");
-            reset_audio_buffers(st);
+            log_warn("Audio output queue full, dropping samples");
+            goto unlock;
         }
     }
+
     b = st->free;
     st->free = b->next;
-    pthread_mutex_unlock(&st->mutex);
 
     assert(AUDIO_DATA_LENGTH == count * sizeof(data[0]));
     memcpy(b->data, data, count * sizeof(data[0]));
-
-    pthread_mutex_lock(&st->mutex);
-    if (program != st->program)
-    {
-        b->next = st->free;
-        st->free = b;
-        goto unlock;
-    }
 
     b->next = NULL;
     if (st->tail)
@@ -172,9 +155,6 @@ static void push_audio_buffer(state_t *st, unsigned int program, const int16_t *
     else
         st->head = b;
     st->tail = b;
-
-    if (st->audio_ready < AUDIO_THRESHOLD)
-        st->audio_ready++;
 
     pthread_cond_signal(&st->cond);
 
@@ -315,7 +295,6 @@ static void change_program(state_t *st, unsigned int program)
     pthread_mutex_lock(&st->mutex);
 
     // reset audio buffers
-    st->audio_ready = 0;
     if (st->tail)
     {
         st->tail->next = st->free;
@@ -411,7 +390,6 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
             }
             log_info(am_flags);
         }
-        st->audio_ready = 0;
         break;
     case NRSC5_EVENT_LOST_SYNC:
         log_info("Lost synchronization");
@@ -672,7 +650,7 @@ static void *audio_main(void *arg)
         audio_buffer_t *b;
 
         pthread_mutex_lock(&st->mutex);
-        while (!st->done && (st->head == NULL || st->audio_ready < AUDIO_THRESHOLD))
+        while (!st->done && (st->head == NULL))
             pthread_cond_wait(&st->cond, &st->mutex);
 
         // exit once done and no more audio buffers

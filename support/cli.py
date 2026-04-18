@@ -265,7 +265,11 @@ class NRSC5CLI:
                     elif self.args.t == "raw":
                         self.raw_output.write(evt.data)
                 else:
-                    self.audio_queue.put(evt.data)
+                    blocking_audio_output = bool(self.args.r)
+                    try:
+                        self.audio_queue.put(evt.data, block=blocking_audio_output)
+                    except queue.Full:
+                        logging.warning("Audio output queue full, dropping samples")
         elif evt_type == nrsc5.EventType.ID3:
             if evt.program == self.args.program:
                 if evt.title:

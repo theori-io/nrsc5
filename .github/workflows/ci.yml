@@ -88,7 +88,6 @@ jobs:
           grep -q "You're Listening to Q" sample.log
       - name: Windows cross-compile
         run: |
-          brew install --cask xquartz wine-stable
           brew install mingw-w64
           support/win-cross-compile 32 --cmake-args="-DUSE_SSE=ON" -j4
           support/win-cross-compile 64 --cmake-args="-DUSE_SSE=ON" -j4

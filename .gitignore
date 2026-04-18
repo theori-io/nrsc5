@@ -1,6 +1,4 @@
-/build/
-/build-win32/
-/build-win64/
+/build*/
 __pycache__
 
 # Swap

@@ -9,28 +9,24 @@
 typedef struct
 {
   int8_t buffer[144 * BLKSZ * 2];
-  unsigned int idx;
-  int8_t internal[P3_FRAME_LEN_FM * 32];
+  int8_t internal[P3_FRAME_LEN_MP3_MP11 * 32];
   unsigned int i;
   unsigned int pt[4];
-  int length;
-  int started;
+  unsigned int frame_length;
   int ready;
+  int started;
 } interleaver_iv_t;
 
 typedef struct
 {
     struct input_t *input;
-    int8_t buffer_pm[720 * BLKSZ * 16];
+    int8_t buffer_pm[PM_BLOCK_SIZE * 16];
     unsigned int idx_pm;
     int started_pm;
-    uint8_t buffer_pids_am[2 * BLKSZ];
-    unsigned int idx_pids_am;
     uint8_t buffer_pu[PARTITION_WIDTH_AM * BLKSZ * 8];
     uint8_t buffer_pl[PARTITION_WIDTH_AM * BLKSZ * 8];
     uint8_t buffer_s[PARTITION_WIDTH_AM * BLKSZ * 8];
     uint8_t buffer_t[PARTITION_WIDTH_AM * BLKSZ * 8];
-    unsigned int idx_pu_pl_s_t;
     unsigned int am_errors;
     unsigned int am_diversity_wait;
 
@@ -51,10 +47,10 @@ typedef struct
     uint8_t scrambler_pids[PIDS_FRAME_LEN];
     interleaver_iv_t interleaver_px1;
     interleaver_iv_t interleaver_px2;
-    int8_t viterbi_p3[P3_FRAME_LEN_FM * 3];
-    int8_t viterbi_p4[P3_FRAME_LEN_FM * 3];
-    uint8_t scrambler_p3[P3_FRAME_LEN_FM];
-    uint8_t scrambler_p4[P3_FRAME_LEN_FM];
+    int8_t viterbi_p3[P3_FRAME_LEN_MP3_MP11 * 3];
+    int8_t viterbi_p4[P3_FRAME_LEN_MP3_MP11 * 3];
+    uint8_t scrambler_p3[P3_FRAME_LEN_MP3_MP11];
+    uint8_t scrambler_p4[P3_FRAME_LEN_MP3_MP11];
 
     uint8_t p1_am[8 * P1_FRAME_LEN_ENCODED_AM];
     int8_t viterbi_p1_am[8 * P1_FRAME_LEN_AM * 3];
@@ -67,63 +63,19 @@ typedef struct
 } decode_t;
 
 void decode_process_p1(decode_t *st);
-void decode_process_pids(decode_t *st);
-void decode_process_p3_p4(decode_t *st, interleaver_iv_t *interleaver, int8_t *viterbi, uint8_t *scrambler, unsigned int frame_len, logical_channel_t lc);
-void decode_process_pids_am(decode_t *st);
-void decode_process_p1_p3_am(decode_t *st);
-static inline unsigned int decode_get_block(decode_t *st)
-{
-    return st->idx_pm / (720 * BLKSZ);
-}
-static inline void decode_push_pm(decode_t *st, int8_t sbit)
-{
-    st->buffer_pm[st->idx_pm++] = sbit;
-    if (st->idx_pm % (720 * BLKSZ) == 0)
-        decode_process_pids(st);
-    if (st->idx_pm == 720 * BLKSZ * 16)
-        if (st->started_pm)
-            decode_process_p1(st);
-}
-static inline void decode_push_px1_px2(decode_t *st, interleaver_iv_t *interleaver, int8_t *viterbi, uint8_t *scrambler, int8_t sbit)
-{
-    interleaver->buffer[interleaver->idx++] = sbit;
-    if (interleaver->idx % interleaver->length == 0)
-        if (interleaver->started)
-            decode_process_p3_p4(st, interleaver, viterbi, scrambler, interleaver->length / 2, (interleaver == &st->interleaver_px1) ? P3_LOGICAL_CHANNEL : P4_LOGICAL_CHANNEL);
-}
-static inline void decode_push_px1(decode_t *st, int8_t sbit)
-{
-    decode_push_px1_px2(st, &st->interleaver_px1, st->viterbi_p3, st->scrambler_p3, sbit);
-}
-static inline void decode_push_px2(decode_t *st, int8_t sbit)
-{
-    decode_push_px1_px2(st, &st->interleaver_px2, st->viterbi_p4, st->scrambler_p4, sbit);
-}
-static inline void decode_push_pids(decode_t *st, uint8_t sym)
-{
-    st->buffer_pids_am[st->idx_pids_am++] = sym;
-    if (st->idx_pids_am == 2 * BLKSZ)
-    {
-        decode_process_pids_am(st);
-        st->idx_pids_am = 0;
-    }
-}
-static inline void decode_push_pl_pu_s_t(decode_t *st, uint8_t sym_pl, uint8_t sym_pu, uint8_t sym_s, uint8_t sym_t)
-{
-    st->buffer_pl[st->idx_pu_pl_s_t] = sym_pl;
-    st->buffer_pu[st->idx_pu_pl_s_t] = sym_pu;
-    st->buffer_s[st->idx_pu_pl_s_t] = sym_s;
-    st->buffer_t[st->idx_pu_pl_s_t] = sym_t;
-    st->idx_pu_pl_s_t++;
-    if (st->idx_pu_pl_s_t % (PARTITION_WIDTH_AM * BLKSZ) == 0)
-    {
-        decode_process_p1_p3_am(st);
+void decode_process_pids(decode_t *st, unsigned int bc);
+void decode_process_p3_p4(const decode_t *st, interleaver_iv_t *interleaver, int8_t *viterbi, uint8_t *scrambler, logical_channel_t lc);
+void decode_process_pids_am(decode_t *st, const uint8_t* sbit);
+void decode_process_p1_p3_am(decode_t *st, unsigned int bc);
 
-        if (st->idx_pu_pl_s_t == PARTITION_WIDTH_AM * BLKSZ * 8)
-            st->idx_pu_pl_s_t = 0;
-    }
-}
-void decode_set_block(decode_t *st, unsigned int bc);
-void decode_set_px1_length(decode_t *st, unsigned int frame_len);
+void decode_push_pm(decode_t *st, const int8_t* sbit, unsigned int bc);
+void decode_push_px1(decode_t *st, const int8_t* sbit, unsigned int bc);
+void decode_push_px2(decode_t *st, const int8_t* sbit, unsigned int bc);
+
+void decode_push_pl_pu_s_t(decode_t *st,
+    const uint8_t* sym_pl, const uint8_t* sym_pu, const uint8_t* sym_s, const uint8_t* sym_t,
+    unsigned int bc);
+
+int decode_set_psmi(decode_t *st, int mode, unsigned int psmi);
 void decode_reset(decode_t *st);
 void decode_init(decode_t *st, struct input_t *input);

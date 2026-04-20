@@ -49,7 +49,8 @@
 #define PIDS_FRAME_LEN_ENCODED_FM (PIDS_FRAME_LEN * 5 / 2)
 #define PIDS_FRAME_LEN_ENCODED_AM (PIDS_FRAME_LEN * 3)
 // bits per P3 frame
-#define P3_FRAME_LEN_FM 4608
+#define P3_FRAME_LEN_MP2 2304
+#define P3_FRAME_LEN_MP3_MP11 4608
 #define P3_FRAME_LEN_MA1 24000
 #define P3_FRAME_LEN_MA3 30000
 // bits per encoded P3 frame
@@ -70,6 +71,14 @@
 #define ELASTIC_BUFFER_LEN 64
 // number of subcarriers per AM partition
 #define PARTITION_WIDTH_AM 25
+// number of subcarriers per FM partition
+#define PARTITION_WIDTH_FM 19
+// number of data carries per FM partition
+#define PARTITION_DATA_CARRIERS 18
+// number of partitions in each Primary Main (PM) sideband
+#define PM_PARTITIONS 10
+// size of one block in the PM interleaver matrix
+#define PM_BLOCK_SIZE (2 * 2 * PM_PARTITIONS * PARTITION_DATA_CARRIERS * BLKSZ)
 
 #define log_debug(...) \
             do { if (LIBRARY_DEBUG_LEVEL <= 1) { fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\n"); } } while (0)

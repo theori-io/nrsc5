@@ -655,12 +655,12 @@ void frame_push(frame_t *st, uint8_t *bits, size_t length, logical_channel_t lc)
         offset = 1248;
         pci_len = 24;
         break;
-    case P3_FRAME_LEN_FM:
+    case P3_FRAME_LEN_MP3_MP11:
         start = 120;
         offset = 184;
         pci_len = 24;
         break;
-    case P3_FRAME_LEN_FM / 2:
+    case P3_FRAME_LEN_MP2:
         start = 120;
         offset = 88;
         pci_len = 24;

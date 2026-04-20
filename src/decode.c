@@ -21,22 +21,53 @@
 #include "pids.h"
 #include "private.h"
 
+#define PM_V_SIZE 20
+
 /* 1012s.pdf figure 10-4 */
-static int bl_delay[] = { 2, 1, 5 };
-static int ml_delay[] = { 11, 6, 7 };
-static int bu_delay[] = { 10, 8, 9 };
-static int mu_delay[] = { 4, 3, 0 };
-static int el_delay[] = { 0, 1 };
-static int eu_delay[] = { 2, 3, 5, 4 };
+static const int bl_delay[] = { 2, 1, 5 };
+static const int ml_delay[] = { 11, 6, 7 };
+static const int bu_delay[] = { 10, 8, 9 };
+static const int mu_delay[] = { 4, 3, 0 };
+static const int el_delay[] = { 0, 1 };
+static const int eu_delay[] = { 2, 3, 5, 4 };
+
+static const int8_t PM_V[PM_V_SIZE] = {
+    10, 2, 18, 6, 14, 8, 16, 0, 12, 4,
+    11, 3, 19, 7, 15, 9, 17, 1, 13, 5
+};
+
+static const struct lte_conv_code conv_code_k7 = {
+    .n = 3,
+    .k = 7,
+    .len = P1_FRAME_LEN_FM,
+    .gen = { 0133, 0171, 0165 },
+    .term = CONV_TERM_TAIL_BITING,
+};
+
+static const struct lte_conv_code conv_code_e1 = {
+    .n = 3,
+    .k = 9,
+    .len = P3_FRAME_LEN_MA3,
+    .gen = { 0561, 0657, 0711 },
+    .term = CONV_TERM_TAIL_BITING,
+};
+
+static const struct lte_conv_code conv_code_e2_e3 = {
+    .n = 3,
+    .k = 9,
+    .len = P3_FRAME_LEN_MA1,
+    .gen = { 0561, 0753, 0711 },
+    .term = CONV_TERM_TAIL_BITING,
+};
 
 /* 1012s.pdf figure 10-5 */
-static int pids_il_delay[] = { 0, 1, 12, 13, 6, 5, 18, 17, 11, 7, 23, 19 };
-static int pids_iu_delay[] = { 2, 4, 14, 16, 3, 8, 15, 20, 9, 10, 21, 22 };
+static const int pids_il_delay[] = { 0, 1, 12, 13, 6, 5, 18, 17, 11, 7, 23, 19 };
+static const int pids_iu_delay[] = { 2, 4, 14, 16, 3, 8, 15, 20, 9, 10, 21, 22 };
 
-static int bit_map(unsigned char matrix[PARTITION_WIDTH_AM * BLKSZ * 8], int b, int k, int p)
+static int bit_map(const unsigned char matrix[PARTITION_WIDTH_AM * BLKSZ * 8], const int b, const int k, const int p)
 {
-    int col = (9*k) % 25;
-    int row = (11*col + 16*(k/25) + 11*(k/50)) % 32;
+    const int col = (9*k) % 25;
+    const int row = (11*col + 16*(k/25) + 11*(k/50)) % 32;
     return (matrix[PARTITION_WIDTH_AM * (b*BLKSZ + row) + col] >> p) & 1;
 }
 
@@ -200,9 +231,9 @@ static void interleaver_ma1(decode_t *st)
 }
 
 // calculate number of bit errors by re-encoding and comparing to the input
-static int bit_errors(int8_t *coded, uint8_t *decoded, unsigned int k, unsigned int frame_len,
-                      unsigned int g1, unsigned int g2, unsigned int g3,
-                      uint8_t *puncture, int puncture_len)
+static int bit_errors(int8_t *coded, uint8_t *decoded, const unsigned int k, unsigned int frame_len,
+                      const unsigned int gens[3],
+                      const uint8_t *puncture, const int puncture_len)
 {
     uint16_t r = 0;
     unsigned int i, j, errors = 0;
@@ -216,39 +247,33 @@ static int bit_errors(int8_t *coded, uint8_t *decoded, unsigned int k, unsigned 
         // shift in new bit
         r = (r >> 1) | (decoded[i] << (k-1));
 
-        if (puncture[j % puncture_len] && ((coded[j] > 0) != __builtin_parity(r & g1)))
+        if (puncture[j % puncture_len] && ((coded[j] > 0) != __builtin_parity(r & gens[0])))
             errors++;
-        if (puncture[(j+1) % puncture_len] && ((coded[j+1] > 0) != __builtin_parity(r & g2)))
+        if (puncture[(j+1) % puncture_len] && ((coded[j+1] > 0) != __builtin_parity(r & gens[1])))
             errors++;
-        if (puncture[(j+2) % puncture_len] && ((coded[j+2] > 0) != __builtin_parity(r & g3)))
+        if (puncture[(j+2) % puncture_len] && ((coded[j+2] > 0) != __builtin_parity(r & gens[2])))
             errors++;
     }
 
     return errors;
 }
 
-static int bit_errors_p1_fm(int8_t *coded, uint8_t *decoded)
+static int bit_errors_2_5_fm(int8_t *coded, uint8_t *decoded, const int len)
 {
-    uint8_t puncture[] = {1, 1, 1, 1, 1, 0};
-    return bit_errors(coded, decoded, 7, P1_FRAME_LEN_FM, 0133, 0171, 0165, puncture, 6);
+    const uint8_t puncture[] = {1, 1, 1, 1, 1, 0};
+    return bit_errors(coded, decoded, conv_code_k7.k, len, conv_code_k7.gen, puncture, 6);
 }
 
-static int bit_errors_p1_am(int8_t *coded, uint8_t *decoded)
+static int bit_errors_e1(int8_t *coded, uint8_t *decoded, const int len)
 {
-    uint8_t puncture[] = {1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1};
-    return bit_errors(coded, decoded, 9, P1_FRAME_LEN_AM, 0561, 0657, 0711, puncture, 15);
+    const uint8_t puncture[] = {1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1};
+    return bit_errors(coded, decoded, conv_code_e1.k, len, conv_code_e1.gen, puncture, 15);
 }
 
-static int bit_errors_p3_ma1(int8_t *coded, uint8_t *decoded)
+static int bit_errors_e2(int8_t *coded, uint8_t *decoded, const int len)
 {
-    uint8_t puncture[] = {1, 0, 1, 1, 0, 0};
-    return bit_errors(coded, decoded, 9, P3_FRAME_LEN_MA1, 0561, 0753, 0711, puncture, 6);
-}
-
-static int bit_errors_p3_ma3(int8_t *coded, uint8_t *decoded)
-{
-    uint8_t puncture[] = {1, 0, 1, 1, 0, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1};
-    return bit_errors(coded, decoded, 9, P3_FRAME_LEN_MA3, 0561, 0657, 0711, puncture, 15);
+    const uint8_t puncture[] = {1, 0, 1, 1, 0, 0};
+    return bit_errors(coded, decoded, conv_code_e2_e3.k, len, conv_code_e2_e3.gen, puncture, 6);
 }
 
 static void descramble(uint8_t *buf, unsigned int length)
@@ -268,74 +293,79 @@ static void descramble(uint8_t *buf, unsigned int length)
     }
 }
 
-void decode_process_p1(decode_t *st)
+static void interleaver_i(const int8_t* in,
+                          int8_t* viterbi,
+                          const int J,
+                          const int B,
+                          const int C,
+                          const int M,
+                          const int8_t* V,
+                          const unsigned int length_v,
+                          const unsigned int N)
 {
-    const int J = 20, B = 16, C = 36;
-    const int8_t v[] = {
-        10, 2, 18, 6, 14, 8, 16, 0, 12, 4,
-        11, 3, 19, 7, 15, 9, 17, 1, 13, 5
-    };
-    unsigned int i, out = 0;
-    for (i = 0; i < P1_FRAME_LEN_ENCODED_FM; i++)
+    unsigned int out = 0;
+    for (unsigned int i = 0; i < N; i++)
     {
-        int partition = v[i % J];
-        int block = ((i / J) + (partition * 7)) % B;
-        int k = i / (J * B);
-        int row = (k * 11) % 32;
-        int column = (k * 11 + k / (32*9)) % C;
-        st->viterbi_p1[out++] = st->buffer_pm[(block * 32 + row) * 720 + partition * C + column];
+        const int8_t partition = V[((i + 2 * (M / 4)) / M) % length_v];
+        unsigned int block;
+        if (M == 1)
+            block = ((i / J) + (partition * 7)) % B;
+        else
+            block = (i + (i / (J * B))) % B;
+        const unsigned int k = i / (J * B);
+        const unsigned int row = (k * 11) % 32;
+        const unsigned int column = (k * 11 + k / (32 * 9)) % C;
+        viterbi[out++] = in[(block * 32 + row) * (J * C) + partition * C + column];
         if ((out % 6) == 5) // depuncture, [1, 1, 1, 1, 1, 0]
-            st->viterbi_p1[out++] = 0;
+            viterbi[out++] = 0;
     }
-
-    nrsc5_conv_decode_p1(st->viterbi_p1, st->scrambler_p1);
-    nrsc5_report_ber(st->input->radio, (float) bit_errors_p1_fm(st->viterbi_p1, st->scrambler_p1) / P1_FRAME_LEN_ENCODED_FM);
-    descramble(st->scrambler_p1, P1_FRAME_LEN_FM);
-    frame_push(&st->input->frame, st->scrambler_p1, P1_FRAME_LEN_FM, P1_LOGICAL_CHANNEL);
 }
 
-void decode_process_pids(decode_t *st)
+static void interleaver_ii(const int8_t* in, int8_t* viterbi, const unsigned int bc,
+                           const int J, const int B, const int C,
+                           const int8_t* V, const unsigned int length_v,
+                           const int b, const int I0)
 {
-    const int J = 20, B = 16, C = 36;
-    const int8_t v[] = {
-        10, 2, 18, 6, 14, 8, 16, 0, 12, 4,
-        11, 3, 19, 7, 15, 9, 17, 1, 13, 5
-    };
-    unsigned int i, out = 0;
-    for (i = 0; i < PIDS_FRAME_LEN_ENCODED_FM; i++)
-    {
-        int partition = v[i % J];
-        int block = decode_get_block(st) - 1;
-        int k = ((i / J) % (PIDS_FRAME_LEN_ENCODED_FM / J)) + (P1_FRAME_LEN_ENCODED_FM / (J * B));
-        int row = (k * 11) % 32;
-        int column = (k * 11 + k / (32*9)) % C;
-        st->viterbi_pids[out++] = st->buffer_pm[(block * 32 + row) * 720 + partition * C + column];
-        if ((out % 6) == 5) // depuncture, [1, 1, 1, 1, 1, 0]
-            st->viterbi_pids[out++] = 0;
-    }
+    int out = 0;
 
-    nrsc5_conv_decode_pids(st->viterbi_pids, st->scrambler_pids);
-    descramble(st->scrambler_pids, PIDS_FRAME_LEN);
-    pids_frame_push(&st->pids, st->scrambler_pids);
+    for (unsigned int i = bc * b; i < (bc+1) * b; i++)
+    {
+        const int8_t partition = V[i % length_v];
+        const unsigned int block = i / b;
+        const unsigned int k = ((i / J) % (b / J)) + (I0 / (J * B));
+        const unsigned int row = (k * 11) % 32;
+        const unsigned int column = (k * 11 + k / (32 * 9)) % C;
+        viterbi[out++] = in[(block * 32 + row) * (J * C) + partition * C + column];
+        if ((out % 6) == 5) // depuncture, [1, 1, 1, 1, 1, 0]
+            viterbi[out++] = 0;
+    };
 }
 
-void decode_process_p3_p4(decode_t *st, interleaver_iv_t *interleaver, int8_t *viterbi, uint8_t *scrambler, unsigned int frame_len, logical_channel_t lc)
+void interleaver_iv(interleaver_iv_t* interleaver, int8_t* viterbi, const unsigned int frame_len)
 {
-    const unsigned int J = (frame_len == P3_FRAME_LEN_FM) ? 4 : 2;
+    const unsigned int J = (frame_len == P3_FRAME_LEN_MP3_MP11) ? 4 : 2;
     const unsigned int B = 32;
     const unsigned int C = 36;
-    const unsigned int M = (frame_len == P3_FRAME_LEN_FM) ? 2 : 4;
-    const unsigned int N = (frame_len == P3_FRAME_LEN_FM) ? 147456 : 73728;
+    const unsigned int M = (frame_len == P3_FRAME_LEN_MP3_MP11) ? 2 : 4;
+    const unsigned int N = (frame_len == P3_FRAME_LEN_MP3_MP11) ? 147456 : 73728;
     const unsigned int bk_bits = 32 * C;
     const unsigned int bk_adj = 32 * C - 1;
-    unsigned int i, out = 0;
-    for (i = 0; i < frame_len * 2; i++)
+
+    if (interleaver->i == N)
     {
-        int partition = ((interleaver->i + 2 * (M / 4)) / M) % J;
-        unsigned int pti = interleaver->pt[partition]++;
-        int block = (pti + (partition * 7) - (bk_adj * (pti / bk_bits))) % B;
-        int row = ((11 * pti) % bk_bits) / C;
-        int column = (pti * 11) % C;
+        interleaver->i = 0;
+        memset(interleaver->pt, 0, sizeof(unsigned int) * 4);
+        interleaver->ready = 1;
+    }
+
+    unsigned int out = 0;
+    for (unsigned int i = 0; i < frame_len * 2; i++)
+    {
+        const unsigned int partition = ((interleaver->i + 2 * (M / 4)) / M) % J;
+        const unsigned int pti = interleaver->pt[partition]++;
+        const unsigned int block = (pti + (partition * 7) - (bk_adj * (pti / bk_bits))) % B;
+        const unsigned int row = ((11 * pti) % bk_bits) / C;
+        const unsigned int column = (pti * 11) % C;
         viterbi[out++] = interleaver->internal[(block * 32 + row) * (J * C) + partition * C + column];
         if ((out % 6) == 1 || (out % 6) == 4) // depuncture, [1, 0, 1, 1, 0, 1]
             viterbi[out++] = 0;
@@ -343,21 +373,105 @@ void decode_process_p3_p4(decode_t *st, interleaver_iv_t *interleaver, int8_t *v
         interleaver->internal[interleaver->i] = interleaver->buffer[i];
         interleaver->i++;
     }
-    if (interleaver->ready)
+}
+
+void decode_push_pm(decode_t *st, const int8_t* sbit, const unsigned int bc)
+{
+    memcpy(st->buffer_pm + PM_BLOCK_SIZE * bc, sbit, PM_BLOCK_SIZE * sizeof(int8_t));
+    decode_process_pids(st, bc);
+
+    if (bc == 0)
+        st->started_pm = 1;
+
+    if (st->started_pm)
     {
-        nrsc5_conv_decode_p3_p4(viterbi, scrambler, frame_len);
-        descramble(scrambler, frame_len);
-        frame_push(&st->input->frame, scrambler, frame_len, lc);
-    }
-    if (interleaver->i == N)
-    {
-        interleaver->i = 0;
-        memset(interleaver->pt, 0, sizeof(unsigned int) * 4);
-        interleaver->ready = 1;
+        if (bc == 15)
+            decode_process_p1(st);
     }
 }
 
-void decode_process_pids_am(decode_t *st)
+void decode_push_px1(decode_t *st, const int8_t* sbit, const unsigned int len, const unsigned int bc)
+{
+    if (bc % 2 == 0)
+        st->interleaver_px1.started = 1;
+
+    if (st->interleaver_px1.started)
+    {
+        memcpy(st->interleaver_px1.buffer + len * (bc % 2), sbit,len * sizeof(int8_t));
+
+        if (bc % 2 == 1)
+        {
+            interleaver_iv(&st->interleaver_px1, st->viterbi_p3, len);
+
+            if (st->interleaver_px1.ready)
+            {
+                nrsc5_conv_decode_p3_p4(st->viterbi_p3, st->scrambler_p3, len);
+                descramble(st->scrambler_p3, len);
+                frame_push(&st->input->frame, st->scrambler_p3, len, P3_LOGICAL_CHANNEL);
+            }
+        }
+    }
+}
+
+void decode_push_px2(decode_t* st, const int8_t* sbit, const unsigned int len, const unsigned int bc)
+{
+    if (bc % 2 == 0)
+        st->interleaver_px2.started = 1;
+
+    if (st->interleaver_px2.started)
+    {
+        memcpy(st->interleaver_px2.buffer + len * (bc % 2), sbit, len * sizeof(int8_t));
+
+        if (bc % 2 == 1)
+        {
+            interleaver_iv(&st->interleaver_px2, st->viterbi_p4, len);
+
+            if (st->interleaver_px2.ready)
+            {
+                nrsc5_conv_decode_p3_p4(st->viterbi_p4, st->scrambler_p4, len);
+                descramble(st->scrambler_p4, len);
+                frame_push(&st->input->frame, st->scrambler_p4, len, P4_LOGICAL_CHANNEL);
+            }
+        }
+    }
+}
+
+void decode_push_pl_pu_s_t(decode_t* st,
+    const uint8_t* sym_pl, const uint8_t* sym_pu, const uint8_t* sym_s,
+    const uint8_t* sym_t, const unsigned int bc)
+{
+    memcpy(st->buffer_pl + (bc * BLKSZ * PARTITION_WIDTH_AM), sym_pl, BLKSZ * PARTITION_WIDTH_AM);
+    memcpy(st->buffer_pu + (bc * BLKSZ * PARTITION_WIDTH_AM), sym_pu, BLKSZ * PARTITION_WIDTH_AM);
+    memcpy(st->buffer_s + (bc * BLKSZ * PARTITION_WIDTH_AM), sym_s, BLKSZ * PARTITION_WIDTH_AM);
+    memcpy(st->buffer_t + (bc * BLKSZ * PARTITION_WIDTH_AM), sym_t, BLKSZ * PARTITION_WIDTH_AM);
+
+    decode_process_p1_p3_am(st, bc);
+}
+
+void decode_process_p1(decode_t *st)
+{
+    const int J = 20, B = 16, C = 36, M = 1;
+    interleaver_i(st->buffer_pm, st->viterbi_p1,
+        J, B, C, M, PM_V, PM_V_SIZE, P1_FRAME_LEN_ENCODED_FM);
+
+    nrsc5_conv_decode_p1(st->viterbi_p1, st->scrambler_p1);
+    nrsc5_report_ber(st->input->radio, (float) bit_errors_2_5_fm(st->viterbi_p1, st->scrambler_p1, P1_FRAME_LEN_FM) / P1_FRAME_LEN_ENCODED_FM);
+    descramble(st->scrambler_p1, P1_FRAME_LEN_FM);
+    frame_push(&st->input->frame, st->scrambler_p1, P1_FRAME_LEN_FM, P1_LOGICAL_CHANNEL);
+}
+
+void decode_process_pids(decode_t *st, const unsigned int bc)
+{
+    const int J = 20, B = 16, C = 36;
+    interleaver_ii(st->buffer_pm, st->viterbi_pids, (int)bc, J, B, C, PM_V, PM_V_SIZE, PIDS_FRAME_LEN_ENCODED_FM,
+        P1_FRAME_LEN_ENCODED_FM);
+
+    nrsc5_conv_decode_pids(st->viterbi_pids, st->scrambler_pids);
+    descramble(st->scrambler_pids, PIDS_FRAME_LEN);
+    pids_frame_push(&st->pids, st->scrambler_pids);
+}
+
+void decode_process_pids_am(decode_t *st, const uint8_t* sbit)
 {
     uint8_t il[120], iu[120];
 
@@ -369,15 +483,15 @@ void decode_process_pids_am(decode_t *st)
 
         k = (n + (n/60) + 11) % 30;
         row = (11 * (k + (k/15)) + 3) % 32;
-        il[n] = (st->buffer_pids_am[row*2] >> p) & 1;
+        il[n] = (sbit[row*2] >> p) & 1;
 
         k = (n + (n/60)) % 30;
         row = (11 * (k + (k/15)) + 3) % 32;
-        iu[n] = (st->buffer_pids_am[row*2 + 1] >> p) & 1;
+        iu[n] = (sbit[row*2 + 1] >> p) & 1;
     }
 
     /* 1012s.pdf figure 10-5 */
-    int pids1_disabled = (st->input->sync.psmi == 1) && st->input->sync.rdbi;
+    const int pids1_disabled = (st->input->sync.psmi == 1) && st->input->sync.rdbi;
     for (int i = 0; i < 10; i++) {
       for (int j = 0; j < 12; j++) {
         st->viterbi_pids[i*24 + pids_il_delay[j]] = pids1_disabled ? 0 : (il[i*12 + j] ? 1 : -1);
@@ -385,26 +499,24 @@ void decode_process_pids_am(decode_t *st)
       }
     }
 
-    nrsc5_conv_decode_e3(st->viterbi_pids, st->scrambler_pids, PIDS_FRAME_LEN);
+    nrsc5_conv_decode_e2_e3(st->viterbi_pids, st->scrambler_pids, PIDS_FRAME_LEN);
     descramble(st->scrambler_pids, PIDS_FRAME_LEN);
     pids_frame_push(&st->pids, st->scrambler_pids);
 }
 
-void decode_process_p1_p3_am(decode_t *st)
+void decode_process_p1_p3_am(decode_t *st, const unsigned int bc)
 {
-    unsigned int block = st->idx_pu_pl_s_t / (PARTITION_WIDTH_AM * BLKSZ) - 1;
-
-    if (block == 0)
+    if (bc == 0)
         st->am_errors = 0;
 
     if (st->am_diversity_wait == 0)
     {
-        nrsc5_conv_decode_e1(st->viterbi_p1_am + (block * P1_FRAME_LEN_AM * 3), st->scrambler_p1_am, P1_FRAME_LEN_AM);
-        st->am_errors += bit_errors_p1_am(st->viterbi_p1_am + (block * P1_FRAME_LEN_AM * 3), st->scrambler_p1_am);
+        nrsc5_conv_decode_e1(st->viterbi_p1_am + (bc * P1_FRAME_LEN_AM * 3), st->scrambler_p1_am, P1_FRAME_LEN_AM);
+        st->am_errors += bit_errors_e1(st->viterbi_p1_am + (bc * P1_FRAME_LEN_AM * 3), st->scrambler_p1_am, P1_FRAME_LEN_AM);
         descramble(st->scrambler_p1_am, P1_FRAME_LEN_AM);
         frame_push(&st->input->frame, st->scrambler_p1_am, P1_FRAME_LEN_AM, P1_LOGICAL_CHANNEL);
 
-        if (block == 7)
+        if (bc == 7)
         {
             unsigned int total_frame_length = 8 * P1_FRAME_LEN_ENCODED_AM;
 
@@ -413,8 +525,8 @@ void decode_process_p1_p3_am(decode_t *st)
                 if (st->input->sync.psmi != SERVICE_MODE_MA3)
                 {
                     total_frame_length += P3_FRAME_LEN_ENCODED_MA1;
-                    nrsc5_conv_decode_e2(st->viterbi_p3_am, st->scrambler_p3_am, P3_FRAME_LEN_MA1);
-                    st->am_errors += bit_errors_p3_ma1(st->viterbi_p3_am, st->scrambler_p3_am);
+                    nrsc5_conv_decode_e2_e3(st->viterbi_p3_am, st->scrambler_p3_am, P3_FRAME_LEN_MA1);
+                    st->am_errors += bit_errors_e2(st->viterbi_p3_am, st->scrambler_p3_am, P3_FRAME_LEN_MA1);
                     descramble(st->scrambler_p3_am, P3_FRAME_LEN_MA1);
                     frame_push(&st->input->frame, st->scrambler_p3_am, P3_FRAME_LEN_MA1, P3_LOGICAL_CHANNEL);
                 }
@@ -422,17 +534,17 @@ void decode_process_p1_p3_am(decode_t *st)
                 {
                     total_frame_length += P3_FRAME_LEN_ENCODED_MA3;
                     nrsc5_conv_decode_e1(st->viterbi_p3_am, st->scrambler_p3_am, P3_FRAME_LEN_MA3);
-                    st->am_errors += bit_errors_p3_ma3(st->viterbi_p3_am, st->scrambler_p3_am);
+                    st->am_errors += bit_errors_e1(st->viterbi_p3_am, st->scrambler_p3_am, P3_FRAME_LEN_MA3);
                     descramble(st->scrambler_p3_am, P3_FRAME_LEN_MA3);
                     frame_push(&st->input->frame, st->scrambler_p3_am, P3_FRAME_LEN_MA3, P3_LOGICAL_CHANNEL);
                 }
             }
 
-            nrsc5_report_ber(st->input->radio, (float) st->am_errors / total_frame_length);
+            nrsc5_report_ber(st->input->radio, (float) st->am_errors / (float) total_frame_length);
         }
     }
 
-    if (block == 7)
+    if (bc == 7)
     {
         interleaver_ma1(st);
 
@@ -441,32 +553,10 @@ void decode_process_p1_p3_am(decode_t *st)
     }
 }
 
-void decode_set_block(decode_t *st, unsigned int bc)
-{
-    st->idx_pm = 720 * BLKSZ * bc;
-    if (bc == 0)
-        st->started_pm = 1;
-
-    st->interleaver_px1.idx = (st->interleaver_px1.length / 2) * (bc % 2);
-    st->interleaver_px2.idx = (st->interleaver_px2.length / 2) * (bc % 2);
-    if ((bc % 2) == 0)
-    {
-        st->interleaver_px1.started = 1;
-        st->interleaver_px2.started = 1;
-    }
-}
-
-void decode_set_px1_length(decode_t *st, unsigned int frame_len)
-{
-    st->interleaver_px1.length = frame_len;
-}
-
 static void interleaver_iv_reset(interleaver_iv_t *interleaver)
 {
-    interleaver->idx = 0;
     interleaver->i = 0;
     memset(interleaver->pt, 0, sizeof(unsigned int) * 4);
-    interleaver->length = P3_FRAME_LEN_FM * 2;
     interleaver->started = 0;
     interleaver->ready = 0;
 }
@@ -475,7 +565,6 @@ void decode_reset(decode_t *st)
 {
     st->idx_pm = 0;
     st->started_pm = 0;
-    st->idx_pu_pl_s_t = 0;
     st->am_errors = 0;
     st->am_diversity_wait = 4;
     interleaver_iv_reset(&st->interleaver_px1);
@@ -483,7 +572,7 @@ void decode_reset(decode_t *st)
     pids_init(&st->pids, st->input);
 }
 
-void decode_init(decode_t *st, struct input_t *input)
+void decode_init(decode_t *st, input_t *input)
 {
     st->input = input;
     decode_reset(st);

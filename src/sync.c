@@ -405,7 +405,6 @@ void sync_process_fm(sync_t *st)
                 input_set_sync_state(st->input, SYNC_STATE_FINE);
 
                 decode_reset(&st->input->decode);
-                decode_set_psmi(&st->input->decode, NRSC5_MODE_FM, compatibility_mode[st->psmi]);
 
                 frame_reset(&st->input->frame);
             }
@@ -599,11 +598,11 @@ void sync_process_fm(sync_t *st)
         decode_push_pm(&st->input->decode, buffer_pm, st->bc);
         if (out_px1 > 0)
         {
-            decode_push_px1(&st->input->decode, buffer_px1, st->bc);
+            decode_push_px1(&st->input->decode, buffer_px1, out_px1, st->bc);
         }
         if (out_px2 > 0)
         {
-            decode_push_px2(&st->input->decode, buffer_px2, st->bc);
+            decode_push_px2(&st->input->decode, buffer_px2, out_px2, st->bc);
         }
 
         st->bc = (st->bc + 1) % 16;
@@ -661,7 +660,6 @@ void sync_process_am(sync_t *st)
             st->bc = 0;
             input_set_sync_state(st->input, SYNC_STATE_FINE);
             decode_reset(&st->input->decode);
-            decode_set_psmi(&st->input->decode, NRSC5_MODE_AM, st->psmi);
             frame_reset(&st->input->frame);
             st->offset_history = 0;
         }

@@ -21,6 +21,8 @@
 #include "pids.h"
 #include "private.h"
 
+#define PM_V_SIZE 20
+
 /* 1012s.pdf figure 10-4 */
 static const int bl_delay[] = { 2, 1, 5 };
 static const int ml_delay[] = { 11, 6, 7 };
@@ -29,12 +31,12 @@ static const int mu_delay[] = { 4, 3, 0 };
 static const int el_delay[] = { 0, 1 };
 static const int eu_delay[] = { 2, 3, 5, 4 };
 
-static const int8_t V_PM[] = {
+static const int8_t PM_V[PM_V_SIZE] = {
     10, 2, 18, 6, 14, 8, 16, 0, 12, 4,
     11, 3, 19, 7, 15, 9, 17, 1, 13, 5
 };
 
-static const struct lte_conv_code conv_code_p = {
+static const struct lte_conv_code conv_code_k7 = {
     .n = 3,
     .k = 7,
     .len = P1_FRAME_LEN_FM,
@@ -256,10 +258,10 @@ static int bit_errors(int8_t *coded, uint8_t *decoded, const unsigned int k, uns
     return errors;
 }
 
-static int bit_errors_p_fm(int8_t *coded, uint8_t *decoded, const int len)
+static int bit_errors_2_5_fm(int8_t *coded, uint8_t *decoded, const int len)
 {
     const uint8_t puncture[] = {1, 1, 1, 1, 1, 0};
-    return bit_errors(coded, decoded, conv_code_p.k, len, conv_code_p.gen, puncture, 6);
+    return bit_errors(coded, decoded, conv_code_k7.k, len, conv_code_k7.gen, puncture, 6);
 }
 
 static int bit_errors_e1(int8_t *coded, uint8_t *decoded, const int len)
@@ -293,53 +295,59 @@ static void descramble(uint8_t *buf, unsigned int length)
 
 static void interleaver_i(const int8_t* in,
                           int8_t* viterbi,
-                          int J,
-                          int B,
-                          int C,
-                          int M,
+                          const int J,
+                          const int B,
+                          const int C,
+                          const int M,
                           const int8_t* V,
+                          const unsigned int length_v,
                           const unsigned int N)
 {
-    unsigned int i, out = 0;
-    for (i = 0; i < N; i++)
+    unsigned int out = 0;
+    for (unsigned int i = 0; i < N; i++)
     {
-        const int partition = V[((i + 2 * (M / 4)) / M) % J];
-        const int block = ((i / J) + (partition * 7)) % B;
-        const int k = i / (J * B);
-        const int row = (k * 11) % 32;
-        const int column = (k * 11 + k / (32 * 9)) % C;
-        viterbi[out++] = in[(block * 32 + row) * 720 + partition * C + column];
+        const int8_t partition = V[((i + 2 * (M / 4)) / M) % length_v];
+        unsigned int block;
+        if (M == 1)
+            block = ((i / J) + (partition * 7)) % B;
+        else
+            block = (i + (i / (J * B))) % B;
+        const unsigned int k = i / (J * B);
+        const unsigned int row = (k * 11) % 32;
+        const unsigned int column = (k * 11 + k / (32 * 9)) % C;
+        viterbi[out++] = in[(block * 32 + row) * (J * C) + partition * C + column];
         if ((out % 6) == 5) // depuncture, [1, 1, 1, 1, 1, 0]
             viterbi[out++] = 0;
     }
 }
 
-static void interleaver_ii(const int8_t* in, int8_t* viterbi, const int bc,
-                           const int J, const int B, const int C, const int8_t* V,
-                           const int b, const int I0, const int N)
+static void interleaver_ii(const int8_t* in, int8_t* viterbi, const unsigned int bc,
+                           const int J, const int B, const int C,
+                           const int8_t* V, const unsigned int length_v,
+                           const int b, const int I0)
 {
     int out = 0;
 
-    for (int i = bc * b; i < (bc+1) * b; i++)
+    for (unsigned int i = bc * b; i < (bc+1) * b; i++)
     {
-        const int partition = V[i % J];
-        const int block = i / b;
-        const int k = ((i / J) % (N / J)) + (I0 / (J * B));
-        const int row = (k * 11) % 32;
-        const int column = (k * 11 + k / (32*9)) % C;
-        viterbi[out++] = in[(block * 32 + row) * 720 + partition * C + column];
+        const int8_t partition = V[i % length_v];
+        const unsigned int block = i / b;
+        const unsigned int k = ((i / J) % (b / J)) + (I0 / (J * B));
+        const unsigned int row = (k * 11) % 32;
+        const unsigned int column = (k * 11 + k / (32 * 9)) % C;
+        viterbi[out++] = in[(block * 32 + row) * (J * C) + partition * C + column];
         if ((out % 6) == 5) // depuncture, [1, 1, 1, 1, 1, 0]
             viterbi[out++] = 0;
     };
 }
 
-void interleaver_iv(interleaver_iv_t* interleaver, int8_t* viterbi)
+void interleaver_iv(interleaver_iv_t* interleaver, int8_t* viterbi, const unsigned int frame_len)
 {
-    const unsigned int N = (interleaver->frame_length == P3_FRAME_LEN_MP3_MP11) ? 147456 : 73728;
-    const unsigned int J = (interleaver->frame_length == P3_FRAME_LEN_MP3_MP11) ? 4 : 2;
+    const unsigned int J = (frame_len == P3_FRAME_LEN_MP3_MP11) ? 4 : 2;
     const unsigned int B = 32;
     const unsigned int C = 36;
-    const unsigned int M = (interleaver->frame_length == P3_FRAME_LEN_MP3_MP11) ? 2 : 4;
+    const unsigned int M = (frame_len == P3_FRAME_LEN_MP3_MP11) ? 2 : 4;
+    const unsigned int N = (frame_len == P3_FRAME_LEN_MP3_MP11) ? 147456 : 73728;
     const unsigned int bk_bits = 32 * C;
     const unsigned int bk_adj = 32 * C - 1;
 
@@ -351,13 +359,13 @@ void interleaver_iv(interleaver_iv_t* interleaver, int8_t* viterbi)
     }
 
     unsigned int out = 0;
-    for (unsigned int i = 0; i < interleaver->frame_length * 2; i++)
+    for (unsigned int i = 0; i < frame_len * 2; i++)
     {
-        const int partition = ((interleaver->i + 2 * (M / 4)) / M) % J;
+        const unsigned int partition = ((interleaver->i + 2 * (M / 4)) / M) % J;
         const unsigned int pti = interleaver->pt[partition]++;
-        const int block = (pti + (partition * 7) - (bk_adj * (pti / bk_bits))) % B;
-        const int row = ((11 * pti) % bk_bits) / C;
-        const int column = (pti * 11) % C;
+        const unsigned int block = (pti + (partition * 7) - (bk_adj * (pti / bk_bits))) % B;
+        const unsigned int row = ((11 * pti) % bk_bits) / C;
+        const unsigned int column = (pti * 11) % C;
         viterbi[out++] = interleaver->internal[(block * 32 + row) * (J * C) + partition * C + column];
         if ((out % 6) == 1 || (out % 6) == 4) // depuncture, [1, 0, 1, 1, 0, 1]
             viterbi[out++] = 0;
@@ -382,53 +390,47 @@ void decode_push_pm(decode_t *st, const int8_t* sbit, const unsigned int bc)
     }
 }
 
-void decode_push_px1(decode_t *st, const int8_t* sbit, const unsigned int bc)
+void decode_push_px1(decode_t *st, const int8_t* sbit, const unsigned int len, const unsigned int bc)
 {
     if (bc % 2 == 0)
         st->interleaver_px1.started = 1;
 
     if (st->interleaver_px1.started)
     {
-        const unsigned int pos = st->interleaver_px1.frame_length * (bc % 2);
-
-        memcpy(st->interleaver_px1.buffer + pos, sbit,
-            st->interleaver_px1.frame_length * sizeof(int8_t));
+        memcpy(st->interleaver_px1.buffer + len * (bc % 2), sbit,len * sizeof(int8_t));
 
         if (bc % 2 == 1)
         {
-            interleaver_iv(&st->interleaver_px1, st->viterbi_p3);
+            interleaver_iv(&st->interleaver_px1, st->viterbi_p3, len);
 
             if (st->interleaver_px1.ready)
             {
-                nrsc5_conv_decode_p3_p4(st->viterbi_p3, st->scrambler_p3, st->interleaver_px1.frame_length);
-                descramble(st->scrambler_p3, st->interleaver_px1.frame_length);
-                frame_push(&st->input->frame, st->scrambler_p3, st->interleaver_px1.frame_length, P3_LOGICAL_CHANNEL);
+                nrsc5_conv_decode_p3_p4(st->viterbi_p3, st->scrambler_p3, len);
+                descramble(st->scrambler_p3, len);
+                frame_push(&st->input->frame, st->scrambler_p3, len, P3_LOGICAL_CHANNEL);
             }
         }
     }
 }
 
-void decode_push_px2(decode_t* st, const int8_t* sbit, const unsigned int bc)
+void decode_push_px2(decode_t* st, const int8_t* sbit, const unsigned int len, const unsigned int bc)
 {
     if (bc % 2 == 0)
         st->interleaver_px2.started = 1;
 
     if (st->interleaver_px2.started)
     {
-        const unsigned int pos = st->interleaver_px2.frame_length * (bc % 2);
-
-        memcpy(st->interleaver_px2.buffer + pos, sbit,
-            st->interleaver_px2.frame_length * sizeof(int8_t));
+        memcpy(st->interleaver_px2.buffer + len * (bc % 2), sbit, len * sizeof(int8_t));
 
         if (bc % 2 == 1)
         {
-            interleaver_iv(&st->interleaver_px2, st->viterbi_p4);
+            interleaver_iv(&st->interleaver_px2, st->viterbi_p4, len);
 
             if (st->interleaver_px2.ready)
             {
-                nrsc5_conv_decode_p3_p4(st->viterbi_p4, st->scrambler_p4, st->interleaver_px2.frame_length);
-                descramble(st->scrambler_p4, st->interleaver_px2.frame_length);
-                frame_push(&st->input->frame, st->scrambler_p4, st->interleaver_px2.frame_length, P4_LOGICAL_CHANNEL);
+                nrsc5_conv_decode_p3_p4(st->viterbi_p4, st->scrambler_p4, len);
+                descramble(st->scrambler_p4, len);
+                frame_push(&st->input->frame, st->scrambler_p4, len, P4_LOGICAL_CHANNEL);
             }
         }
     }
@@ -448,12 +450,12 @@ void decode_push_pl_pu_s_t(decode_t* st,
 
 void decode_process_p1(decode_t *st)
 {
-    const int J = 20, B = 16, C = 36;
+    const int J = 20, B = 16, C = 36, M = 1;
     interleaver_i(st->buffer_pm, st->viterbi_p1,
-        J, B, C, 1, V_PM, P1_FRAME_LEN_ENCODED_FM);
+        J, B, C, M, PM_V, PM_V_SIZE, P1_FRAME_LEN_ENCODED_FM);
 
     nrsc5_conv_decode_p1(st->viterbi_p1, st->scrambler_p1);
-    nrsc5_report_ber(st->input->radio, (float) bit_errors_p_fm(st->viterbi_p1, st->scrambler_p1, P1_FRAME_LEN_FM) / P1_FRAME_LEN_ENCODED_FM);
+    nrsc5_report_ber(st->input->radio, (float) bit_errors_2_5_fm(st->viterbi_p1, st->scrambler_p1, P1_FRAME_LEN_FM) / P1_FRAME_LEN_ENCODED_FM);
     descramble(st->scrambler_p1, P1_FRAME_LEN_FM);
     frame_push(&st->input->frame, st->scrambler_p1, P1_FRAME_LEN_FM, P1_LOGICAL_CHANNEL);
 }
@@ -461,8 +463,8 @@ void decode_process_p1(decode_t *st)
 void decode_process_pids(decode_t *st, const unsigned int bc)
 {
     const int J = 20, B = 16, C = 36;
-    interleaver_ii(st->buffer_pm, st->viterbi_pids, (int)bc, J, B, C, V_PM, PIDS_FRAME_LEN_ENCODED_FM,
-        P1_FRAME_LEN_ENCODED_FM, PIDS_FRAME_LEN_ENCODED_FM * 16);
+    interleaver_ii(st->buffer_pm, st->viterbi_pids, (int)bc, J, B, C, PM_V, PM_V_SIZE, PIDS_FRAME_LEN_ENCODED_FM,
+        P1_FRAME_LEN_ENCODED_FM);
 
     nrsc5_conv_decode_pids(st->viterbi_pids, st->scrambler_pids);
     descramble(st->scrambler_pids, PIDS_FRAME_LEN);
@@ -497,7 +499,7 @@ void decode_process_pids_am(decode_t *st, const uint8_t* sbit)
       }
     }
 
-    nrsc5_conv_decode_e2(st->viterbi_pids, st->scrambler_pids, PIDS_FRAME_LEN);
+    nrsc5_conv_decode_e2_e3(st->viterbi_pids, st->scrambler_pids, PIDS_FRAME_LEN);
     descramble(st->scrambler_pids, PIDS_FRAME_LEN);
     pids_frame_push(&st->pids, st->scrambler_pids);
 }
@@ -538,7 +540,7 @@ void decode_process_p1_p3_am(decode_t *st, const unsigned int bc)
                 }
             }
 
-            nrsc5_report_ber(st->input->radio, (float) st->am_errors / total_frame_length);
+            nrsc5_report_ber(st->input->radio, (float) st->am_errors / (float) total_frame_length);
         }
     }
 
@@ -551,24 +553,10 @@ void decode_process_p1_p3_am(decode_t *st, const unsigned int bc)
     }
 }
 
-int decode_set_psmi(decode_t *st, const int mode, const unsigned int psmi)
-{
-    if (mode == NRSC5_MODE_FM)
-    {
-        if (psmi == 2)
-            st->interleaver_px1.frame_length = P3_FRAME_LEN_MP2;
-        else
-            st->interleaver_px1.frame_length = P3_FRAME_LEN_MP3_MP11;
-        st->interleaver_px2.frame_length = P3_FRAME_LEN_MP3_MP11;
-    }
-    return 0;
-}
-
 static void interleaver_iv_reset(interleaver_iv_t *interleaver)
 {
     interleaver->i = 0;
     memset(interleaver->pt, 0, sizeof(unsigned int) * 4);
-    interleaver->frame_length = P3_FRAME_LEN_MP3_MP11;
     interleaver->started = 0;
     interleaver->ready = 0;
 }

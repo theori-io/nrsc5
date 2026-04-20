@@ -12,7 +12,6 @@ typedef struct
   int8_t internal[P3_FRAME_LEN_MP3_MP11 * 32];
   unsigned int i;
   unsigned int pt[4];
-  unsigned int frame_length;
   int ready;
   int started;
 } interleaver_iv_t;
@@ -69,13 +68,12 @@ void decode_process_pids_am(decode_t *st, const uint8_t* sbit);
 void decode_process_p1_p3_am(decode_t *st, unsigned int bc);
 
 void decode_push_pm(decode_t *st, const int8_t* sbit, unsigned int bc);
-void decode_push_px1(decode_t *st, const int8_t* sbit, unsigned int bc);
-void decode_push_px2(decode_t *st, const int8_t* sbit, unsigned int bc);
+void decode_push_px1(decode_t *st, const int8_t* sbit, unsigned int len, unsigned int bc);
+void decode_push_px2(decode_t *st, const int8_t* sbit, unsigned int len, unsigned int bc);
 
 void decode_push_pl_pu_s_t(decode_t *st,
     const uint8_t* sym_pl, const uint8_t* sym_pu, const uint8_t* sym_s, const uint8_t* sym_t,
     unsigned int bc);
 
-int decode_set_psmi(decode_t *st, int mode, unsigned int psmi);
 void decode_reset(decode_t *st);
 void decode_init(decode_t *st, struct input_t *input);

@@ -525,7 +525,7 @@ void decode_process_p1_p3_am(decode_t *st, const unsigned int bc)
                 if (st->input->sync.psmi != SERVICE_MODE_MA3)
                 {
                     total_frame_length += P3_FRAME_LEN_ENCODED_MA1;
-                    nrsc5_conv_decode_e1(st->viterbi_p3_am, st->scrambler_p3_am, P3_FRAME_LEN_MA1);
+                    nrsc5_conv_decode_e2_e3(st->viterbi_p3_am, st->scrambler_p3_am, P3_FRAME_LEN_MA1);
                     st->am_errors += bit_errors_e2(st->viterbi_p3_am, st->scrambler_p3_am, P3_FRAME_LEN_MA1);
                     descramble(st->scrambler_p3_am, P3_FRAME_LEN_MA1);
                     frame_push(&st->input->frame, st->scrambler_p3_am, P3_FRAME_LEN_MA1, P3_LOGICAL_CHANNEL);

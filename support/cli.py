@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import datetime
 import logging
 import os
 import queue
@@ -30,6 +31,7 @@ class NRSC5CLI:
         self.audio_packets = 0
         self.audio_bytes = 0
         self.audio_errors = 0
+        self.current_leap = None
         signal.signal(signal.SIGINT, self._signal_handler)
 
     def _signal_handler(self, sig, frame):
@@ -206,6 +208,9 @@ class NRSC5CLI:
             parts.append(f'PIDS power: {"high" if evt.hppi else "low"}')
         return ", ".join(parts)
 
+    def format_time(self, time):
+        return time.strftime("%Y-%m-%dT%H:%M:%SZ")
+
     def callback(self, evt_type, evt):
         if evt_type == nrsc5.EventType.LOST_DEVICE:
             logging.info("Lost device")
@@ -315,11 +320,11 @@ class NRSC5CLI:
                         file.write(evt.data)
                 except OSError as e:
                     logging.warning(f"Failed to write AAS file: {e}")
-            time_str = evt.expiry_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+            time_str = self.format_time(evt.expiry_utc)
             logging.info("LOT file: port=%04X lot=%s name=%s size=%s mime=%s expiry=%s",
                          evt.component.data.port, evt.lot, evt.name, len(evt.data), evt.mime.name, time_str)
         elif evt_type == nrsc5.EventType.LOT_HEADER:
-            time_str = evt.expiry_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+            time_str = self.format_time(evt.expiry_utc)
             logging.debug("LOT header: port=%04X lot=%s name=%s size=%s mime=%s expiry=%s",
                           evt.component.data.port, evt.lot, evt.name, evt.size, evt.mime.name, time_str)
         elif evt_type == nrsc5.EventType.LOT_FRAGMENT:
@@ -372,7 +377,7 @@ class NRSC5CLI:
                         file.write(evt.data)
                 except OSError as e:
                     logging.warning(f"Failed to write HERE image: {e}")
-            time_str = evt.time_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+            time_str = self.format_time(evt.time_utc)
             logging.info("HERE Image: type=%s, seq=%d, n1=%d, n2=%d, time=%s, lat1=%.5f, lon1=%.5f, lat2=%.5f, lon2=%.5f, name=%s, size=%d",
                          evt.image_type.name, evt.seq, evt.n1, evt.n2, time_str, evt.latitude1, evt.longitude1,
                          evt.latitude2, evt.longitude2, evt.name, len(evt.data))
@@ -390,6 +395,7 @@ class NRSC5CLI:
                           evt.manufacturer_version[0], evt.manufacturer_version[1], evt.manufacturer_version[2],
                           evt.manufacturer_version[3], evt.manufacturer_status)
         elif evt_type == nrsc5.EventType.LEAP_SECOND_OFFSET:
+            self.current_leap = evt.current_offset
             logging.debug("Leap second offset: pending=%d, current=%d, ALFN of pending adjustment=%d",
                           evt.pending_offset, evt.current_offset,
                           evt.pending_alfn)
@@ -398,6 +404,15 @@ class NRSC5CLI:
                           evt.utc_offset,
                           evt.dst_schedule,
                           "yes" if evt.dst_regional else "no", "yes" if evt.dst_local else "no")
+        elif evt_type == nrsc5.EventType.ALFN:
+            alfn = evt.alfn + 1
+            alfn_details = f'ALFN: {alfn}, GPS locked {"yes" if evt.gps_locked else "no"}'
+            if self.current_leap:
+                utc = (65536 * alfn / 44100) + 315964800 - self.current_leap
+                time = datetime.datetime.fromtimestamp(utc, tz=datetime.timezone.utc)
+                time_str = self.format_time(time)
+                alfn_details += f", time: {time_str}"
+            logging.debug(alfn_details)
 
 
 if __name__ == "__main__":

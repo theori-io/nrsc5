@@ -83,6 +83,7 @@ typedef struct {
     unsigned int audio_bytes;
     unsigned int audio_errors;
     int done;
+    int current_leap;
 } state_t;
 
 static ao_sample_format sample_format = {
@@ -271,6 +272,11 @@ static void dump_ber(float cber)
     log_info("BER: %f, avg: %f, min: %f, max: %f", cber, sum / count, min, max);
 }
 
+static void format_time(char *buf, const size_t bufsize, const struct tm *tm)
+{
+    strftime(buf, bufsize, "%Y-%m-%dT%H:%M:%SZ", tm);
+}
+
 static void done_signal(state_t *st)
 {
     pthread_mutex_lock(&st->mutex);
@@ -445,11 +451,11 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
     case NRSC5_EVENT_LOT:
         if (st->aas_files_path)
             dump_aas_file(st, evt);
-        strftime(time_str, sizeof(time_str), "%Y-%m-%dT%H:%M:%SZ", evt->lot.expiry_utc);
+        format_time(time_str, sizeof(time_str), evt->lot.expiry_utc);
         log_info("LOT file: port=%04X lot=%d name=%s size=%d mime=%08X expiry=%s", evt->lot.component->data.port, evt->lot.lot, evt->lot.name, evt->lot.size, evt->lot.mime, time_str);
         break;
     case NRSC5_EVENT_LOT_HEADER:
-        strftime(time_str, sizeof(time_str), "%Y-%m-%dT%H:%M:%SZ", evt->lot.expiry_utc);
+        format_time(time_str, sizeof(time_str), evt->lot.expiry_utc);
         log_debug("LOT header: port=%04X lot=%d name=%s size=%d mime=%08X expiry=%s",
                   evt->lot.component->data.port, evt->lot.lot, evt->lot.name, evt->lot.size, evt->lot.mime, time_str);
         break;
@@ -550,7 +556,7 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
     case NRSC5_EVENT_HERE_IMAGE:
         if (st->aas_files_path)
             dump_aas_file(st, evt);
-        strftime(time_str, sizeof(time_str), "%Y-%m-%dT%H:%M:%SZ", evt->here_image.time_utc);
+        format_time(time_str, sizeof(time_str), evt->here_image.time_utc);
         log_info("HERE Image: type=%s, seq=%d, n1=%d, n2=%d, time=%s, lat1=%.5f, lon1=%.5f, lat2=%.5f, lon2=%.5f, name=%s, size=%d",
                  evt->here_image.image_type == NRSC5_HERE_IMAGE_TRAFFIC ? "TRAFFIC" : "WEATHER",
                  evt->here_image.seq,
@@ -582,6 +588,7 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
                   evt->importer_info.manufacturer_version[3], evt->importer_info.manufacturer_status);
         break;
     case NRSC5_EVENT_LEAP_SECOND_OFFSET:
+        st->current_leap = evt->leap_second_offset.current_offset;
         log_debug("Leap second offset: pending=%d, current=%d, ALFN of pending adjustment=%d",
                  evt->leap_second_offset.pending_offset,
                  evt->leap_second_offset.current_offset,
@@ -594,7 +601,25 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
                  evt->local_time.dst_regional ? "yes" : "no",
                  evt->local_time.dst_local ? "yes" : "no");
         break;
+    case NRSC5_EVENT_ALFN:
+        {
+            // Add 1 for current ALFN.
+            char alfn_details[512];
 
+            const unsigned int alfn = evt->alfn.alfn + 1;
+
+            const int len = sprintf(alfn_details, "ALFN: %u, GPS locked? %s", alfn, evt->alfn.gps_locked ? "yes" : "no");
+            if (st->current_leap != -1)
+            {
+                const time_t utc = (65536 * (time_t)alfn / 44100) + 315964800 - (time_t)st->current_leap;
+                const struct tm *time = gmtime(&utc);
+
+                format_time(time_str, sizeof(time_str), time);
+                snprintf(alfn_details + len, sizeof(alfn_details) - len, ", time: %s", time_str);
+            }
+            log_debug(alfn_details);
+            break;
+        }
     }
 }
 
@@ -816,6 +841,7 @@ static int parse_args(state_t *st, int argc, char *argv[])
     st->direct_sampling = -1;
     st->ppm_error = INT_MIN;
     st->iq_input_format = IQ_FORMAT_CU8;
+    st->current_leap = -1;
     log_set_level(LOG_INFO);
 
     while ((opt = getopt_long(argc, argv, "r:w:o:t:d:p:g:ql:vH:TD:", long_opts, NULL)) != -1)

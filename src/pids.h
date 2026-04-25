@@ -17,6 +17,9 @@
 #define MAX_ALERT_FRAMES 64
 #define MAX_ALERT_CNT_LEN 63
 #define MAX_ALERT_LOCATIONS 31
+#define ALFN_AM_FRAMES 4
+#define ALFN_AM_PAIRS_PER_FRAME 8
+#define ALFN_FM_PAIRS_PER_FRAME 16
 
 typedef struct
 {
@@ -93,7 +96,16 @@ typedef struct
     int alert_cnt_len;
     int alert_displayed;
     int alert_timeout;
+
+    uint8_t alfn_time_locked;
+    uint64_t alfn_frame;
+    int alfn_pairs[ALFN_AM_FRAMES];
+    int alfn_am_curr;
+    int alfn_has_lsb[ALFN_AM_FRAMES];
+    int alfn_upper_idx;
 } pids_t;
 
-void pids_frame_push(pids_t *st, const uint8_t *bits);
+void pids_frame_push(pids_t *st, const uint8_t *bits, unsigned int bc);
+void pids_complete_am(pids_t* st);
+void pids_complete_fm(pids_t* st);
 void pids_init(pids_t *st, struct input_t *input);

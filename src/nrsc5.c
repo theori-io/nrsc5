@@ -1156,6 +1156,17 @@ void nrsc5_report_local_time(nrsc5_t *st, const int tzo, const int dst_regional,
     nrsc5_report(st, &evt);
 }
 
+void nrsc5_report_alfn(nrsc5_t* st, const unsigned int alfn, const int gps_locked)
+{
+    nrsc5_event_t evt;
+
+    evt.event = NRSC5_EVENT_ALFN;
+    evt.alfn.alfn = alfn;
+    evt.alfn.gps_locked = gps_locked;
+
+    nrsc5_report(st, &evt);
+}
+
 void nrsc5_report_here_image(nrsc5_t *st, int image_type, int seq, int n1, int n2, unsigned int timestamp,
                              float latitude1, float longitude1, float latitude2, float longitude2,
                              const char *name, unsigned int size, const uint8_t *data)

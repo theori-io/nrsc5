@@ -936,7 +936,7 @@ class NRSC5:
             evt = LocalTime(local_time.utc_offset, bool(local_time.dst_regional), bool(local_time.dst_local), local_time.dst_schedule)
         elif evt_type == EventType.ALFN:
             alfn = c_evt.u.alfn
-            evt = ALFN(alfn.alfn, alfn.gps_locked)
+            evt = ALFN(alfn.alfn, bool(alfn.gps_locked))
 
         self.callback(evt_type, evt, *self.callback_args)
 

@@ -83,7 +83,6 @@ typedef struct {
     unsigned int audio_bytes;
     unsigned int audio_errors;
     int done;
-    int current_leap;
 } state_t;
 
 static ao_sample_format sample_format = {
@@ -588,7 +587,6 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
                   evt->importer_info.manufacturer_version[3], evt->importer_info.manufacturer_status);
         break;
     case NRSC5_EVENT_LEAP_SECOND_OFFSET:
-        st->current_leap = evt->leap_second_offset.current_offset;
         log_debug("Leap second offset: pending=%d, current=%d, ALFN of pending adjustment=%d",
                  evt->leap_second_offset.pending_offset,
                  evt->leap_second_offset.current_offset,
@@ -603,21 +601,8 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
         break;
     case NRSC5_EVENT_ALFN:
         {
-            // Add 1 for current ALFN.
-            char alfn_details[512];
-
             const unsigned int alfn = evt->alfn.alfn + 1;
-
-            const int len = sprintf(alfn_details, "ALFN: %u, GPS locked? %s", alfn, evt->alfn.gps_locked ? "yes" : "no");
-            if (st->current_leap != -1)
-            {
-                const time_t utc = (65536 * (time_t)alfn / 44100) + 315964800 - (time_t)st->current_leap;
-                const struct tm *time = gmtime(&utc);
-
-                format_time(time_str, sizeof(time_str), time);
-                snprintf(alfn_details + len, sizeof(alfn_details) - len, ", time: %s", time_str);
-            }
-            log_debug(alfn_details);
+            log_debug("ALFN: %u, GPS locked? %s", alfn, evt->alfn.gps_locked ? "yes" : "no");
             break;
         }
     }
@@ -841,7 +826,6 @@ static int parse_args(state_t *st, int argc, char *argv[])
     st->direct_sampling = -1;
     st->ppm_error = INT_MIN;
     st->iq_input_format = IQ_FORMAT_CU8;
-    st->current_leap = -1;
     log_set_level(LOG_INFO);
 
     while ((opt = getopt_long(argc, argv, "r:w:o:t:d:p:g:ql:vH:TD:", long_opts, NULL)) != -1)

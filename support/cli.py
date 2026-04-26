@@ -31,7 +31,6 @@ class NRSC5CLI:
         self.audio_packets = 0
         self.audio_bytes = 0
         self.audio_errors = 0
-        self.current_leap = None
         signal.signal(signal.SIGINT, self._signal_handler)
 
     def _signal_handler(self, sig, frame):
@@ -395,7 +394,6 @@ class NRSC5CLI:
                           evt.manufacturer_version[0], evt.manufacturer_version[1], evt.manufacturer_version[2],
                           evt.manufacturer_version[3], evt.manufacturer_status)
         elif evt_type == nrsc5.EventType.LEAP_SECOND_OFFSET:
-            self.current_leap = evt.current_offset
             logging.debug("Leap second offset: pending=%d, current=%d, ALFN of pending adjustment=%d",
                           evt.pending_offset, evt.current_offset,
                           evt.pending_alfn)
@@ -406,13 +404,7 @@ class NRSC5CLI:
                           "yes" if evt.dst_regional else "no", "yes" if evt.dst_local else "no")
         elif evt_type == nrsc5.EventType.ALFN:
             alfn = evt.alfn + 1
-            alfn_details = f'ALFN: {alfn}, GPS locked {"yes" if evt.gps_locked else "no"}'
-            if self.current_leap:
-                utc = (65536 * alfn / 44100) + 315964800 - self.current_leap
-                time = datetime.datetime.fromtimestamp(utc, tz=datetime.timezone.utc)
-                time_str = self.format_time(time)
-                alfn_details += f", time: {time_str}"
-            logging.debug(alfn_details)
+            logging.debug("ALFN %u, GPS locked? %s", alfn,"yes" if evt.gps_locked else "no")
 
 
 if __name__ == "__main__":

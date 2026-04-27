@@ -234,7 +234,7 @@ ExciterInfo = collections.namedtuple("ExciterInfo", ["manufacturer_id", "core_ve
 ImporterInfo = collections.namedtuple("ImporterInfo", ["manufacturer_id", "core_version", "core_status", "manufacturer_version", "manufacturer_status"])
 LeapSecondOffset = collections.namedtuple("LeapOffset", ["pending_offset", "current_offset", "pending_alfn"])
 LocalTime = collections.namedtuple("LocalTime", ["utc_offset", "dst_regional", "dst_local", "dst_schedule"])
-ALFN = collections.namedtuple("ALFN", ["alfn", "gps_locked"])
+ALFN = collections.namedtuple("ALFN", ["alfn", "time_locked"])
 
 class _IQ(ctypes.Structure):
     _fields_ = [
@@ -631,7 +631,7 @@ class _LocalTime(ctypes.Structure):
 class _ALFN(ctypes.Structure):
     _fields_ = [
         ("alfn", ctypes.c_uint),
-        ("gps_locked", ctypes.c_int),
+        ("time_locked", ctypes.c_int),
     ]
 
 class _EventUnion(ctypes.Union):
@@ -664,7 +664,7 @@ class _EventUnion(ctypes.Union):
         ("importer_info", _ImporterInfo),
         ("leap_second_offset", _LeapSecondOffset),
         ("local_time", _LocalTime),
-        ("alfn", _ALFN)
+        ("alfn", _ALFN),
     ]
 
 
@@ -936,7 +936,7 @@ class NRSC5:
             evt = LocalTime(local_time.utc_offset, bool(local_time.dst_regional), bool(local_time.dst_local), local_time.dst_schedule)
         elif evt_type == EventType.ALFN:
             alfn = c_evt.u.alfn
-            evt = ALFN(alfn.alfn, bool(alfn.gps_locked))
+            evt = ALFN(alfn.alfn, bool(alfn.time_locked))
 
         self.callback(evt_type, evt, *self.callback_args)
 

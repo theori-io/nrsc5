@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import argparse
-import datetime
 import logging
 import os
 import queue
@@ -404,7 +403,7 @@ class NRSC5CLI:
                           "yes" if evt.dst_regional else "no", "yes" if evt.dst_local else "no")
         elif evt_type == nrsc5.EventType.ALFN:
             alfn = evt.alfn + 1
-            logging.debug("ALFN %u, GPS locked? %s", alfn,"yes" if evt.gps_locked else "no")
+            logging.debug("ALFN %u, GPS locked? %s", alfn,"yes" if evt.time_locked else "no")
 
 
 if __name__ == "__main__":

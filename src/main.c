@@ -602,7 +602,7 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
     case NRSC5_EVENT_ALFN:
         {
             const unsigned int alfn = evt->alfn.alfn + 1;
-            log_debug("ALFN: %u, GPS locked? %s", alfn, evt->alfn.gps_locked ? "yes" : "no");
+            log_debug("ALFN: %u, GPS locked? %s", alfn, evt->alfn.time_locked ? "yes" : "no");
             break;
         }
     }

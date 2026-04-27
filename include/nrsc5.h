@@ -613,8 +613,8 @@ struct nrsc5_event_t
         } local_time;
         struct
         {
-            unsigned int alfn;  /**< Absolute L1 Frame Number (ALFN) of the previous L1 Frame. */
-            int gps_locked;     /**< 1 if GPS is locked, otherwise 0. */
+            unsigned int alfn;  /**< Absolute L1 Frame Number (ALFN) of the most recent L1 Frame. */
+            int time_locked;    /**< 1 if time is locked to GPS, otherwise 0. */
         } alfn;
     };
 };

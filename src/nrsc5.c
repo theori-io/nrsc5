@@ -1162,7 +1162,7 @@ void nrsc5_report_alfn(nrsc5_t* st, const unsigned int alfn, const int gps_locke
 
     evt.event = NRSC5_EVENT_ALFN;
     evt.alfn.alfn = alfn;
-    evt.alfn.gps_locked = gps_locked;
+    evt.alfn.time_locked = gps_locked;
 
     nrsc5_report(st, &evt);
 }

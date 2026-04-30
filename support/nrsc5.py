@@ -45,7 +45,7 @@ class EventType(enum.Enum):
     IMPORTER_INFO = 28
     LEAP_SECOND_OFFSET = 29
     LOCAL_TIME = 30
-    ALFN = 31
+    L1_FRAME = 31
 
 
 AUDIO_FRAME_SAMPLES = 2048
@@ -234,7 +234,7 @@ ExciterInfo = collections.namedtuple("ExciterInfo", ["manufacturer_id", "core_ve
 ImporterInfo = collections.namedtuple("ImporterInfo", ["manufacturer_id", "core_version", "core_status", "manufacturer_version", "manufacturer_status"])
 LeapSecondOffset = collections.namedtuple("LeapOffset", ["pending_offset", "current_offset", "pending_alfn"])
 LocalTime = collections.namedtuple("LocalTime", ["utc_offset", "dst_regional", "dst_local", "dst_schedule"])
-ALFN = collections.namedtuple("ALFN", ["alfn", "time_locked"])
+L1Frame = collections.namedtuple("L1Frame", ["alfn", "alfn_known", "time_locked"])
 
 class _IQ(ctypes.Structure):
     _fields_ = [
@@ -628,9 +628,10 @@ class _LocalTime(ctypes.Structure):
         ("dst_schedule", ctypes.c_int)
     ]
 
-class _ALFN(ctypes.Structure):
+class _L1Frame(ctypes.Structure):
     _fields_ = [
         ("alfn", ctypes.c_uint),
+        ("alfn_known", ctypes.c_int),
         ("time_locked", ctypes.c_int),
     ]
 
@@ -664,7 +665,7 @@ class _EventUnion(ctypes.Union):
         ("importer_info", _ImporterInfo),
         ("leap_second_offset", _LeapSecondOffset),
         ("local_time", _LocalTime),
-        ("alfn", _ALFN),
+        ("l1_frame", _L1Frame),
     ]
 
 
@@ -934,9 +935,9 @@ class NRSC5:
         elif evt_type == EventType.LOCAL_TIME:
             local_time = c_evt.u.local_time
             evt = LocalTime(local_time.utc_offset, bool(local_time.dst_regional), bool(local_time.dst_local), local_time.dst_schedule)
-        elif evt_type == EventType.ALFN:
-            alfn = c_evt.u.alfn
-            evt = ALFN(alfn.alfn, bool(alfn.time_locked))
+        elif evt_type == EventType.L1_FRAME:
+            l1_frame = c_evt.u.l1_frame
+            evt = L1Frame(l1_frame.alfn, bool(l1_frame.alfn_known), bool(l1_frame.time_locked))
 
         self.callback(evt_type, evt, *self.callback_args)
 

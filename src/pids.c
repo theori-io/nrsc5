@@ -1021,10 +1021,13 @@ static void sis_decode(pids_t *st, const uint8_t *bits, const unsigned int bc)
     const uint8_t time_locked = bits[64];
     const uint8_t adv_alfn = bits[65] << 1 | bits[66];
 
-    alfn_t* alfn = &st->alfn[st->alfn_frame];
+    alfn_t* alfn = &st->alfn_frames[st->alfn_frame_idx];
 
-    alfn->value |= (uint32_t)adv_alfn << (2 * bc);
-    alfn->received |= (1 << bc);
+    if ((alfn->received & (1 << bc)) == 0)
+    {
+        alfn->value |= (uint32_t)adv_alfn << (2 * bc);
+        alfn->received |= (1 << bc);
+    }
 
     st->alfn_time_locked = time_locked;
 
@@ -1041,37 +1044,21 @@ static void sis_decode(pids_t *st, const uint8_t *bits, const unsigned int bc)
 
 void pids_complete_fm(pids_t* st)
 {
-    alfn_t* alfn = &st->alfn[0];
+    alfn_t* alfn = &st->alfn_frames[0];
 
     if (alfn->received == 0xFFFF)
-        nrsc5_report_alfn(st->input->radio, alfn->value, st->alfn_time_locked);
+    {
+        st->alfn_value = alfn->value;
+        st->alfn_known = 1;
+    }
+
+    nrsc5_report_l1_frame(st->input->radio, st->alfn_value, st->alfn_known, st->alfn_time_locked);
+
     alfn->value = 0;
     alfn->received = 0;
-}
 
-static void pids_report_alfn_am(const pids_t* st)
-{
-    // Use latest ALFN lower bits.
-    int lower_idx = st->alfn_frame;
-    if (st->alfn_upper_idx == st->alfn_frame)
-        lower_idx = (ALFN_AM_FRAMES + st->alfn_frame - 1) % ALFN_AM_FRAMES;
-
-    const alfn_t* upper_frame = &st->alfn[st->alfn_upper_idx];
-    const alfn_t* lower_frame = &st->alfn[lower_idx];
-
-    if (upper_frame->received != 0xFF ||
-        lower_frame->received != 0xFF)
-        return;
-
-    const uint16_t upper = upper_frame->value & 0xFFFF;
-    uint16_t lower = lower_frame->value & 0xFFFF;
-
-    // If current frame was upper, lower wasn't updated. Assume lower was increased.
-    if (st->alfn_upper_idx == st->alfn_frame)
-        lower++;
-
-    const uint32_t alfn = (int32_t)upper << 16 | (int32_t)lower;
-    nrsc5_report_alfn(st->input->radio, alfn, st->alfn_time_locked);
+    if (st->alfn_known)
+        st->alfn_value++;
 }
 
 static int find_mod4(const int lower[4])
@@ -1088,39 +1075,68 @@ static int find_mod4(const int lower[4])
     return -1;
 }
 
+static int pids_construct_alfn_am(pids_t* st)
+{
+    // Use latest ALFN lower bits.
+    int lower_idx = st->alfn_frame_idx;
+    if (st->alfn_upper_idx == st->alfn_frame_idx)
+        lower_idx = (ALFN_AM_FRAMES + st->alfn_frame_idx - 1) % ALFN_AM_FRAMES;
+
+    const alfn_t* upper_frame = &st->alfn_frames[st->alfn_upper_idx];
+    const alfn_t* lower_frame = &st->alfn_frames[lower_idx];
+
+    if (upper_frame->received != 0xFF ||
+        lower_frame->received != 0xFF)
+        return -1;
+
+    const uint16_t upper = upper_frame->value;
+    uint16_t lower = lower_frame->value;
+
+    // If current frame was upper, lower wasn't updated. Assume lower was increased.
+    if (st->alfn_upper_idx == st->alfn_frame_idx)
+        lower++;
+
+    st->alfn_value = (int32_t)upper << 16 | (int32_t)lower;
+    st->alfn_known = 1;
+    return 0;
+}
+
 void pids_complete_am(pids_t* st)
 {
-    if (st->alfn[st->alfn_frame].received == 0xFF)
+    const int lower[ALFN_AM_FRAMES] = {
+        (int)(st->alfn_frames[0].value & 0x3),
+        (int)(st->alfn_frames[1].value & 0x3),
+        (int)(st->alfn_frames[2].value & 0x3),
+        (int)(st->alfn_frames[3].value & 0x3),
+    };
+    int finished = 1;
+    for (int i = 0; i < ALFN_AM_FRAMES; i++)
     {
-        if (st->alfn_frame == 3 && st->alfn_upper_idx == -1)
+        if ((st->alfn_frames[i].received & 0x1) == 0)
         {
-            const int lower[ALFN_AM_FRAMES] = {
-                (int)(st->alfn[0].value & 0x3),
-                (int)(st->alfn[1].value & 0x3),
-                (int)(st->alfn[2].value & 0x3),
-                (int)(st->alfn[3].value & 0x3),
-            };
-            int finished = 1;
-            for (int i = 0; i < ALFN_AM_FRAMES; i++)
-            {
-                if ((st->alfn[i].received & 0x1) == 0)
-                {
-                    finished = 0;
-                    break;
-                }
-            }
-            if (finished)
-                st->alfn_upper_idx = find_mod4(lower);
+            finished = 0;
+            break;
         }
-
-        if (st->alfn_upper_idx != -1)
-            pids_report_alfn_am(st);
+    }
+    if (finished)
+    {
+        const int new_idx = find_mod4(lower);
+        if (new_idx != -1)
+            st->alfn_upper_idx = new_idx;
     }
 
-    st->alfn_frame = (st->alfn_frame + 1) % 4;
+    if (st->alfn_upper_idx != -1)
+        pids_construct_alfn_am(st);
+
+    nrsc5_report_l1_frame(st->input->radio, st->alfn_value, st->alfn_known, st->alfn_time_locked);
+
+    st->alfn_frame_idx = (st->alfn_frame_idx + 1) % 4;
     // Clear for new frame
-    st->alfn[st->alfn_frame].value = 0;
-    st->alfn[st->alfn_frame].received = 0;
+    st->alfn_frames[st->alfn_frame_idx].value = 0;
+    st->alfn_frames[st->alfn_frame_idx].received = 0;
+
+    if (st->alfn_known)
+        st->alfn_value++;
 }
 
 void pids_frame_push(pids_t *st, const uint8_t *bits, const unsigned int bc)
@@ -1192,14 +1208,16 @@ void pids_init(pids_t *st, input_t *input)
 
     reset_alert(st);
 
-    st->alfn_frame = 0;
-    st->alfn_frame = 0;
-    st->alfn_upper_idx = -1;
     for (i = 0; i < ALFN_AM_FRAMES; i++)
     {
-        st->alfn[i].value = 0;
-        st->alfn[i].received = 0;
+        st->alfn_frames[i].value = 0;
+        st->alfn_frames[i].received = 0;
     }
+    st->alfn_upper_idx = -1;
+    st->alfn_frame_idx = 0;
+    st->alfn_time_locked = 0;
+    st->alfn_known = 0;
+    st->alfn_value = 0;
 
     st->input = input;
 }

@@ -401,9 +401,8 @@ class NRSC5CLI:
                           evt.utc_offset,
                           evt.dst_schedule,
                           "yes" if evt.dst_regional else "no", "yes" if evt.dst_local else "no")
-        elif evt_type == nrsc5.EventType.ALFN:
-            alfn = evt.alfn + 1
-            logging.debug("ALFN %u, GPS locked? %s", alfn,"yes" if evt.time_locked else "no")
+        elif evt_type == nrsc5.EventType.L1_FRAME:
+            logging.debug("L1 Frame: ALFN=%u, ALFN known? %s, time locked to GPS? %s", evt.alfn, "yes" if evt.alfn_known else "no", "yes" if evt.time_locked else "no")
 
 
 if __name__ == "__main__":

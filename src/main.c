@@ -599,12 +599,9 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
                  evt->local_time.dst_regional ? "yes" : "no",
                  evt->local_time.dst_local ? "yes" : "no");
         break;
-    case NRSC5_EVENT_ALFN:
-        {
-            const unsigned int alfn = evt->alfn.alfn + 1;
-            log_debug("ALFN: %u, GPS locked? %s", alfn, evt->alfn.time_locked ? "yes" : "no");
-            break;
-        }
+    case NRSC5_EVENT_L1_FRAME:
+        log_debug("L1 Frame: ALFN=%u, ALFN known? %s, time locked to GPS? %s", evt->l1_frame.alfn, evt->l1_frame.alfn_known ? "yes" : "no", evt->l1_frame.time_locked ? "yes" : "no");
+        break;
     }
 }
 

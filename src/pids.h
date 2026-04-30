@@ -101,11 +101,13 @@ typedef struct
     int alert_displayed;
     int alert_timeout;
 
-    alfn_t alfn[ALFN_AM_FRAMES];
-
+    alfn_t alfn_frames[ALFN_AM_FRAMES];
     int alfn_upper_idx;
-    int alfn_frame;
+    int alfn_frame_idx;
     uint8_t alfn_time_locked;
+
+    int alfn_known;
+    uint32_t alfn_value;
 } pids_t;
 
 void pids_frame_push(pids_t *st, const uint8_t *bits, unsigned int bc);

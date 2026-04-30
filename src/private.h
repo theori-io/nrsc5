@@ -93,6 +93,6 @@ void nrsc5_report_importer_info(nrsc5_t *st, const char* manufacturer_id, const 
                                 int core_status, int manufacturer_status);
 void nrsc5_report_leap_second_offset(nrsc5_t *st, int pending_offset, int current_offset,
                                      unsigned int pending_alfn);
-void nrsc5_report_alfn(nrsc5_t* st, unsigned int alfn, int gps_locked);
+void nrsc5_report_l1_frame(nrsc5_t* st, unsigned int alfn, int alfn_known, int time_locked);
 void nrsc5_report_local_time(nrsc5_t *st, int utc_offset, int dst_regional, int dst_local,
                              int dst_schedule);

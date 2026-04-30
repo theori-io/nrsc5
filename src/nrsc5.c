@@ -1156,6 +1156,18 @@ void nrsc5_report_local_time(nrsc5_t *st, const int tzo, const int dst_regional,
     nrsc5_report(st, &evt);
 }
 
+void nrsc5_report_l1_frame(nrsc5_t* st, const unsigned int alfn, const int alfn_known, const int time_locked)
+{
+    nrsc5_event_t evt;
+
+    evt.event = NRSC5_EVENT_L1_FRAME;
+    evt.l1_frame.alfn = alfn;
+    evt.l1_frame.alfn_known = alfn_known;
+    evt.l1_frame.time_locked = time_locked;
+
+    nrsc5_report(st, &evt);
+}
+
 void nrsc5_report_here_image(nrsc5_t *st, int image_type, int seq, int n1, int n2, unsigned int timestamp,
                              float latitude1, float longitude1, float latitude2, float longitude2,
                              const char *name, unsigned int size, const uint8_t *data)

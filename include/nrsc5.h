@@ -192,6 +192,7 @@ enum
     NRSC5_EVENT_IMPORTER_INFO,
     NRSC5_EVENT_LEAP_SECOND_OFFSET,
     NRSC5_EVENT_LOCAL_TIME,
+    NRSC5_EVENT_L1_FRAME,
 };
 
 enum
@@ -401,6 +402,7 @@ struct nrsc5_event_t
  * - `NRSC5_EVENT_IMPORTER_INFO` : importer data, see `importer_info` member
  * - `NRSC5_EVENT_LEAP_SECOND_OFFSET` : leap second offset, see `leap_second_offset` member
  * - `NRSC5_EVENT_LOCAL_TIME` : local time data, see `local_time` member
+ * - `NRSC5_EVENT_L1_FRAME` : L1 frame data, see `l1_frame` member
  */
     unsigned int event;
     union
@@ -609,6 +611,12 @@ struct nrsc5_event_t
             int dst_local;     /**< 1 if DST is practiced locally, otherwise 0. */
             int dst_schedule;  /**< DST Schedule. 0 means Daylight Saving Time is not practiced. 1 means U.S./Canada schedule. 2 means EU schedule. */
         } local_time;
+        struct
+        {
+            unsigned int alfn;  /**< Absolute L1 Frame Number (ALFN) of the most recent L1 Frame. */
+            int alfn_known;     /**< 1 if ALFN is known, otherwise 0. */
+            int time_locked;    /**< 1 if time is locked to GPS, otherwise 0. */
+        } l1_frame;
     };
 };
 /**

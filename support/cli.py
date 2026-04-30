@@ -206,6 +206,9 @@ class NRSC5CLI:
             parts.append(f'PIDS power: {"high" if evt.hppi else "low"}')
         return ", ".join(parts)
 
+    def format_time(self, time):
+        return time.strftime("%Y-%m-%dT%H:%M:%SZ")
+
     def callback(self, evt_type, evt):
         if evt_type == nrsc5.EventType.LOST_DEVICE:
             logging.info("Lost device")
@@ -315,11 +318,11 @@ class NRSC5CLI:
                         file.write(evt.data)
                 except OSError as e:
                     logging.warning(f"Failed to write AAS file: {e}")
-            time_str = evt.expiry_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+            time_str = self.format_time(evt.expiry_utc)
             logging.info("LOT file: port=%04X lot=%s name=%s size=%s mime=%s expiry=%s",
                          evt.component.data.port, evt.lot, evt.name, len(evt.data), evt.mime.name, time_str)
         elif evt_type == nrsc5.EventType.LOT_HEADER:
-            time_str = evt.expiry_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+            time_str = self.format_time(evt.expiry_utc)
             logging.debug("LOT header: port=%04X lot=%s name=%s size=%s mime=%s expiry=%s",
                           evt.component.data.port, evt.lot, evt.name, evt.size, evt.mime.name, time_str)
         elif evt_type == nrsc5.EventType.LOT_FRAGMENT:
@@ -372,7 +375,7 @@ class NRSC5CLI:
                         file.write(evt.data)
                 except OSError as e:
                     logging.warning(f"Failed to write HERE image: {e}")
-            time_str = evt.time_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+            time_str = self.format_time(evt.time_utc)
             logging.info("HERE Image: type=%s, seq=%d, n1=%d, n2=%d, time=%s, lat1=%.5f, lon1=%.5f, lat2=%.5f, lon2=%.5f, name=%s, size=%d",
                          evt.image_type.name, evt.seq, evt.n1, evt.n2, time_str, evt.latitude1, evt.longitude1,
                          evt.latitude2, evt.longitude2, evt.name, len(evt.data))
@@ -398,6 +401,8 @@ class NRSC5CLI:
                           evt.utc_offset,
                           evt.dst_schedule,
                           "yes" if evt.dst_regional else "no", "yes" if evt.dst_local else "no")
+        elif evt_type == nrsc5.EventType.L1_FRAME:
+            logging.debug("L1 Frame: ALFN=%u, ALFN known? %s, time locked to GPS? %s", evt.alfn, "yes" if evt.alfn_known else "no", "yes" if evt.time_locked else "no")
 
 
 if __name__ == "__main__":

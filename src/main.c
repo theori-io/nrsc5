@@ -271,6 +271,11 @@ static void dump_ber(float cber)
     log_info("BER: %f, avg: %f, min: %f, max: %f", cber, sum / count, min, max);
 }
 
+static void format_time(char *buf, const size_t bufsize, const struct tm *tm)
+{
+    strftime(buf, bufsize, "%Y-%m-%dT%H:%M:%SZ", tm);
+}
+
 static void done_signal(state_t *st)
 {
     pthread_mutex_lock(&st->mutex);
@@ -445,11 +450,11 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
     case NRSC5_EVENT_LOT:
         if (st->aas_files_path)
             dump_aas_file(st, evt);
-        strftime(time_str, sizeof(time_str), "%Y-%m-%dT%H:%M:%SZ", evt->lot.expiry_utc);
+        format_time(time_str, sizeof(time_str), evt->lot.expiry_utc);
         log_info("LOT file: port=%04X lot=%d name=%s size=%d mime=%08X expiry=%s", evt->lot.component->data.port, evt->lot.lot, evt->lot.name, evt->lot.size, evt->lot.mime, time_str);
         break;
     case NRSC5_EVENT_LOT_HEADER:
-        strftime(time_str, sizeof(time_str), "%Y-%m-%dT%H:%M:%SZ", evt->lot.expiry_utc);
+        format_time(time_str, sizeof(time_str), evt->lot.expiry_utc);
         log_debug("LOT header: port=%04X lot=%d name=%s size=%d mime=%08X expiry=%s",
                   evt->lot.component->data.port, evt->lot.lot, evt->lot.name, evt->lot.size, evt->lot.mime, time_str);
         break;
@@ -550,7 +555,7 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
     case NRSC5_EVENT_HERE_IMAGE:
         if (st->aas_files_path)
             dump_aas_file(st, evt);
-        strftime(time_str, sizeof(time_str), "%Y-%m-%dT%H:%M:%SZ", evt->here_image.time_utc);
+        format_time(time_str, sizeof(time_str), evt->here_image.time_utc);
         log_info("HERE Image: type=%s, seq=%d, n1=%d, n2=%d, time=%s, lat1=%.5f, lon1=%.5f, lat2=%.5f, lon2=%.5f, name=%s, size=%d",
                  evt->here_image.image_type == NRSC5_HERE_IMAGE_TRAFFIC ? "TRAFFIC" : "WEATHER",
                  evt->here_image.seq,
@@ -594,7 +599,9 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
                  evt->local_time.dst_regional ? "yes" : "no",
                  evt->local_time.dst_local ? "yes" : "no");
         break;
-
+    case NRSC5_EVENT_L1_FRAME:
+        log_debug("L1 Frame: ALFN=%u, ALFN known? %s, time locked to GPS? %s", evt->l1_frame.alfn, evt->l1_frame.alfn_known ? "yes" : "no", evt->l1_frame.time_locked ? "yes" : "no");
+        break;
     }
 }
 

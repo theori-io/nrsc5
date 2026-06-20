@@ -44,7 +44,7 @@ set (LIBRARY_FILES
     rtltcp.c
     sync.c
 
-    firdecim_q15.c
+    firdecim_cf32.c
 
     conv_dec.c
 

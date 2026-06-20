@@ -96,37 +96,38 @@ Replace `64` with `32` if you want a 32-bit build. Once the build is complete, c
 
 ### Command-line options:
 
-    frequency                       center frequency in MHz or Hz
-                                      (do not provide frequency when reading from file)
-    program                         audio program to decode
-                                      (0, 1, 2, or 3)
-    -g gain                         gain
-                                      (example: 49.6)
-                                      (automatic gain selection if not specified)
-    -d device-index                 rtl-sdr device
-    -p ppm-error                    rtl-sdr ppm error
-    -H rtltcp-host                  rtl_tcp host with optional port
-                                      (example: localhost:1234)
-    -r iq-input                     read IQ samples from input file
-    --iq-input-format {cu8,cs16}    IQ input format (complex unsigned 8-bit @ 1488375 SPS or
-                                      complex signed 16-bit @ 744188 SPS (FM) / 46512 SPS (AM).
-                                      default is cu8.)
-    -w iq-output                    write IQ samples to output file
-    -o audio-output                 write audio to output file
-    -t audio-type                   type of audio output (wav or raw)
-                                      (default is wav. used in conjunction with -o)
-    -q                              disable log output
-    -l log-level                    set log level
-                                      (1 = DEBUG, 2 = INFO, 3 = WARN)
-    -v                              print the version number and exit
-    --am                            receive AM signals
-                                      (default is FM)
-    -T                              enable bias-T
-    -D direct-sampling-mode         enable direct sampling
-                                      (1 = I-ADC input, 2 = Q-ADC input)
-    --dump-aas-files dir-name       dump AAS files
-                                      (WARNING: insecure)
-    --dump-hdc file-name            dump HDC packets
+    frequency                            center frequency in MHz or Hz
+                                           (do not provide frequency when reading from file)
+    program                              audio program to decode
+                                           (0, 1, 2, or 3)
+    -g gain                              gain
+                                           (example: 49.6)
+                                           (automatic gain selection if not specified)
+    -d device-index                      rtl-sdr device
+    -p ppm-error                         rtl-sdr ppm error
+    -H rtltcp-host                       rtl_tcp host with optional port
+                                           (example: localhost:1234)
+    -r iq-input                          read IQ samples from input file
+    --iq-input-format {cu8,cs16,cf32}    IQ input format (complex unsigned 8-bit @ 1488375 SPS,
+                                           complex signed 16-bit @ 744188 SPS (FM) / 46512 SPS (AM),
+                                           complex float 32-bit @ 744188 SPS (FM) / 46512 SPS (AM).
+                                           default is cu8.)
+    -w iq-output                         write IQ samples to output file
+    -o audio-output                      write audio to output file
+    -t audio-type                        type of audio output (wav or raw)
+                                           (default is wav. used in conjunction with -o)
+    -q                                   disable log output
+    -l log-level                         set log level
+                                           (1 = DEBUG, 2 = INFO, 3 = WARN)
+    -v                                   print the version number and exit
+    --am                                 receive AM signals
+                                           (default is FM)
+    -T                                   enable bias-T
+    -D direct-sampling-mode              enable direct sampling
+                                           (1 = I-ADC input, 2 = Q-ADC input)
+    --dump-aas-files dir-name            dump AAS files
+                                           (WARNING: insecure)
+    --dump-hdc file-name                 dump HDC packets
 
 ### Examples:
 

@@ -35,6 +35,8 @@ struct nrsc5_t
     unsigned int leftover_u8_num;
     int16_t leftover_s16[2];
     unsigned int leftover_s16_num;
+    float complex leftover_cf32[2];
+    unsigned int leftover_cf32_num;
 
     pthread_t worker;
     pthread_mutex_t worker_mutex;

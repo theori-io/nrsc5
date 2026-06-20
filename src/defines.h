@@ -90,11 +90,6 @@
             do { if (LIBRARY_DEBUG_LEVEL <= 4) { fprintf(stderr, __VA_ARGS__); fprintf(stderr, "\n"); } } while (0)
 
 #define U8_F(x) ( (((float)(x)) - 127) / 128 )
-#define U8_Q15(x) ( ((int16_t)(x) - 127) * 64 )
-
-typedef struct {
-    int16_t r, i;
-} cint16_t;
 
 typedef enum {
     P1_LOGICAL_CHANNEL,
@@ -103,15 +98,7 @@ typedef enum {
     NUM_LOGICAL_CHANNELS
 } logical_channel_t;
 
-static inline float complex cq15_to_cf(cint16_t cq15)
-{
-    return CMPLXF((float)cq15.r / 32767.0f, (float)cq15.i / 32767.0f);
-}
 
-static inline float complex cq15_to_cf_conj(cint16_t cq15)
-{
-    return CMPLXF((float)cq15.r / 32767.0f, (float)cq15.i / -32767.0f);
-}
 
 static inline float normf(float complex v)
 {

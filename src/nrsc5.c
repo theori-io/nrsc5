@@ -592,6 +592,7 @@ void nrsc5_set_callback(nrsc5_t *st, nrsc5_callback_t callback, void *opaque)
         pthread_mutex_unlock(&st->worker_mutex);
 }
 
+// requires 1488375 SPS, routes to firdecim
 int nrsc5_pipe_samples_cu8(nrsc5_t *st, const uint8_t *samples, unsigned int length)
 {
     unsigned int sample_groups;
@@ -624,6 +625,7 @@ int nrsc5_pipe_samples_cu8(nrsc5_t *st, const uint8_t *samples, unsigned int len
     return 0;
 }
 
+// requires 744187.5 SPS, bypasses firdecim, converts to float
 int nrsc5_pipe_samples_cs16(nrsc5_t *st, const int16_t *samples, unsigned int length)
 {
     unsigned int sample_groups;
@@ -646,6 +648,13 @@ int nrsc5_pipe_samples_cs16(nrsc5_t *st, const int16_t *samples, unsigned int le
     if (length == 1)
         st->leftover_s16[st->leftover_s16_num++] = samples[0];
 
+    return 0;
+}
+
+// requires 744187.5 SPS, bypasses firdecim
+int nrsc5_pipe_samples_cf32(nrsc5_t *st, const float complex *samples, unsigned int length)
+{
+    input_push(&st->input, samples, length);
     return 0;
 }
 

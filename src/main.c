@@ -54,7 +54,8 @@ typedef struct buffer_t {
 
 enum iq_format {
     IQ_FORMAT_CU8,
-    IQ_FORMAT_CS16
+    IQ_FORMAT_CS16,
+    IQ_FORMAT_CF32
 };
 
 typedef struct {
@@ -792,7 +793,7 @@ static void *input_main(void *arg)
 
 static void help(const char *progname)
 {
-    fprintf(stderr, "Usage: %s [-v] [-q] [--am] [-l log-level] [-d device-index] [-H rtltcp-host] [-p ppm-error] [-g gain] [-r iq-input] [--iq-input-format {cu8,cs16}] [-w iq-output] [-o audio-output] [-t audio-type] [-T] [-D direct-sampling-mode] [--dump-hdc hdc-output] [--dump-aas-files directory] frequency program\n", progname);
+    fprintf(stderr, "Usage: %s [-v] [-q] [--am] [-l log-level] [-d device-index] [-H rtltcp-host] [-p ppm-error] [-g gain] [-r iq-input] [--iq-input-format {cu8,cs16,cf32}] [-w iq-output] [-o audio-output] [-t audio-type] [-T] [-D direct-sampling-mode] [--dump-hdc hdc-output] [--dump-aas-files directory] frequency program\n", progname);
 }
 
 static int parse_args(state_t *st, int argc, char *argv[])
@@ -840,9 +841,13 @@ static int parse_args(state_t *st, int argc, char *argv[])
             {
                 st->iq_input_format = IQ_FORMAT_CS16;
             }
+            else if (strcmp(optarg, "cf32") == 0)
+            {
+                st->iq_input_format = IQ_FORMAT_CF32;
+            }
             else
             {
-                log_fatal("I/Q input format must be either cu8 or cs16.");
+                log_fatal("I/Q input format must be either cu8, cs16, or cf32.");
                 return -1;
             }
             break;
@@ -1101,9 +1106,11 @@ int main(int argc, char *argv[])
             size_t samples_read = 0;
             
             if (st->iq_input_format == IQ_FORMAT_CU8) {
-                samples_read = fread(buffer, 2, sizeof(buffer) / 2, fp);
-            } else if (st->iq_input_format == IQ_FORMAT_CS16) {
                 samples_read = fread(buffer, 4, sizeof(buffer) / 4, fp);
+            } else if (st->iq_input_format == IQ_FORMAT_CS16) {
+                samples_read = fread(buffer, 8, sizeof(buffer) / 8, fp);
+            } else if (st->iq_input_format == IQ_FORMAT_CF32) {
+                samples_read = fread(buffer, 16, sizeof(buffer) / 16, fp);
             }
 
             if (samples_read == 0)
@@ -1113,9 +1120,11 @@ int main(int argc, char *argv[])
             }
 
             if (st->iq_input_format == IQ_FORMAT_CU8) {
-                nrsc5_pipe_samples_cu8(radio, buffer, samples_read * 2);
+                nrsc5_pipe_samples_cu8(radio, buffer, samples_read * 4);
             } else if (st->iq_input_format == IQ_FORMAT_CS16) {
-                nrsc5_pipe_samples_cs16(radio, (int16_t *)buffer, samples_read * 2);
+                nrsc5_pipe_samples_cs16(radio, (int16_t *)buffer, samples_read * 4);
+            } else if (st->iq_input_format == IQ_FORMAT_CF32) {
+                nrsc5_pipe_samples_cf32(radio, (float complex *)buffer, samples_read * 2);
             }
         }
     }

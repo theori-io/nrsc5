@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
+#include <complex.h>
 
 /*
  * Definitions.
@@ -53,6 +54,8 @@
 #define NRSC5_SAMPLE_RATE_CU8      1488375     /**< Sample rate at which nrsc5_pipe_samples_cu8() expects samples (FM or AM) */
 #define NRSC5_SAMPLE_RATE_CS16_FM  744187.5    /**< Sample rate at which nrsc5_pipe_samples_cs16() expects samples (FM only) */
 #define NRSC5_SAMPLE_RATE_CS16_AM  46511.71875 /**< Sample rate at which nrsc5_pipe_samples_cs16() expects samples (AM only) */
+#define NRSC5_SAMPLE_RATE_CF32_FM  744187.5    /**< Sample rate at which nrsc5_pipe_samples_cf32() expects samples (FM only) */
+#define NRSC5_SAMPLE_RATE_CF32_AM  46511.71875 /**< Sample rate at which nrsc5_pipe_samples_cf32() expects samples (AM only) */
 #define NRSC5_SAMPLE_RATE_AUDIO    44100       /**< Sample rate of outgoing audio */
 
 #define NRSC5_DEVICE_VERSION_LENGTH 4          /**< Length of Core Version & Manufacturer Version in SIS Parameter messages. */
@@ -869,5 +872,17 @@ NRSC5_API int nrsc5_pipe_samples_cu8(nrsc5_t *st, const uint8_t *samples, unsign
  *
  */
 NRSC5_API int nrsc5_pipe_samples_cs16(nrsc5_t *st, const int16_t *samples, unsigned int length);
+
+/**
+ * Push an IQ input array of complex float samples into the demodulator.
+ *
+ * @param[in] st  pointer to an `nrsc5_t` session object
+ * @param[in] samples  pointer to an array of complex float samples
+ * @param[in] length   the number of samples in the array
+ * @see NRSC5_SAMPLE_RATE_CF32_FM & NRSC5_SAMPLE_RATE_CF32_AM for required sample rate
+ * @return 0 on success, nonzero on error
+ *
+ */
+NRSC5_API int nrsc5_pipe_samples_cf32(nrsc5_t *st, const float complex *samples, unsigned int length);
 
 #endif /* NRSC5_H_ */

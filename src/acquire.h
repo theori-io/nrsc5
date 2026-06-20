@@ -2,14 +2,14 @@
 
 #include <complex.h>
 #include <fftw3.h>
-#include "firdecim_q15.h"
+#include "firdecim_cf32.h"
 
 typedef struct
 {
     struct input_t *input;
-    firdecim_q15 filter_fm;
-    firdecim_q15 filter_am;
-    cint16_t in_buffer[FFTCP_FM * (ACQUIRE_SYMBOLS + 1)];
+    firdecim_cf32 filter_fm;
+    firdecim_cf32 filter_am;
+    float complex in_buffer[FFTCP_FM * (ACQUIRE_SYMBOLS + 1)];
     float complex buffer[FFTCP_FM * (ACQUIRE_SYMBOLS + 1)];
     float complex sums[FFTCP_FM];
     float complex *fftin;
@@ -35,7 +35,7 @@ typedef struct
 void acquire_process(acquire_t *st);
 void acquire_keep_extra(acquire_t *st, int extra);
 void acquire_cfo_adjust(acquire_t *st, int cfo);
-unsigned int acquire_push(acquire_t *st, const cint16_t *buf, unsigned int length);
+unsigned int acquire_push(acquire_t *st, const float complex *buf, unsigned int length);
 void acquire_reset(acquire_t *st);
 void acquire_init(acquire_t *st, struct input_t *input);
 void acquire_set_mode(acquire_t *st, int mode);

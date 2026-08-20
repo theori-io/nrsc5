@@ -2,6 +2,7 @@
 #include <string.h>
 
 #include "private.h"
+#include "unicode.h"
 
 pthread_mutex_t fftw_mutex = PTHREAD_MUTEX_INITIALIZER;
 
@@ -904,10 +905,12 @@ void nrsc5_report_sig(nrsc5_t *st, sig_service_t *services)
         if (services[i].type == SIG_SERVICE_NONE)
             break;
 
+        char* name = iso_8859_1_to_utf_8((uint8_t*) services[i].name, strlen(services[i].name));
+
         service = calloc(1, sizeof(nrsc5_sig_service_t));
         service->type = convert_sig_service_type(services[i].type);
         service->number = services[i].number;
-        service->name = services[i].name;
+        service->name = name;
 
         if (prev == NULL)
             evt.sig.services = service;
@@ -953,6 +956,7 @@ void nrsc5_report_sig(nrsc5_t *st, sig_service_t *services)
     }
 
     nrsc5_report(st, &evt);
+    nrsc5_clear_sig(st);
     st->sig_table = evt.sig.services;
 }
 
@@ -972,6 +976,8 @@ void nrsc5_clear_sig(nrsc5_t *st)
             component = component->next;
             free(p);
         }
+
+        free((void*) service->name);
 
         p = service;
         service = service->next;

@@ -555,6 +555,24 @@ static void output_id3(output_t *st, unsigned int program, uint8_t *buf, unsigne
     }
 }
 
+static int find_service(output_t *st, uint8_t service_number)
+{
+    int service_idx;
+
+    for (service_idx = 0; service_idx < MAX_SIG_SERVICES; service_idx++)
+    {
+        if (st->services[service_idx].type == SIG_SERVICE_NONE)
+            break; // reached a free slot in the service list
+
+        if (st->services[service_idx].number == service_number)
+        {
+            break;
+        }
+    }
+
+    return service_idx;
+}
+
 static int find_component(sig_service_t *service, uint8_t component_id)
 {
     int component_idx;
@@ -566,7 +584,6 @@ static int find_component(sig_service_t *service, uint8_t component_id)
 
         if (service->component[component_idx].id == component_id)
         {
-            log_warn("duplicate SIG component: service %d, component %d", service->number, component_id);
             break;
         }
     }
@@ -578,14 +595,9 @@ static void parse_sig(output_t *st, uint8_t *buf, unsigned int len)
 {
     uint8_t *p = buf;
     sig_service_t *service = NULL;
-
-    if (st->services[0].type != SIG_SERVICE_NONE)
-    {
-        // We assume that the SIG will never change, and only process it once.
-        return;
-    }
-
-    memset(st->services, 0, sizeof(st->services));
+    int service_count = 0;
+    int component_count = 0;
+    int updated = 0;
 
     while (p < buf + len)
     {
@@ -594,33 +606,47 @@ static void parse_sig(output_t *st, uint8_t *buf, unsigned int len)
         {
         case 0x40:
         {
-            uint16_t service_number = p[0] | (p[1] << 8);
-            int service_idx;
-
-            for (service_idx = 0; service_idx < MAX_SIG_SERVICES; service_idx++)
-            {
-                if (st->services[service_idx].type == SIG_SERVICE_NONE)
-                    break; // reached a free slot in the service list
-
-                if (st->services[service_idx].number == service_number)
-                {
-                    log_warn("duplicate SIG service: %d", service_number);
-                    free(st->services[service_idx].name);
-                    memset(&st->services[service_idx], 0, sizeof(st->services[service_idx]));
-                    break;
-                }
-            }
-
-            if (service_idx == MAX_SIG_SERVICES)
+            const uint16_t service_number = p[0] | (p[1] << 8);
+            if (service_count == MAX_SIG_SERVICES)
             {
                 log_warn("Too many SIG services");
                 goto done;
             }
 
-            service = &st->services[service_idx];
-            service->type = type == 0x40 ? SIG_SERVICE_AUDIO : SIG_SERVICE_DATA;
-            service->number = service_number;
+            int service_idx = find_service(st, service_number);
+            if (service_idx > service_count)
+            {
+                sig_service_t temp = st->services[service_count];
+                st->services[service_count] = st->services[service_idx];
+                st->services[service_idx] = temp;
 
+                service_idx = service_count;
+                service_count++;
+            }
+            else if (service_idx == service_count)
+            {
+                service_count++;
+            }
+            else
+            {
+                log_warn("duplicate SIG service: %d", service_number);
+            }
+
+            const uint8_t service_type = type == 0x40 ? SIG_SERVICE_AUDIO : SIG_SERVICE_DATA;
+
+            service = &st->services[service_idx];
+            if (service->type != service_type || service->number != service_number)
+            {
+                free(st->services[service_idx].name);
+                memset(&st->services[service_idx], 0, sizeof(st->services[service_idx]));
+
+                service->name = NULL;
+                service->type = service_type;
+                service->number = service_number;
+                updated = 1;
+            }
+
+            component_count = 0;
             p += 3;
             break;
         }
@@ -635,46 +661,105 @@ static void parse_sig(output_t *st, uint8_t *buf, unsigned int len)
             }
             else if (type == 0x69)
             {
-                service->name = iso_8859_1_to_utf_8(p + 1, l - 2);
+                if (service->name == NULL || strlen(service->name) != l-2 || strncmp(service->name, (char*) p + 1, l - 2) != 0)
+                {
+                    free(service->name);
+                    service->name = strndup((char*) p + 1, l - 2);
+                    updated = 1;
+                }
             }
             else if (type == 0x67)
             {
                 sig_component_t *comp;
-                uint8_t component_id = p[0];
-                int component_idx = find_component(service, component_id);
+                const uint8_t component_id = p[0];
 
-                if (component_idx == MAX_SIG_COMPONENTS)
+                if (component_count == MAX_SIG_COMPONENTS)
                 {
                     log_warn("Too many SIG components");
                     goto done;
                 }
 
+                int component_idx = find_component(service, component_id);
+                if (component_idx > component_count)
+                {
+                    sig_component_t temp = service->component[component_count];
+                    service->component[component_count] = service->component[component_idx];
+                    service->component[component_idx] = temp;
+
+                    component_idx = component_count;
+                    component_count++;
+                }
+                else if (component_idx == component_count)
+                {
+                    component_count++;
+                }
+                else
+                {
+                    log_warn("duplicate SIG component: service %d, component %d", service->number, component_idx);
+                }
+
+                const uint16_t port = p[1] | (p[2] << 8);
+                const uint16_t service_data_type = p[3] | (p[4] << 8);
+                const uint32_t mime = p[8] | (p[9] << 8) | (p[10] << 16) | ((uint32_t)p[11] << 24);
+
                 comp = &service->component[component_idx];
-                comp->type = SIG_COMPONENT_DATA;
-                comp->id = component_id;
-                comp->data.port = p[1] | (p[2] << 8);
-                comp->data.service_data_type = p[3] | (p[4] << 8);
-                comp->data.type = p[5];
-                comp->data.mime = p[8] | (p[9] << 8) | (p[10] << 16) | ((uint32_t)p[11] << 24);
+                if (comp->type != SIG_COMPONENT_DATA || comp->id != component_id ||
+                    comp->data.port != port || comp->data.service_data_type != service_data_type ||
+                    comp->data.type != p[5] || comp->data.mime != mime)
+                {
+                    comp->type = SIG_COMPONENT_DATA;
+                    comp->id = component_id;
+                    comp->data.port = port;
+                    comp->data.service_data_type = service_data_type;
+                    comp->data.type = p[5];
+                    comp->data.mime = mime;
+
+                    updated = 1;
+                }
             }
             else if (type == 0x66)
             {
                 sig_component_t *comp;
-                uint8_t component_id = p[0];
-                int component_idx = find_component(service, component_id);
-
-                if (component_idx == MAX_SIG_COMPONENTS)
+                const uint8_t component_id = p[0];
+                if (component_count == MAX_SIG_COMPONENTS)
                 {
                     log_warn("Too many SIG components");
                     goto done;
                 }
 
+                int component_idx = find_component(service, component_id);
+                if (component_idx > component_count)
+                {
+                    sig_component_t temp = service->component[component_count];
+                    service->component[component_count] = service->component[component_idx];
+                    service->component[component_idx] = temp;
+                    component_idx = component_count;
+                    component_count++;
+                }
+                else if (component_idx == component_count)
+                {
+                    component_count++;
+                }
+                else
+                {
+                    log_warn("duplicate SIG component: service %d, component %d", service->number, component_idx);
+                }
+
+                const uint32_t comp_mime = p[7] | (p[8] << 8) | (p[9] << 16) | ((uint32_t)p[10] << 24);
+
                 comp = &service->component[component_idx];
-                comp->type = SIG_COMPONENT_AUDIO;
-                comp->id = component_id;
-                comp->audio.port = p[1];
-                comp->audio.type = p[2];
-                comp->audio.mime = p[7] | (p[8] << 8) | (p[9] << 16) | ((uint32_t)p[10] << 24);
+                if (comp->type != SIG_COMPONENT_AUDIO || comp->id != component_id ||
+                    comp->audio.port != p[1] || comp->audio.type != p[2] ||
+                    comp->audio.mime != comp_mime)
+                {
+                    comp->type = SIG_COMPONENT_AUDIO;
+                    comp->id = component_id;
+                    comp->audio.port = p[1];
+                    comp->audio.type = p[2];
+                    comp->audio.mime = comp_mime;
+
+                    updated = 1;
+                }
             }
             p += l - 1;
             break;
@@ -686,7 +771,8 @@ static void parse_sig(output_t *st, uint8_t *buf, unsigned int len)
     }
 
 done:
-    nrsc5_report_sig(st->radio, st->services);
+    if (updated)
+        nrsc5_report_sig(st->radio, st->services);
 }
 
 static sig_component_t *find_port(output_t *st, uint16_t port_id)

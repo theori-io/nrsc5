@@ -707,6 +707,10 @@ static void parse_sig(output_t *st, uint8_t *buf, unsigned int len)
                     comp->data.port != port || comp->data.service_data_type != service_data_type ||
                     comp->data.type != p[5] || comp->data.mime != mime)
                 {
+                    if (comp->type == SIG_COMPONENT_DATA)
+                        for (int k = 0; k < MAX_LOT_FILES; k++)
+                            aas_free_lot(&comp->data.lot_files[k]);
+
                     comp->type = SIG_COMPONENT_DATA;
                     comp->id = component_id;
                     comp->data.port = port;
@@ -752,6 +756,10 @@ static void parse_sig(output_t *st, uint8_t *buf, unsigned int len)
                     comp->audio.port != p[1] || comp->audio.type != p[2] ||
                     comp->audio.mime != comp_mime)
                 {
+                    if (comp->type == SIG_COMPONENT_DATA)
+                        for (int k = 0; k < MAX_LOT_FILES; k++)
+                            aas_free_lot(&comp->data.lot_files[k]);
+
                     comp->type = SIG_COMPONENT_AUDIO;
                     comp->id = component_id;
                     comp->audio.port = p[1];

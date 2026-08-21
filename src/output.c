@@ -661,10 +661,12 @@ static void parse_sig(output_t *st, uint8_t *buf, unsigned int len)
             }
             else if (type == 0x69)
             {
-                if (service->name == NULL || strlen(service->name) != l-2 || strncmp(service->name, (char*) p + 1, l - 2) != 0)
+                const uint8_t name_len = l - 2;
+
+                if (service->name == NULL || strlen(service->name) != name_len || strncmp(service->name, (char*) p + 1, name_len) != 0)
                 {
                     free(service->name);
-                    service->name = strndup((char*) p + 1, l - 2);
+                    service->name = strndup((char*) p + 1, name_len);
                     updated = 1;
                 }
             }

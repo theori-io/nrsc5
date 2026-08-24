@@ -18,7 +18,6 @@ endif()
 configure_file (config.h.in config.h)
 include_directories (
     ${FAAD2_INCLUDE_DIRS}
-    ${AO_INCLUDE_DIRS}
     ${RTL_SDR_INCLUDE_DIRS}
     ${FFTW3F_INCLUDE_DIRS}
     "${CMAKE_CURRENT_BINARY_DIR}"
@@ -26,7 +25,6 @@ include_directories (
 )
 link_directories (
     ${FAAD2_LIBRARY_DIRS}
-    ${AO_LIBRARY_DIRS}
     ${RTL_SDR_LIBRARY_DIRS}
     ${FFTW3F_LIBRARY_DIRS}
     ${LIBUSB_LIBRARY_DIRS}
@@ -94,6 +92,12 @@ if (BUILTIN_LIBRARIES)
 endif ()
 
 if (BUILD_CLI)
+    add_library(miniaudio STATIC
+        miniaudio.c
+    )
+    target_compile_definitions(miniaudio
+            PRIVATE "-DMA_NO_GENERATION" "-DMA_NO_NODE_GRAPH" "-DMA_NO_DECODING")
+
     add_executable (
         app
         main.c
@@ -104,7 +108,7 @@ if (BUILD_CLI)
     target_link_libraries (
         app
         nrsc5_static
-        ${AO_LIBRARIES}
+        miniaudio
         ${THREAD_LIBRARY}
         ${SOCKET_LIBRARY}
     )

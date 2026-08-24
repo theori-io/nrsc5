@@ -13,7 +13,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <ao/ao.h>
 #include <getopt.h>
 #include <math.h>
 #include <nrsc5.h>
@@ -36,27 +35,30 @@
 #include <sys/socket.h>
 #include <termios.h>
 #include <poll.h>
+#include <errno.h>
 #endif
 
+#include "miniaudio.h"
 #include "bitwriter.h"
 #include "log.h"
 
+#define AUDIO_CHANNELS 2
 #define AUDIO_BUFFERS 16
-#define AUDIO_DATA_LENGTH 8192
 #define FILE_BUFFER_LENGTH 32768
 #define STDIN_POLL_RATE_MS 100
-
-typedef struct buffer_t {
-    struct buffer_t *next;
-    // The samples are signed 16-bit integers, but ao_play requires a char buffer.
-    char data[AUDIO_DATA_LENGTH];
-} audio_buffer_t;
 
 enum iq_format {
     IQ_FORMAT_NONE,
     IQ_FORMAT_CU8,
     IQ_FORMAT_CS16,
     IQ_FORMAT_CF32,
+};
+
+enum output_format
+{
+    OUTPUT_FORMAT_WAV,
+    OUTPUT_FORMAT_RAW,
+    OUTPUT_FORMAT_DEVICE,
 };
 
 typedef struct {
@@ -69,15 +71,24 @@ typedef struct {
     int ppm_error;
     char *input_name;
     char *rtltcp_host;
-    ao_device *dev;
+    enum output_format out_format;
+    ma_device dev;
+    ma_encoder encoder;
+    FILE *audio_file;
     FILE *hdc_file;
     FILE *iq_file;
     char *aas_files_path;
     enum iq_format iq_input_format;
 
-    audio_buffer_t *head, *tail, *free;
+    ma_pcm_rb buffer;
     pthread_mutex_t mutex;
     pthread_cond_t cond;
+
+#ifdef __MINGW32__
+    HANDLE hStdin;
+#else
+    struct pollfd pfd;
+#endif
 
     unsigned int program;
     unsigned int audio_packets_valid;
@@ -87,101 +98,63 @@ typedef struct {
     int done;
 } state_t;
 
-static ao_sample_format sample_format = {
-    16,
-    NRSC5_SAMPLE_RATE_AUDIO,
-    2,
-    AO_FMT_NATIVE,
-    "L,R"
-};
-
-static ao_device *open_ao_live(void)
-{
-    return ao_open_live(ao_default_driver_id(), &sample_format, NULL);
-}
-
-static ao_device *open_ao_file(const char *name, const char *type)
-{
-    return ao_open_file(ao_driver_id(type), name, 1, &sample_format, NULL);
-}
-
-static void reset_audio_buffers(state_t *st)
-{
-    audio_buffer_t *b;
-
-    // find the end of the head list
-    for (b = st->head; b && b->next; b = b->next) { }
-
-    // if the head list is non-empty, prepend to free list
-    if (b != NULL)
-    {
-        b->next = st->free;
-        st->free = st->head;
-    }
-
-    st->head = NULL;
-    st->tail = NULL;
-}
-
 static void push_audio_buffer(state_t *st, unsigned int program, const int16_t *data, size_t count, unsigned int flags)
 {
-    audio_buffer_t *b;
+    const ma_uint32 frames = count / AUDIO_CHANNELS;
+    ma_result result;
 
     pthread_mutex_lock(&st->mutex);
-    if (program != st->program)
-        goto unlock;
+    unsigned int prog = st->program;
+    pthread_mutex_unlock(&st->mutex);
+
+    if (program != prog)
+        return;
 
     if (flags & NRSC5_AUDIO_FLAGS_DECODING_ERROR)
         log_warn("Audio decoding error");
 
-    if (st->input_name)
+    if (st->out_format == OUTPUT_FORMAT_RAW)
     {
-        while (st->free == NULL)
-            pthread_cond_wait(&st->cond, &st->mutex);
+        fwrite(data, count, sizeof(int16_t), st->audio_file);
+    }
+    else if (st->out_format == OUTPUT_FORMAT_WAV)
+    {
+        result = ma_encoder_write_pcm_frames(&st->encoder, data, frames, NULL);
+
+        if (result != MA_SUCCESS)
+            log_error("Failed to write audio: %s", ma_result_description(result));
     }
     else
     {
-        if (st->free == NULL)
+        ma_uint32 frames_written = 0;
+
+        while (frames_written < frames)
         {
+            void* buffer;
+            ma_uint32 frames_to_write = frames - frames_written;
+
+            result = ma_pcm_rb_acquire_write(&st->buffer, &frames_to_write, &buffer);
+            if (result != MA_SUCCESS) {
+                break;
+            }
+            if (frames_to_write == 0) {
+                break;
+            }
+
+            /* Copy the data from the capture buffer to the ring buffer. */
+            memcpy(buffer, data + frames_written * AUDIO_CHANNELS, sizeof(int16_t) * frames_to_write * AUDIO_CHANNELS);
+
+            result = ma_pcm_rb_commit_write(&st->buffer, frames_to_write);
+            if (result != MA_SUCCESS) {
+                break;
+            }
+
+            frames_written += frames_to_write;
+        }
+        if (frames_written < frames) {
             log_warn("Audio output queue full, dropping samples");
-            goto unlock;
         }
     }
-
-    b = st->free;
-    st->free = b->next;
-
-    assert(AUDIO_DATA_LENGTH == count * sizeof(data[0]));
-    memcpy(b->data, data, count * sizeof(data[0]));
-
-    b->next = NULL;
-    if (st->tail)
-        st->tail->next = b;
-    else
-        st->head = b;
-    st->tail = b;
-
-    pthread_cond_signal(&st->cond);
-
-unlock:
-    pthread_mutex_unlock(&st->mutex);
-}
-
-static void init_audio_buffers(state_t *st)
-{
-    st->head = NULL;
-    st->tail = NULL;
-    st->free = NULL;
-
-    for (int i = 0; i < AUDIO_BUFFERS; ++i)
-    {
-        audio_buffer_t *b = malloc(sizeof(audio_buffer_t));
-        b->next = st->free;
-        st->free = b;
-    }
-
-    pthread_cond_init(&st->cond, NULL);
-    pthread_mutex_init(&st->mutex, NULL);
 }
 
 static void write_adts_header(FILE *fp, unsigned int len)
@@ -298,17 +271,8 @@ static int is_done(state_t *st)
 static void change_program(state_t *st, unsigned int program)
 {
     pthread_mutex_lock(&st->mutex);
-
-    // reset audio buffers
-    if (st->tail)
-    {
-        st->tail->next = st->free;
-        st->free = st->head;
-        st->head = st->tail = NULL;
-    }
     // update current program
     st->program = program;
-
     pthread_mutex_unlock(&st->mutex);
 }
 
@@ -651,43 +615,41 @@ static int connect_tcp(char *host, const char *default_port)
     return s;
 }
 
-static void *audio_main(void *arg)
+void audio_callback(ma_device* pDevice, void* p_output, const void* p_input, ma_uint32 frame_count)
 {
-    state_t *st = arg;
+    state_t* st = pDevice->pUserData;
+    (void)p_input;
+    ma_result result;
+    ma_uint32 frame_read = 0;
 
-    while (1)
+    while (frame_read < frame_count)
     {
-        audio_buffer_t *b;
+        ma_uint32 frames_to_read = frame_count - frame_read;
+        void* buffer;
 
-        pthread_mutex_lock(&st->mutex);
-        while (!st->done && (st->head == NULL))
-            pthread_cond_wait(&st->cond, &st->mutex);
-
-        // exit once done and no more audio buffers
-        if (st->head == NULL)
-        {
-            pthread_mutex_unlock(&st->mutex);
+        result = ma_pcm_rb_acquire_read(&st->buffer, &frames_to_read, &buffer);
+        if (result != MA_SUCCESS) {
+            break;
+        }
+        if (frames_to_read == 0) {
             break;
         }
 
-        // unlink from head list
-        b = st->head;
-        st->head = b->next;
-        if (st->head == NULL)
-            st->tail = NULL;
-        pthread_mutex_unlock(&st->mutex);
+        /* Copy the data from the capture buffer to the ring buffer. */
+        memcpy((int16_t*)p_output + frame_read * AUDIO_CHANNELS, buffer, frames_to_read * AUDIO_CHANNELS * sizeof(int16_t));
 
-        ao_play(st->dev, b->data, sizeof(b->data));
+        result = ma_pcm_rb_commit_read(&st->buffer, frames_to_read);
+        if (result != MA_SUCCESS) {
+            break;
+        }
 
-        pthread_mutex_lock(&st->mutex);
-        // add to free list
-        b->next = st->free;
-        st->free = b;
-        pthread_cond_signal(&st->cond);
-        pthread_mutex_unlock(&st->mutex);
+        frame_read += frames_to_read;
     }
-
-    return NULL;
+    if (frame_read < frame_count)
+    {
+        const ma_uint32 frames_left = frame_count - frame_read;
+        memset((int16_t*)p_output + frame_read * AUDIO_CHANNELS, 0, sizeof(int16_t) * AUDIO_CHANNELS * frames_left);
+    }
 }
 
 static void on_key_press(state_t *st, char ch)
@@ -712,92 +674,55 @@ static void on_key_press(state_t *st, char ch)
     }
 }
 
-static void *input_main(void *arg)
+static void read_input(state_t *st, const unsigned int wait_time)
 {
-    state_t *st = arg;
-
-    if (!isatty(STDIN_FILENO))
-        return NULL;
-
 #ifdef __MINGW32__
-    HANDLE hStdin = GetStdHandle(STD_INPUT_HANDLE);
-    DWORD mode = 0;
-    GetConsoleMode(hStdin, &mode);
-    SetConsoleMode(hStdin, mode & (~ENABLE_ECHO_INPUT) & (~ENABLE_LINE_INPUT));
-#else
-    struct termios prev_termios, t;
+    INPUT_RECORD r;
+    DWORD read;
 
-    // disable terminal canonical mode
-    tcgetattr(STDIN_FILENO, &prev_termios);
-    t = prev_termios;
-    t.c_lflag &= ~ICANON;
-    tcsetattr(STDIN_FILENO, TCSANOW, &t);
-
-    struct pollfd pfd;
-    pfd.fd = STDIN_FILENO;
-    pfd.events = POLLIN;
-#endif
-
-    while (!is_done(st))
+    switch (WaitForSingleObject(st->hStdin, wait_time))
     {
-#ifdef __MINGW32__
-        INPUT_RECORD r;
-        DWORD read;
-
-        switch (WaitForSingleObject(hStdin, STDIN_POLL_RATE_MS))
+    case WAIT_TIMEOUT:
+        break;
+    case WAIT_OBJECT_0:
+        if (!ReadConsoleInput(st->hStdin, &r, 1, &read))
         {
-        case WAIT_TIMEOUT:
-            continue;
-        case WAIT_OBJECT_0:
-            if (!ReadConsoleInput(hStdin, &r, 1, &read))
-            {
-                log_error("Stdin read failed: ReadConsoleInput error %d", GetLastError());
-                break;
-            }
-
-            const KEY_EVENT_RECORD key = r.Event.KeyEvent;
-
-            if (r.EventType == KEY_EVENT && key.bKeyDown)
-                on_key_press(st, key.uChar.AsciiChar);
-            break;
-        case WAIT_ABANDONED:
-            log_error("Waiting for stdin failed: WAIT_ABANDONED");
-            break;
-        case WAIT_FAILED:
-            log_error("Waiting for stdin failed: WAIT_FAILED");
-            break;
-        default:
+            log_error("Stdin read failed: ReadConsoleInput error %d", GetLastError());
             break;
         }
 
-#else
-        int ret = poll(&pfd, 1, STDIN_POLL_RATE_MS);
-        char ch;
+        const KEY_EVENT_RECORD key = r.Event.KeyEvent;
 
-        if (ret > 0)
-        {
-            if (pfd.revents & POLLIN)
-            {
-                if (read(STDIN_FILENO, &ch, 1))
-                    on_key_press(st, ch);
-            }
-        }
-        else if (ret == 0)
-            continue;
-        else
-        {
-            log_error("Stdin read failed: poll error %d", errno);
-            break;
-        }
-#endif
+        if (r.EventType == KEY_EVENT && key.bKeyDown)
+            on_key_press(st, key.uChar.AsciiChar);
+        break;
+    case WAIT_ABANDONED:
+        log_error("Waiting for stdin failed: WAIT_ABANDONED");
+        break;
+    case WAIT_FAILED:
+        log_error("Waiting for stdin failed: WAIT_FAILED");
+        break;
+    default:
+        break;
     }
 
-#ifndef __MINGW32__
-    // restore terminal settings
-    tcsetattr(STDIN_FILENO, TCSANOW, &prev_termios);
-#endif
+#else
+    int ret = poll(&st->pfd, 1, wait_time);
+    char ch;
 
-    return NULL;
+    if (ret > 0)
+    {
+        if (st->pfd.revents & POLLIN)
+        {
+            if (read(STDIN_FILENO, &ch, 1))
+                on_key_press(st, ch);
+        }
+    }
+    else if (ret < 0)
+    {
+        log_error("Stdin read failed: poll error %d", errno);
+    }
+#endif
 }
 
 static void help(const char *progname)
@@ -810,6 +735,31 @@ static int ends_with(const char *str, const char *suffix)
     const size_t len = strlen(str);
     const size_t suffix_len = strlen(suffix);
     return (len >= suffix_len) && (strcmp(str + len - suffix_len, suffix) == 0);
+}
+
+ma_result file_write(ma_encoder* pEncoder, const void* pBufferIn, size_t bytesToWrite, size_t* pBytesWritten)
+{
+    FILE* file = pEncoder->pUserData;
+    size_t result = fwrite(pBufferIn, 1, bytesToWrite, file);
+    if (pBytesWritten != NULL) {
+        *pBytesWritten = result;
+    }
+    return result == bytesToWrite ? MA_SUCCESS : MA_IO_ERROR;
+}
+
+ma_result file_seek(ma_encoder* pEncoder, ma_int64 offset, ma_seek_origin origin)
+{
+    int whence;
+
+    if (origin == ma_seek_origin_start) {
+        whence = SEEK_SET;
+    } else if (origin == ma_seek_origin_end) {
+        whence = SEEK_END;
+    } else {
+        whence = SEEK_CUR;
+    }
+    fseek(pEncoder->pUserData, offset, whence);
+    return MA_SUCCESS;
 }
 
 static int parse_args(state_t *st, int argc, char *argv[])
@@ -961,14 +911,62 @@ static int parse_args(state_t *st, int argc, char *argv[])
     }
 
     if (audio_name)
-        st->dev = open_ao_file(audio_name, audio_type);
-    else
-        st->dev = open_ao_live();
-
-    if (st->dev == NULL)
     {
-        log_fatal("Unable to open audio device.");
-        return 1;
+        if (strcmp(audio_name, "-") == 0)
+            st->audio_file = stdout;
+        else
+            st->audio_file = fopen(audio_name, "wb");
+        if (st->audio_file == NULL)
+        {
+            log_fatal("Unable to open file output.");
+            return 1;
+        }
+
+        if (strcmp(audio_type, "wav") == 0)
+        {
+            ma_encoder_config config = ma_encoder_config_init(ma_encoding_format_wav, ma_format_s16, 2, NRSC5_SAMPLE_RATE_AUDIO);
+            ma_result result = ma_encoder_init(file_write, file_seek, st->audio_file, &config, &st->encoder);
+            if (result != MA_SUCCESS) {
+                log_fatal("Unable to open encoder: %s", ma_result_description(result));
+                return -1;  // Failed to initialize the device.
+            }
+
+            st->out_format = OUTPUT_FORMAT_WAV;
+        }
+        else
+        {
+            st->out_format = OUTPUT_FORMAT_RAW;
+        }
+    }
+    else
+    {
+        ma_result result;
+        ma_device_config config = ma_device_config_init(ma_device_type_playback);
+        config.playback.format   = ma_format_s16;
+        config.playback.channels = AUDIO_CHANNELS;
+        config.sampleRate        = NRSC5_SAMPLE_RATE_AUDIO;
+        config.dataCallback      = audio_callback;
+        config.pUserData         = st;
+        config.periodSizeInFrames = NRSC5_AUDIO_FRAME_SAMPLES; /* provide a hint of the size of each frame */
+        config.noFixedSizedCallback = 1;
+        config.noPreSilencedOutputBuffer = 1;
+
+        result = ma_device_init(NULL, &config, &st->dev);
+        if (result != MA_SUCCESS) {
+            log_fatal("Unable to open audio device: %s", ma_result_description(result));
+            return -1;  // Failed to initialize the device.
+        }
+
+        result = ma_pcm_rb_init(config.playback.format, config.playback.channels, NRSC5_AUDIO_FRAME_SAMPLES * AUDIO_BUFFERS, NULL, NULL, &st->buffer);
+        if (result != MA_SUCCESS) {
+            log_fatal("Failed to allocate ring buffer: %s", ma_result_description(result));
+            return -1; // Failed to initialize the device.
+        }
+
+        pthread_cond_init(&st->cond, NULL);
+        pthread_mutex_init(&st->mutex, NULL);
+
+        st->out_format = OUTPUT_FORMAT_DEVICE;
     }
 
     if (output_name)
@@ -1011,14 +1009,6 @@ static void log_lock(void *udata, int lock)
 
 static void cleanup(state_t *st)
 {
-    reset_audio_buffers(st);
-    while (st->free)
-    {
-        audio_buffer_t *b = st->free;
-        st->free = b->next;
-        free(b);
-    }
-
     if (st->hdc_file)
         fclose(st->hdc_file);
     if (st->iq_file)
@@ -1027,15 +1017,36 @@ static void cleanup(state_t *st)
     free(st->input_name);
     free(st->aas_files_path);
 
-    if (st->dev)
-        ao_close(st->dev);
+    if (st->out_format == OUTPUT_FORMAT_DEVICE)
+    {
+        ma_pcm_rb_uninit(&st->buffer);
+        ma_device_uninit(&st->dev);
+    }
+    else
+    {
+        ma_encoder_uninit(&st->encoder);
+    }
+
+    if (st->audio_file)
+        fclose(st->audio_file);
+}
+
+static int read_more_input(state_t *st)
+{
+    const unsigned int len = NRSC5_AUDIO_FRAME_SAMPLES * (st->mode == NRSC5_MODE_FM ? 2 : 4);
+    return st->out_format != OUTPUT_FORMAT_DEVICE ||
+           ma_pcm_rb_available_write(&st->buffer) > len;
+}
+
+static int is_playback_done(state_t *st)
+{
+    return st->out_format != OUTPUT_FORMAT_DEVICE ||
+           ma_pcm_rb_available_read(&st->buffer) == 0;
 }
 
 int main(int argc, char *argv[])
 {
     pthread_mutex_t log_mutex;
-    pthread_t audio_thread;
-    pthread_t input_thread;
     nrsc5_t *radio = NULL;
     state_t *st = calloc(1, sizeof(state_t));
     FILE *fp = NULL;
@@ -1044,8 +1055,6 @@ int main(int argc, char *argv[])
     log_set_lock(log_lock);
     log_set_udata(&log_mutex);
 
-    ao_initialize();
-    init_audio_buffers(st);
     if (parse_args(st, argc, argv) != 0)
         return 0;
 
@@ -1120,17 +1129,63 @@ int main(int argc, char *argv[])
     nrsc5_set_callback(radio, callback, st);
     nrsc5_start(radio);
 
-    pthread_create(&audio_thread, NULL, audio_main, st);
-    pthread_create(&input_thread, NULL, input_main, st);
-
-    if (st->input_name)
+    if (st->out_format == OUTPUT_FORMAT_DEVICE)
     {
-        uint8_t buffer[FILE_BUFFER_LENGTH];
-
-        while (!is_done(st))
+        ma_result result;
+        if ((result = ma_device_start(&st->dev)) != MA_SUCCESS)
         {
+            log_fatal("Device start failed: %s", ma_result_description(result));
+            return 1;
+        }
+    }
+
+#ifndef __MINGW32__
+    struct termios prev_termios, t;
+#endif
+
+    if (isatty(STDIN_FILENO))
+    {
+#ifdef __MINGW32__
+        st->hStdin = GetStdHandle(STD_INPUT_HANDLE);
+        DWORD mode = 0;
+        GetConsoleMode(st->hStdin, &mode);
+        SetConsoleMode(st->hStdin, mode & (~ENABLE_ECHO_INPUT) & (~ENABLE_LINE_INPUT));
+#else
+        // disable terminal canonical mode
+        tcgetattr(STDIN_FILENO, &prev_termios);
+        t = prev_termios;
+        t.c_lflag &= ~ICANON;
+        tcsetattr(STDIN_FILENO, TCSANOW, &t);
+
+        st->pfd.fd = STDIN_FILENO;
+        st->pfd.events = POLLIN;
+#endif
+    }
+
+    while (!is_done(st))
+    {
+        const int can_feed = st->input_name && read_more_input(st);
+        const int wait_time = can_feed ? 0 : STDIN_POLL_RATE_MS;
+
+        if (isatty(STDIN_FILENO))
+        {
+            read_input(st, wait_time);
+        }
+        else if (wait_time > 0)
+        {
+            struct timespec delay = {
+                .tv_sec = wait_time / 1000,
+                .tv_nsec = (wait_time % 1000) * 1000000L,
+            };
+
+            nanosleep(&delay, NULL);
+        }
+
+        if (st->input_name && read_more_input(st))
+        {
+            uint8_t buffer[FILE_BUFFER_LENGTH];
             size_t samples_read = 0;
-            
+
             if (st->iq_input_format == IQ_FORMAT_CU8) {
                 samples_read = fread(buffer, 2, sizeof(buffer) / 2, fp);
             } else if (st->iq_input_format == IQ_FORMAT_CS16) {
@@ -1139,7 +1194,7 @@ int main(int argc, char *argv[])
                 samples_read = fread(buffer, 8, sizeof(buffer) / 8, fp);
             }
 
-            if (samples_read == 0)
+            if (samples_read == 0 && is_playback_done(st))
             {
                 done_signal(st);
                 break;
@@ -1155,8 +1210,13 @@ int main(int argc, char *argv[])
         }
     }
 
-    pthread_join(audio_thread, NULL);
-    pthread_join(input_thread, NULL);
+#ifndef __MINGW32__
+    if (isatty(STDIN_FILENO))
+    {
+        // restore terminal settings
+        tcsetattr(STDIN_FILENO, TCSANOW, &prev_termios);
+    }
+#endif
 
     nrsc5_stop(radio);
     nrsc5_set_bias_tee(radio, 0);
@@ -1169,6 +1229,5 @@ int main(int argc, char *argv[])
 
     cleanup(st);
     free(st);
-    ao_shutdown();
     return 0;
 }

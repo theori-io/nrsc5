@@ -9,7 +9,6 @@ class Nrsc5 < Formula
   depends_on "libtool" => :build
   depends_on "git" => :build
   depends_on "librtlsdr"
-  depends_on "libao"
   depends_on "fftw"
 
   def install

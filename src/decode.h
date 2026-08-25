@@ -64,7 +64,7 @@ typedef struct
 void decode_process_p1(decode_t *st);
 void decode_process_pids(decode_t *st, unsigned int bc);
 void decode_process_p3_p4(const decode_t *st, interleaver_iv_t *interleaver, int8_t *viterbi, uint8_t *scrambler, logical_channel_t lc);
-void decode_process_pids_am(decode_t *st, const uint8_t* sbit);
+void decode_process_pids_am(decode_t *st, const uint8_t* sbit, unsigned int bc);
 void decode_process_p1_p3_am(decode_t *st, unsigned int bc);
 
 void decode_push_pm(decode_t *st, const int8_t* sbit, unsigned int bc);

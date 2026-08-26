@@ -18,6 +18,7 @@
 #include <assert.h>
 #include <errno.h>
 #include <limits.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include <sys/time.h>
@@ -27,6 +28,7 @@
 #include "private.h"
 #include "unicode.h"
 #include "here_images.h"
+#include "navteq.h"
 
 void output_align(output_t *st, unsigned int program, unsigned int stream_id, unsigned int offset)
 {
@@ -759,6 +761,47 @@ static aas_file_t *find_free_lot(sig_component_t *component)
     return file;
 }
 
+static void process_navteq(output_t *st, sig_component_t *component, uint16_t seq,
+                           const uint8_t *buf, unsigned int len)
+{
+    unsigned int count = 0;
+    uint8_t generation;
+    int is_terminal;
+
+    if (navteq_decode_digital_traffic(buf, len, &generation, &is_terminal, NULL, &count))
+    {
+        nrsc5_navteq_digital_traffic_entry_t *entries;
+
+        entries = malloc(count * sizeof(*entries));
+        if (entries == NULL)
+        {
+            log_warn("unable to allocate NAVTEQ Digital Traffic entries");
+            return;
+        }
+        if (navteq_decode_digital_traffic(buf, len, &generation, &is_terminal, entries, &count))
+            nrsc5_report_navteq_digital_traffic(st->radio, seq, generation, is_terminal,
+                                                count, entries, component->service_ext,
+                                                component->component_ext);
+        free(entries);
+    }
+    else if (navteq_decode_alternate_frequencies(buf, len, NULL, &count))
+    {
+        nrsc5_navteq_alternate_frequency_entry_t *entries;
+
+        entries = malloc(count * sizeof(*entries));
+        if (entries == NULL)
+        {
+            log_warn("unable to allocate NAVTEQ alternate-frequency entries");
+            return;
+        }
+        if (navteq_decode_alternate_frequencies(buf, len, entries, &count))
+            nrsc5_report_navteq_alternate_frequencies(st->radio, seq, count, entries,
+                                                      component->service_ext,
+                                                      component->component_ext);
+        free(entries);
+    }
+}
+
 static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *buf, unsigned int len)
 {
     sig_component_t *component;
@@ -788,6 +831,8 @@ static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *
     case NRSC5_AAS_TYPE_PACKET:
     {
         nrsc5_report_packet(st->radio, seq, len, buf, component->service_ext, component->component_ext);
+        if (component->data.mime == NRSC5_MIME_NAVTEQ)
+            process_navteq(st, component, seq, buf, len);
         break;
     }
     case NRSC5_AAS_TYPE_LOT:
@@ -951,6 +996,11 @@ static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *
 
 void output_aas_push(output_t *st, uint8_t *buf, unsigned int len)
 {
+    if (len < 4)
+    {
+        log_warn("AAS packet too short (length %d)", len);
+        return;
+    }
     uint16_t port = buf[0] | (buf[1] << 8);
     uint16_t seq = buf[2] | (buf[3] << 8);
     if (port == 0x5100 || (port >= 0x5201 && port <= 0x5207))

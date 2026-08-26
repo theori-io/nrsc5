@@ -5,6 +5,7 @@ include (CheckSymbolExists)
 include (ExternalProject)
 include (FindPkgConfig)
 project (nrsc5 C)
+include (CTest)
 
 execute_process (COMMAND ${CMAKE_C_COMPILER} -dumpmachine OUTPUT_VARIABLE HOST_TRIPLE_DEFAULT OUTPUT_STRIP_TRAILING_WHITESPACE)
 
@@ -293,6 +294,9 @@ endif()
 add_definitions("-DGIT_COMMIT_HASH=\"${GIT_COMMIT_HASH}\"")
 
 add_subdirectory (src)
+if (BUILD_TESTING)
+    add_subdirectory (tests)
+endif ()
 
 # optionally generate documentation via Doxygen
 if (BUILD_DOC)

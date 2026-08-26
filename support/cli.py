@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import json
 import logging
 import os
 import queue
@@ -26,6 +27,7 @@ class NRSC5CLI:
         self.wav_output = None
         self.raw_output = None
         self.hdc_output = None
+        self.navteq_alternate_frequencies = {}
         self.audio_packets_valid = 0
         self.audio_packets = 0
         self.audio_bytes = 0
@@ -57,6 +59,10 @@ class NRSC5CLI:
         parser.add_argument("-T", action="store_true")
         parser.add_argument("-D", metavar="direct-sampling-mode", type=int, default=-1)
         parser.add_argument("--dump-hdc", metavar="hdc-output")
+        parser.add_argument("--decode-traffic", action="store_true",
+                            help="write decoded NAVTEQ traffic records to stdout")
+        parser.add_argument("--location-table", metavar="file",
+                            help="resolve NAVTEQ locations from a location-table TSV file")
         parser.add_argument("--dump-aas-files", metavar="directory")
         input_group.add_argument("frequency", nargs="?", type=float)
         parser.add_argument("program", type=int)
@@ -79,6 +85,9 @@ class NRSC5CLI:
                             datefmt="%H:%M:%S")
         if self.args.q:
             logging.disable(logging.CRITICAL)
+
+        if self.args.location_table:
+            self.radio.open_location_table(self.args.location_table)
 
         if self.args.r:
             iq_input = sys.stdin.buffer if self.args.r == "-" else open(self.args.r, "rb")
@@ -168,6 +177,7 @@ class NRSC5CLI:
 
         if self.args.dump_hdc:
             self.hdc_output.close()
+        self.radio.close_location_table()
 
     def audio_worker(self):
         audio = pyaudio.PyAudio()
@@ -317,11 +327,43 @@ class NRSC5CLI:
                                      component.data.service_data_type.name,
                                      component.data.type.name, component.data.mime.name)
         elif evt_type == nrsc5.EventType.STREAM:
-            logging.debug("Stream data: port=%04X seq=%04X mime=%s size=%s",
-                          evt.component.data.port, evt.seq, evt.component.data.mime.name, len(evt.data))
+            logging.debug("Stream data: port=%04X seq=%04X mime=%s size=%s data_hex=%s",
+                          evt.component.data.port, evt.seq, evt.component.data.mime.name,
+                          len(evt.data), evt.data.hex())
         elif evt_type == nrsc5.EventType.PACKET:
-            logging.debug("Packet data: port=%04X seq=%04X mime=%s size=%s",
-                          evt.component.data.port, evt.seq, evt.component.data.mime.name, len(evt.data))
+            logging.debug("Packet data: port=%04X seq=%04X mime=%s size=%s data_hex=%s",
+                          evt.component.data.port, evt.seq, evt.component.data.mime.name,
+                          len(evt.data), evt.data.hex())
+        elif evt_type == nrsc5.EventType.NAVTEQ_DIGITAL_TRAFFIC:
+            logging.debug("NAVTEQ Digital Traffic: port=%04X seq=%04X generation=%d terminal=%s entries=%d",
+                          evt.port, evt.seq, evt.generation, evt.is_terminal, len(evt.entries))
+            for entry in evt.entries:
+                self.log_navteq_digital_traffic_entry(entry)
+                if self.args.decode_traffic:
+                    record = {"kind": "navteq_digital_traffic", "port": evt.port,
+                              "seq": evt.seq, "event": entry.event,
+                              "location": entry.location, "extent": entry.extent,
+                              "description": self.radio.alert_c_event_description(
+                                  entry.event, entry.quantifier)}
+                    point = self.radio.location_table_lookup(entry.country_code,
+                                                             entry.location_table_number,
+                                                             entry.location)
+                    if point is not None:
+                        record.update({"location_name": point.name,
+                                       "latitude": point.latitude,
+                                       "longitude": point.longitude})
+                    print(json.dumps(record))
+        elif evt_type == nrsc5.EventType.NAVTEQ_ALTERNATE_FREQUENCIES:
+            for entry in evt.entries:
+                if self.navteq_alternate_frequencies.get(entry.index) != entry.frequency_hz:
+                    self.navteq_alternate_frequencies[entry.index] = entry.frequency_hz
+                    logging.info("NAVTEQ alternate frequency: index=%d frequency=%.1f MHz",
+                                 entry.index, entry.frequency_hz / 1000000)
+                    if self.args.decode_traffic:
+                        print(json.dumps({"kind": "navteq_alternate_frequency",
+                                          "port": evt.port, "seq": evt.seq,
+                                          "index": entry.index,
+                                          "frequency_hz": entry.frequency_hz}))
         elif evt_type == nrsc5.EventType.LOT:
             if self.args.dump_aas_files:
                 path = os.path.join(self.args.dump_aas_files, evt.name)
@@ -413,6 +455,48 @@ class NRSC5CLI:
                           evt.utc_offset,
                           evt.dst_schedule,
                           "yes" if evt.dst_regional else "no", "yes" if evt.dst_local else "no")
+
+    def log_navteq_digital_traffic_entry(self, entry):
+        event_description = self.radio.alert_c_event_description(entry.event,
+                                                                 entry.quantifier)
+        point = self.radio.location_table_lookup(entry.country_code,
+                                                 entry.location_table_number,
+                                                 entry.location)
+        direction = "negative" if entry.direction else "positive"
+        if point is None:
+            logging.debug("  NAVTEQ Digital Traffic entry: type=%d country=%d reserved=%d ltn=%d location=%d direction=%s extent=%d bidirectional=%d diversion=%d duration_type=%d control_code=%d event=%d quantifier=%d description=\"%s\"",
+                          entry.record_type, entry.country_code, entry.reserved,
+                          entry.location_table_number, entry.location, direction,
+                          entry.extent, entry.bidirectional, entry.diversion,
+                          entry.duration_type, entry.control_code, entry.event,
+                          entry.quantifier, event_description)
+            return
+
+        endpoint = point
+        resolved_extent = 0
+        visited = {point.location}
+        while resolved_extent < entry.extent:
+            next_location = endpoint.negative if entry.direction else endpoint.positive
+            if not next_location or next_location in visited:
+                break
+            next_point = self.radio.location_table_lookup(entry.country_code,
+                                                          entry.location_table_number,
+                                                          next_location)
+            if next_point is None:
+                break
+            endpoint = next_point
+            visited.add(endpoint.location)
+            resolved_extent += 1
+
+        logging.debug("  NAVTEQ Digital Traffic entry: type=%d country=%d reserved=%d ltn=%d location=%d direction=%s extent=%d bidirectional=%d diversion=%d duration_type=%d control_code=%d event=%d quantifier=%d description=\"%s\" name=\"%s\" lat=%.5f lon=%.5f span_to=%d span_name=\"%s\" span_lat=%.5f span_lon=%.5f resolved_extent=%d/%d",
+                      entry.record_type, entry.country_code, entry.reserved,
+                      entry.location_table_number, entry.location, direction,
+                      entry.extent, entry.bidirectional, entry.diversion,
+                      entry.duration_type, entry.control_code, entry.event,
+                      entry.quantifier, event_description, point.name,
+                      point.latitude, point.longitude, endpoint.location,
+                      endpoint.name, endpoint.latitude, endpoint.longitude,
+                      resolved_extent, entry.extent)
 
 
 if __name__ == "__main__":

@@ -4,6 +4,11 @@ LIBNRSC5_1.0 {
         nrsc5_service_data_type_name;
         nrsc5_program_type_name;
         nrsc5_alert_category_name;
+        nrsc5_alert_c_event_name;
+        nrsc5_alert_c_event_description;
+        nrsc5_location_table_open;
+        nrsc5_location_table_close;
+        nrsc5_location_table_lookup;
         nrsc5_open;
         nrsc5_open_file;
         nrsc5_open_pipe;

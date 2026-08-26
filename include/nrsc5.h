@@ -194,6 +194,8 @@ enum
     NRSC5_EVENT_IMPORTER_INFO,
     NRSC5_EVENT_LEAP_SECOND_OFFSET,
     NRSC5_EVENT_LOCAL_TIME,
+    NRSC5_EVENT_NAVTEQ_DIGITAL_TRAFFIC,
+    NRSC5_EVENT_NAVTEQ_ALTERNATE_FREQUENCIES,
 };
 
 enum
@@ -362,6 +364,48 @@ enum
     NRSC5_PKT_FLAGS_CRC_ERROR = 1 << 0, /** Failed the CRC check. Could be corrupted packet. */
 };
 
+/** One fixed 64-bit Garmin Digital Traffic entry from a NAVTEQ packet. */
+typedef struct
+{
+    uint8_t record_type;          /**< Wire record type. */
+    uint8_t country_code;         /**< TMC country code. */
+    uint8_t reserved;             /**< Reserved wire bits. */
+    uint8_t location_table_number;/**< TMC location table number. */
+    uint16_t location;            /**< TMC location code. */
+    uint8_t direction;            /**< Raw direction bit. */
+    uint8_t extent;               /**< Number of adjacent locations affected. */
+    uint8_t bidirectional;        /**< Whether the event applies in both directions. */
+    uint8_t diversion;            /**< Whether drivers should follow a diversion. */
+    uint8_t duration_type;        /**< Encoded event duration type. */
+    uint8_t control_code;         /**< ALERT-C control code. */
+    uint16_t event;               /**< ALERT-C event code. */
+    uint8_t quantifier;           /**< Encoded ALERT-C quantifier; zero or 255 when absent. */
+} nrsc5_navteq_digital_traffic_entry_t;
+
+/** One entry from a NAVTEQ alternate-frequency carousel. */
+typedef struct
+{
+    uint8_t index;                /**< Carousel index, normally 1 through 15. */
+    uint32_t frequency_hz;        /**< FM frequency in Hz. */
+    uint8_t data[8];              /**< Original entry bytes for undecoded fields. */
+} nrsc5_navteq_alternate_frequency_entry_t;
+
+#define NRSC5_LOCATION_NAME_LENGTH 128
+
+/** One point resolved from a traffic location table. */
+typedef struct
+{
+    uint16_t location;
+    uint16_t positive;
+    uint16_t negative;
+    double latitude;
+    double longitude;
+    char name[NRSC5_LOCATION_NAME_LENGTH];
+} nrsc5_location_t;
+
+/** Opaque handle for a read-only traffic location table. */
+typedef struct nrsc5_location_table_t nrsc5_location_table_t;
+
 /**  Incoming event from receiver.
  *
  * This event structure is passed to your application supplied
@@ -403,6 +447,8 @@ struct nrsc5_event_t
  * - `NRSC5_EVENT_IMPORTER_INFO` : importer data, see `importer_info` member
  * - `NRSC5_EVENT_LEAP_SECOND_OFFSET` : leap second offset, see `leap_second_offset` member
  * - `NRSC5_EVENT_LOCAL_TIME` : local time data, see `local_time` member
+ * - `NRSC5_EVENT_NAVTEQ_DIGITAL_TRAFFIC` : decoded Garmin Digital Traffic entries, see `navteq_digital_traffic` member
+ * - `NRSC5_EVENT_NAVTEQ_ALTERNATE_FREQUENCIES` : decoded NAVTEQ alternate-frequency entries, see `navteq_alternate_frequencies` member
  */
     unsigned int event;
     union
@@ -620,6 +666,24 @@ struct nrsc5_event_t
             int dst_local;     /**< 1 if DST is practiced locally, otherwise 0. */
             int dst_schedule;  /**< DST Schedule. 0 means Daylight Saving Time is not practiced. 1 means U.S./Canada schedule. 2 means EU schedule. */
         } local_time;
+        struct {
+            uint16_t port;      /**< AAS port carrying this packet. */
+            uint16_t seq;       /**< AAS packet sequence number. */
+            uint8_t generation; /**< Three-bit update-batch tag. */
+            int is_terminal;    /**< Nonzero for the final packet in an update batch. */
+            unsigned int count; /**< Number of entries. */
+            const nrsc5_navteq_digital_traffic_entry_t *entries; /**< Valid only during the callback. */
+            nrsc5_sig_service_t *service;
+            nrsc5_sig_component_t *component;
+        } navteq_digital_traffic;
+        struct {
+            uint16_t port;      /**< AAS port carrying this packet. */
+            uint16_t seq;       /**< AAS packet sequence number. */
+            unsigned int count; /**< Number of entries. */
+            const nrsc5_navteq_alternate_frequency_entry_t *entries; /**< Valid only during the callback. */
+            nrsc5_sig_service_t *service;
+            nrsc5_sig_component_t *component;
+        } navteq_alternate_frequencies;
     };
 };
 /**
@@ -681,7 +745,31 @@ NRSC5_API void nrsc5_program_type_name(unsigned int type, const char **name);
  * This name will be quite short, e.g. "Weather" or "Safety". If the type is
  * not recognized, it will be the string "Unknown".
  */
- NRSC5_API void nrsc5_alert_category_name(unsigned int category, const char **name);
+NRSC5_API void nrsc5_alert_category_name(unsigned int category, const char **name);
+
+/** Retrieves a short description for a known ALERT-C event code. */
+NRSC5_API void nrsc5_alert_c_event_name(unsigned int event, const char **name);
+
+/**
+ * Formats an ALERT-C event description with its quantifier.
+ * @param[in]  event             an ALERT-C event code.
+ * @param[in]  quantifier        encoded quantifier value; 0 or 255 if absent.
+ * @param[out] description       destination buffer.
+ * @param[in]  description_size  size of the destination buffer.
+ */
+NRSC5_API void nrsc5_alert_c_event_description(unsigned int event, unsigned int quantifier,
+                                               char *description, size_t description_size);
+
+/** Opens an nrsc5 traffic location-table TSV file. Returns 0 on success or 1 on error. */
+NRSC5_API int nrsc5_location_table_open(nrsc5_location_table_t **result, const char *path);
+
+/** Closes a traffic location table. */
+NRSC5_API void nrsc5_location_table_close(nrsc5_location_table_t *table);
+
+/** Resolves a point. Returns 1 if found, 0 if absent, or -1 if malformed. */
+NRSC5_API int nrsc5_location_table_lookup(nrsc5_location_table_t *table,
+                                          uint8_t country, uint8_t ltn,
+                                          uint16_t location, nrsc5_location_t *result);
  
  /**
  * Initializes a session for a particular RTLSDR radio dongle.

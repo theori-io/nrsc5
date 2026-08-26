@@ -793,7 +793,7 @@ void nrsc5_report_stream(nrsc5_t *st, uint16_t seq, unsigned int size, const uin
 }
 
 void nrsc5_report_packet(nrsc5_t *st, uint16_t seq, unsigned int size, const uint8_t *data,
-                         nrsc5_sig_service_t *service, nrsc5_sig_component_t *component)
+                          nrsc5_sig_service_t *service, nrsc5_sig_component_t *component)
 {
     nrsc5_event_t evt;
 
@@ -805,6 +805,43 @@ void nrsc5_report_packet(nrsc5_t *st, uint16_t seq, unsigned int size, const uin
     evt.packet.data = data;
     evt.packet.service = service;
     evt.packet.component = component;
+    nrsc5_report(st, &evt);
+}
+
+void nrsc5_report_navteq_digital_traffic(nrsc5_t *st, uint16_t seq, uint8_t generation,
+                                         int is_terminal, unsigned int count,
+                                         const nrsc5_navteq_digital_traffic_entry_t *entries,
+                                         nrsc5_sig_service_t *service,
+                                         nrsc5_sig_component_t *component)
+{
+    nrsc5_event_t evt;
+
+    evt.event = NRSC5_EVENT_NAVTEQ_DIGITAL_TRAFFIC;
+    evt.navteq_digital_traffic.port = component->data.port;
+    evt.navteq_digital_traffic.seq = seq;
+    evt.navteq_digital_traffic.generation = generation;
+    evt.navteq_digital_traffic.is_terminal = is_terminal;
+    evt.navteq_digital_traffic.count = count;
+    evt.navteq_digital_traffic.entries = entries;
+    evt.navteq_digital_traffic.service = service;
+    evt.navteq_digital_traffic.component = component;
+    nrsc5_report(st, &evt);
+}
+
+void nrsc5_report_navteq_alternate_frequencies(
+    nrsc5_t *st, uint16_t seq, unsigned int count,
+    const nrsc5_navteq_alternate_frequency_entry_t *entries,
+    nrsc5_sig_service_t *service, nrsc5_sig_component_t *component)
+{
+    nrsc5_event_t evt;
+
+    evt.event = NRSC5_EVENT_NAVTEQ_ALTERNATE_FREQUENCIES;
+    evt.navteq_alternate_frequencies.port = component->data.port;
+    evt.navteq_alternate_frequencies.seq = seq;
+    evt.navteq_alternate_frequencies.count = count;
+    evt.navteq_alternate_frequencies.entries = entries;
+    evt.navteq_alternate_frequencies.service = service;
+    evt.navteq_alternate_frequencies.component = component;
     nrsc5_report(st, &evt);
 }
 

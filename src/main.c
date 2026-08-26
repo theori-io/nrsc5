@@ -66,12 +66,14 @@ typedef struct {
     unsigned int device_index;
     int bias_tee;
     int direct_sampling;
+    int decode_traffic;
     int ppm_error;
     char *input_name;
     char *rtltcp_host;
     ao_device *dev;
     FILE *hdc_file;
     FILE *iq_file;
+    nrsc5_location_table_t *location_table;
     char *aas_files_path;
     enum iq_format iq_input_format;
 
@@ -84,6 +86,7 @@ typedef struct {
     unsigned int audio_packets;
     unsigned int audio_bytes;
     unsigned int audio_errors;
+    uint32_t navteq_alternate_frequencies[16];
     int done;
 } state_t;
 
@@ -213,6 +216,21 @@ static void dump_hdc(FILE *fp, const uint8_t *pkt, unsigned int len)
     fflush(fp);
 }
 
+static void log_packet_data(const char *kind, uint16_t port, uint16_t seq,
+                            uint32_t mime, const uint8_t *data, unsigned int size)
+{
+    char *hex = malloc(2 * (size_t) size + 1);
+
+    if (hex == NULL)
+        return;
+    for (unsigned int i = 0; i < size; i++)
+        sprintf(hex + 2 * i, "%02x", data[i]);
+    hex[2 * (size_t) size] = '\0';
+    log_debug("%s data: port=%04X seq=%04X mime=%08X size=%d data_hex=%s",
+              kind, port, seq, mime, size, hex);
+    free(hex);
+}
+
 static void dump_aas_file(state_t *st, const nrsc5_event_t *evt)
 {
 #if defined(WIN32) || defined(_WIN32)
@@ -307,6 +325,68 @@ static void change_program(state_t *st, unsigned int program)
     st->program = program;
 
     pthread_mutex_unlock(&st->mutex);
+}
+
+static void log_navteq_digital_traffic_entry(
+    state_t *st, const nrsc5_navteq_digital_traffic_entry_t *entry)
+{
+    char event_description[512];
+    nrsc5_location_t point, endpoint;
+    uint16_t visited[32];
+    unsigned int resolved_extent = 0;
+    int found;
+
+    nrsc5_alert_c_event_description(entry->event, entry->quantifier,
+                                    event_description, sizeof(event_description));
+    found = st->location_table == NULL ? 0
+          : nrsc5_location_table_lookup(st->location_table, entry->country_code,
+                                        entry->location_table_number, entry->location,
+                                        &point);
+    if (found == 1)
+    {
+        endpoint = point;
+        visited[0] = point.location;
+        while (resolved_extent < entry->extent)
+        {
+            uint16_t next = entry->direction ? endpoint.negative : endpoint.positive;
+            nrsc5_location_t next_point;
+            unsigned int i;
+            if (next == 0)
+                break;
+            for (i = 0; i <= resolved_extent; i++)
+            {
+                if (visited[i] == next)
+                    break;
+            }
+            if (i <= resolved_extent
+                || nrsc5_location_table_lookup(st->location_table, entry->country_code,
+                                               entry->location_table_number, next,
+                                               &next_point) != 1)
+                break;
+            endpoint = next_point;
+            resolved_extent++;
+            visited[resolved_extent] = endpoint.location;
+        }
+        log_debug("  NAVTEQ Digital Traffic entry: type=%d country=%d reserved=%d ltn=%d location=%d direction=%s extent=%d bidirectional=%d diversion=%d duration_type=%d control_code=%d event=%d quantifier=%d description=\"%s\" name=\"%s\" lat=%.5f lon=%.5f span_to=%d span_name=\"%s\" span_lat=%.5f span_lon=%.5f resolved_extent=%d/%d",
+                   entry->record_type, entry->country_code, entry->reserved,
+                   entry->location_table_number, entry->location,
+                   entry->direction ? "negative" : "positive", entry->extent,
+                   entry->bidirectional, entry->diversion, entry->duration_type,
+                   entry->control_code, entry->event, entry->quantifier,
+                   event_description, point.name, point.latitude, point.longitude, endpoint.location,
+                   endpoint.name, endpoint.latitude, endpoint.longitude,
+                   resolved_extent, entry->extent);
+    }
+    else
+    {
+        log_debug("  NAVTEQ Digital Traffic entry: type=%d country=%d reserved=%d ltn=%d location=%d direction=%s extent=%d bidirectional=%d diversion=%d duration_type=%d control_code=%d event=%d quantifier=%d description=\"%s\"",
+                   entry->record_type, entry->country_code, entry->reserved,
+                   entry->location_table_number, entry->location,
+                   entry->direction ? "negative" : "positive", entry->extent,
+                   entry->bidirectional, entry->diversion, entry->duration_type,
+                   entry->control_code, entry->event, entry->quantifier,
+                   event_description);
+    }
 }
 
 static void callback(const nrsc5_event_t *evt, void *opaque)
@@ -444,10 +524,64 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
         }
         break;
     case NRSC5_EVENT_STREAM:
-        log_debug("Stream data: port=%04X seq=%04X mime=%08X size=%d", evt->stream.component->data.port, evt->stream.seq, evt->stream.component->data.mime, evt->stream.size);
+        log_packet_data("Stream", evt->stream.component->data.port, evt->stream.seq,
+                        evt->stream.component->data.mime, evt->stream.data, evt->stream.size);
         break;
     case NRSC5_EVENT_PACKET:
-        log_debug("Packet data: port=%04X seq=%04X mime=%08X size=%d", evt->packet.component->data.port, evt->packet.seq, evt->packet.component->data.mime, evt->packet.size);
+        log_packet_data("Packet", evt->packet.component->data.port, evt->packet.seq,
+                        evt->packet.component->data.mime, evt->packet.data, evt->packet.size);
+        break;
+    case NRSC5_EVENT_NAVTEQ_DIGITAL_TRAFFIC:
+        log_debug("NAVTEQ Digital Traffic: port=%04X seq=%04X generation=%d terminal=%d entries=%d",
+                  evt->navteq_digital_traffic.port, evt->navteq_digital_traffic.seq,
+                  evt->navteq_digital_traffic.generation,
+                  evt->navteq_digital_traffic.is_terminal,
+                  evt->navteq_digital_traffic.count);
+        for (unsigned int i = 0; i < evt->navteq_digital_traffic.count; i++)
+        {
+            const nrsc5_navteq_digital_traffic_entry_t *entry
+                = &evt->navteq_digital_traffic.entries[i];
+            log_navteq_digital_traffic_entry(st, entry);
+            if (st->decode_traffic)
+            {
+                char description[512];
+                nrsc5_location_t point;
+                nrsc5_alert_c_event_description(entry->event, entry->quantifier,
+                                                description, sizeof(description));
+                printf("{\"kind\":\"navteq_digital_traffic\",\"port\":%u,\"seq\":%u,\"event\":%u,\"location\":%u,\"extent\":%u,\"description\":",
+                       evt->navteq_digital_traffic.port, evt->navteq_digital_traffic.seq,
+                       entry->event, entry->location, entry->extent);
+                printf("\"%s\"", description);
+                    if (st->location_table
+                        && nrsc5_location_table_lookup(st->location_table, entry->country_code,
+                                                       entry->location_table_number, entry->location,
+                                                       &point) == 1)
+                        printf(",\"location_name\":\"%s\",\"latitude\":%.7f,\"longitude\":%.7f",
+                               point.name, point.latitude, point.longitude);
+                    printf("}\n");
+                    fflush(stdout);
+            }
+        }
+        break;
+    case NRSC5_EVENT_NAVTEQ_ALTERNATE_FREQUENCIES:
+        for (unsigned int i = 0; i < evt->navteq_alternate_frequencies.count; i++)
+        {
+            const nrsc5_navteq_alternate_frequency_entry_t *entry
+                = &evt->navteq_alternate_frequencies.entries[i];
+            if (entry->index < 16
+                && st->navteq_alternate_frequencies[entry->index] != entry->frequency_hz)
+            {
+                st->navteq_alternate_frequencies[entry->index] = entry->frequency_hz;
+                log_info("NAVTEQ alternate frequency: index=%d frequency=%.1f MHz",
+                         entry->index, entry->frequency_hz / 1000000.0);
+                if (st->decode_traffic)
+                    printf("{\"kind\":\"navteq_alternate_frequency\",\"port\":%u,\"seq\":%u,\"index\":%u,\"frequency_hz\":%u}\n",
+                           evt->navteq_alternate_frequencies.port,
+                           evt->navteq_alternate_frequencies.seq, entry->index,
+                           entry->frequency_hz);
+                fflush(stdout);
+            }
+        }
         break;
     case NRSC5_EVENT_LOT:
         if (st->aas_files_path)
@@ -596,10 +730,10 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
         break;
     case NRSC5_EVENT_LOCAL_TIME:
         log_debug("Local time: UTC offset=%d minutes, DST schedule=%d, DST in effect regionally? %s, DST practiced locally? %s",
-                 evt->local_time.utc_offset,
-                 evt->local_time.dst_schedule,
-                 evt->local_time.dst_regional ? "yes" : "no",
-                 evt->local_time.dst_local ? "yes" : "no");
+                  evt->local_time.utc_offset,
+                  evt->local_time.dst_schedule,
+                  evt->local_time.dst_regional ? "yes" : "no",
+                  evt->local_time.dst_local ? "yes" : "no");
         break;
 
     }
@@ -799,7 +933,7 @@ static void *input_main(void *arg)
 
 static void help(const char *progname)
 {
-    fprintf(stderr, "Usage: %s [-v] [-q] [--am] [-l log-level] [-d device-index] [-H rtltcp-host] [-p ppm-error] [-g gain] [-r iq-input] [--iq-input-format {cu8,cs16}] [-w iq-output] [-o audio-output] [-t audio-type] [-T] [-D direct-sampling-mode] [--dump-hdc hdc-output] [--dump-aas-files directory] frequency program\n", progname);
+    fprintf(stderr, "Usage: %s [-v] [-q] [--am] [-l log-level] [-d device-index] [-H rtltcp-host] [-p ppm-error] [-g gain] [-r iq-input] [--iq-input-format {cu8,cs16}] [-w iq-output] [-o audio-output] [-t audio-type] [-T] [-D direct-sampling-mode] [--dump-hdc hdc-output] [--decode-traffic] [--location-table file] [--dump-aas-files directory] frequency program\n", progname);
 }
 
 static int ends_with(const char *str, const char *suffix)
@@ -816,10 +950,13 @@ static int parse_args(state_t *st, int argc, char *argv[])
         { "dump-hdc", required_argument, NULL, 2 },
         { "am", no_argument, NULL, 3 },
         { "iq-input-format", required_argument, NULL, 4 },
+        { "decode-traffic", no_argument, NULL, 5 },
+        { "location-table", required_argument, NULL, 6 },
         { 0 }
     };
     const char *version = NULL;
     char *output_name = NULL, *audio_name = NULL, *hdc_name = NULL;
+    char *location_table_name = NULL;
     char *audio_type = "wav";
     char *endptr;
     int opt;
@@ -863,6 +1000,12 @@ static int parse_args(state_t *st, int argc, char *argv[])
                 log_fatal("I/Q input format must be either cu8, cs16 or cf32.");
                 return -1;
             }
+            break;
+        case 5:
+            st->decode_traffic = 1;
+            break;
+        case 6:
+            location_table_name = optarg;
             break;
         case 'r':
             st->input_name = strdup(optarg);
@@ -994,6 +1137,14 @@ static int parse_args(state_t *st, int argc, char *argv[])
         }
     }
 
+    if (location_table_name
+        && nrsc5_location_table_open(&st->location_table, location_table_name) != 0)
+    {
+        log_fatal("Unable to open location table %s: %s",
+                  location_table_name, strerror(errno));
+        return 1;
+    }
+
     return 0;
 }
 
@@ -1020,6 +1171,7 @@ static void cleanup(state_t *st)
         fclose(st->hdc_file);
     if (st->iq_file)
         fclose(st->iq_file);
+    nrsc5_location_table_close(st->location_table);
 
     free(st->input_name);
     free(st->aas_files_path);
@@ -1043,8 +1195,15 @@ int main(int argc, char *argv[])
 
     ao_initialize();
     init_audio_buffers(st);
-    if (parse_args(st, argc, argv) != 0)
-        return 0;
+    int parse_result = parse_args(st, argc, argv);
+    if (parse_result != 0)
+    {
+        cleanup(st);
+        free(st);
+        ao_shutdown();
+        pthread_mutex_destroy(&log_mutex);
+        return parse_result;
+    }
 
 #ifdef __MINGW32__
     SetConsoleOutputCP(CP_UTF8);

@@ -45,6 +45,8 @@ class EventType(enum.Enum):
     IMPORTER_INFO = 28
     LEAP_SECOND_OFFSET = 29
     LOCAL_TIME = 30
+    NAVTEQ_DIGITAL_TRAFFIC = 31
+    NAVTEQ_ALTERNATE_FREQUENCIES = 32
 
 
 AUDIO_FRAME_SAMPLES = 2048
@@ -236,6 +238,19 @@ ExciterInfo = collections.namedtuple("ExciterInfo", ["manufacturer_id", "core_ve
 ImporterInfo = collections.namedtuple("ImporterInfo", ["manufacturer_id", "core_version", "core_status", "manufacturer_version", "manufacturer_status"])
 LeapSecondOffset = collections.namedtuple("LeapOffset", ["pending_offset", "current_offset", "pending_alfn"])
 LocalTime = collections.namedtuple("LocalTime", ["utc_offset", "dst_regional", "dst_local", "dst_schedule"])
+NAVTEQDigitalTrafficEntry = collections.namedtuple(
+    "NAVTEQDigitalTrafficEntry",
+    ["record_type", "country_code", "reserved", "location_table_number", "location",
+     "direction", "extent", "bidirectional", "diversion", "duration_type",
+     "control_code", "event", "quantifier"])
+NAVTEQDigitalTraffic = collections.namedtuple(
+    "NAVTEQDigitalTraffic", ["port", "seq", "generation", "is_terminal", "entries", "service", "component"])
+NAVTEQAlternateFrequencyEntry = collections.namedtuple(
+    "NAVTEQAlternateFrequencyEntry", ["index", "frequency_hz", "data"])
+NAVTEQAlternateFrequencies = collections.namedtuple(
+    "NAVTEQAlternateFrequencies", ["port", "seq", "entries", "service", "component"])
+TrafficLocation = collections.namedtuple(
+    "TrafficLocation", ["location", "positive", "negative", "latitude", "longitude", "name"])
 
 class _TimeStruct(ctypes.Structure):
     _fields_ = [
@@ -426,6 +441,67 @@ class _PACKET(ctypes.Structure):
         ("service", ctypes.POINTER(_SIGService)),
         ("component", ctypes.POINTER(_SIGComponent)),
     ]
+
+class _NAVTEQDigitalTrafficEntry(ctypes.Structure):
+    _fields_ = [
+        ("record_type", ctypes.c_uint8),
+        ("country_code", ctypes.c_uint8),
+        ("reserved", ctypes.c_uint8),
+        ("location_table_number", ctypes.c_uint8),
+        ("location", ctypes.c_uint16),
+        ("direction", ctypes.c_uint8),
+        ("extent", ctypes.c_uint8),
+        ("bidirectional", ctypes.c_uint8),
+        ("diversion", ctypes.c_uint8),
+        ("duration_type", ctypes.c_uint8),
+        ("control_code", ctypes.c_uint8),
+        ("event", ctypes.c_uint16),
+        ("quantifier", ctypes.c_uint8),
+    ]
+
+
+class _NAVTEQDigitalTraffic(ctypes.Structure):
+    _fields_ = [
+        ("port", ctypes.c_uint16),
+        ("seq", ctypes.c_uint16),
+        ("generation", ctypes.c_uint8),
+        ("is_terminal", ctypes.c_int),
+        ("count", ctypes.c_uint),
+        ("entries", ctypes.POINTER(_NAVTEQDigitalTrafficEntry)),
+        ("service", ctypes.POINTER(_SIGService)),
+        ("component", ctypes.POINTER(_SIGComponent)),
+    ]
+
+
+class _NAVTEQAlternateFrequencyEntry(ctypes.Structure):
+    _fields_ = [
+        ("index", ctypes.c_uint8),
+        ("frequency_hz", ctypes.c_uint32),
+        ("data", ctypes.c_uint8 * 8),
+    ]
+
+
+class _NAVTEQAlternateFrequencies(ctypes.Structure):
+    _fields_ = [
+        ("port", ctypes.c_uint16),
+        ("seq", ctypes.c_uint16),
+        ("count", ctypes.c_uint),
+        ("entries", ctypes.POINTER(_NAVTEQAlternateFrequencyEntry)),
+        ("service", ctypes.POINTER(_SIGService)),
+        ("component", ctypes.POINTER(_SIGComponent)),
+    ]
+
+
+class _Location(ctypes.Structure):
+    _fields_ = [
+        ("location", ctypes.c_uint16),
+        ("positive", ctypes.c_uint16),
+        ("negative", ctypes.c_uint16),
+        ("latitude", ctypes.c_double),
+        ("longitude", ctypes.c_double),
+        ("name", ctypes.c_char * 128),
+    ]
+
 
 class _LOT(ctypes.Structure):
     _fields_ = [
@@ -666,7 +742,9 @@ class _EventUnion(ctypes.Union):
         ("exciter_info", _ExciterInfo),
         ("importer_info", _ImporterInfo),
         ("leap_second_offset", _LeapSecondOffset),
-        ("local_time", _LocalTime)
+        ("local_time", _LocalTime),
+        ("navteq_digital_traffic", _NAVTEQDigitalTraffic),
+        ("navteq_alternate_frequencies", _NAVTEQAlternateFrequencies),
     ]
 
 
@@ -948,12 +1026,39 @@ class NRSC5:
         elif evt_type == EventType.LOCAL_TIME:
             local_time = c_evt.u.local_time
             evt = LocalTime(local_time.utc_offset, bool(local_time.dst_regional), bool(local_time.dst_local), local_time.dst_schedule)
+        elif evt_type == EventType.NAVTEQ_DIGITAL_TRAFFIC:
+            traffic = c_evt.u.navteq_digital_traffic
+            service = self.services[traffic.service.contents.number]
+            component = self.components[(traffic.service.contents.number, traffic.component.contents.id)]
+            entries = [
+                NAVTEQDigitalTrafficEntry(
+                    entry.record_type, entry.country_code, entry.reserved,
+                    entry.location_table_number, entry.location, entry.direction,
+                    entry.extent, bool(entry.bidirectional), bool(entry.diversion),
+                    entry.duration_type, entry.control_code, entry.event,
+                    entry.quantifier)
+                for entry in traffic.entries[:traffic.count]
+            ]
+            evt = NAVTEQDigitalTraffic(component.data.port, traffic.seq, traffic.generation,
+                                       bool(traffic.is_terminal), entries, service, component)
+        elif evt_type == EventType.NAVTEQ_ALTERNATE_FREQUENCIES:
+            frequencies = c_evt.u.navteq_alternate_frequencies
+            service = self.services[frequencies.service.contents.number]
+            component = self.components[(frequencies.service.contents.number,
+                                         frequencies.component.contents.id)]
+            entries = [
+                NAVTEQAlternateFrequencyEntry(entry.index, entry.frequency_hz, bytes(entry.data))
+                for entry in frequencies.entries[:frequencies.count]
+            ]
+            evt = NAVTEQAlternateFrequencies(component.data.port, frequencies.seq, entries,
+                                             service, component)
 
         self.callback(evt_type, evt, *self.callback_args)
 
     def __init__(self, callback, callback_args=()):
         self._load_library()
         self.radio = ctypes.c_void_p()
+        self.location_table = ctypes.c_void_p()
         self.callback = callback
         self.callback_args = callback_args
 
@@ -980,6 +1085,48 @@ class NRSC5:
         name = ctypes.c_char_p()
         NRSC5.libnrsc5.nrsc5_alert_category_name(category.value, ctypes.byref(name))
         return name.value.decode()
+
+    @staticmethod
+    def alert_c_event_name(event):
+        name = ctypes.c_char_p()
+        NRSC5.libnrsc5.nrsc5_alert_c_event_name(event, ctypes.byref(name))
+        return name.value.decode()
+
+    @staticmethod
+    def alert_c_event_description(event, quantifier=0):
+        description = ctypes.create_string_buffer(512)
+        NRSC5.libnrsc5.nrsc5_alert_c_event_description(
+            event, quantifier, description, len(description))
+        return description.value.decode()
+
+    def open_location_table(self, path):
+        if self.location_table:
+            raise NRSC5Error("A traffic location table is already open.")
+        table = ctypes.c_void_p()
+        result = NRSC5.libnrsc5.nrsc5_location_table_open(
+            ctypes.byref(table), os.fsencode(path))
+        if result != 0:
+            raise NRSC5Error(f"Failed to open traffic location table: {path}")
+        self.location_table = table
+
+    def close_location_table(self):
+        if self.location_table:
+            NRSC5.libnrsc5.nrsc5_location_table_close(self.location_table)
+            self.location_table = ctypes.c_void_p()
+
+    def location_table_lookup(self, country, ltn, location):
+        if not self.location_table:
+            return None
+        point = _Location()
+        result = NRSC5.libnrsc5.nrsc5_location_table_lookup(
+            self.location_table, country, ltn, location, ctypes.byref(point))
+        if result < 0:
+            raise NRSC5Error("Malformed traffic location-table record.")
+        if result == 0:
+            return None
+        return TrafficLocation(point.location, point.positive, point.negative,
+                               point.latitude, point.longitude,
+                               bytes(point.name).split(b"\0", 1)[0].decode("utf-8"))
 
     def open(self, device_index):
         result = NRSC5.libnrsc5.nrsc5_open(ctypes.byref(self.radio), device_index)

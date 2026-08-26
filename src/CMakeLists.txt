@@ -16,13 +16,13 @@ if (USE_STATIC)
 endif()
 
 configure_file (config.h.in config.h)
+include_directories (BEFORE "${CMAKE_SOURCE_DIR}/include")
 include_directories (
     ${FAAD2_INCLUDE_DIRS}
     ${AO_INCLUDE_DIRS}
     ${RTL_SDR_INCLUDE_DIRS}
     ${FFTW3F_INCLUDE_DIRS}
     "${CMAKE_CURRENT_BINARY_DIR}"
-    "${CMAKE_SOURCE_DIR}/include"
 )
 link_directories (
     ${FAAD2_LIBRARY_DIRS}
@@ -34,10 +34,13 @@ link_directories (
 
 set (LIBRARY_FILES
     acquire.c
+    alert_c.c
     decode.c
     frame.c
     here_images.c
     input.c
+    location_table.c
+    navteq.c
     nrsc5.c
     output.c
     pids.c

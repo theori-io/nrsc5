@@ -45,6 +45,13 @@ class EventType(enum.Enum):
     IMPORTER_INFO = 28
     LEAP_SECOND_OFFSET = 29
     LOCAL_TIME = 30
+    NAVTEQ_DIGITAL_TRAFFIC = 31
+    NAVTEQ_ALTERNATE_FREQUENCIES = 32
+    TTN_CITY_DATABASE = 33
+    TTN_WEATHER = 34
+    TTN_SERVICE_NETWORK = 35
+    TTN_TEC = 36
+    HERE_TFP = 37
 
 
 AUDIO_FRAME_SAMPLES = 2048
@@ -94,6 +101,14 @@ class MIMEType(enum.Enum):
     UNKNOWN_1C7D0E29 = 0x1C7D0E29
     UNKNOWN_B81FFAA8 = 0xB81FFAA8
     UNKNOWN_FFFFFFFF = 0xFFFFFFFF
+
+    @classmethod
+    def _missing_(cls, value):
+        member = object.__new__(cls)
+        member._name_ = f"UNKNOWN_{value:08X}"
+        member._value_ = value
+        cls._value2member_map_[value] = member
+        return member
 
 
 class Access(enum.Enum):
@@ -236,6 +251,48 @@ ExciterInfo = collections.namedtuple("ExciterInfo", ["manufacturer_id", "core_ve
 ImporterInfo = collections.namedtuple("ImporterInfo", ["manufacturer_id", "core_version", "core_status", "manufacturer_version", "manufacturer_status"])
 LeapSecondOffset = collections.namedtuple("LeapOffset", ["pending_offset", "current_offset", "pending_alfn"])
 LocalTime = collections.namedtuple("LocalTime", ["utc_offset", "dst_regional", "dst_local", "dst_schedule"])
+NAVTEQDigitalTrafficEntry = collections.namedtuple(
+    "NAVTEQDigitalTrafficEntry",
+    ["record_type", "country_code", "reserved", "location_table_number", "location",
+     "direction", "extent", "bidirectional", "diversion", "duration_type",
+     "control_code", "event", "quantifier"])
+NAVTEQDigitalTraffic = collections.namedtuple(
+    "NAVTEQDigitalTraffic", ["port", "seq", "generation", "is_terminal", "entries", "service", "component"])
+NAVTEQAlternateFrequencyEntry = collections.namedtuple(
+    "NAVTEQAlternateFrequencyEntry", ["index", "frequency_hz", "data"])
+NAVTEQAlternateFrequencies = collections.namedtuple(
+    "NAVTEQAlternateFrequencies", ["port", "seq", "entries", "service", "component"])
+TTNCity = collections.namedtuple("TTNCity", ["city_id", "provider_city_id", "latitude", "longitude", "name"])
+TTNShortForecast = collections.namedtuple(
+    "TTNShortForecast", ["offset_hours", "weather_condition", "wind_direction", "wind_speed",
+                         "temperature", "feels_like_temperature", "humidity", "chance_of_precipitation"])
+TTNLongForecast = collections.namedtuple(
+    "TTNLongForecast", ["offset_days", "weather_condition", "wind_direction", "wind_speed",
+                         "high_temperature", "low_temperature", "chance_of_precipitation",
+                         "external_feels_like_temperature", "maximum_humidity"])
+TTNWeatherCity = collections.namedtuple(
+    "TTNWeatherCity", ["city", "scope", "city_database_version", "current_day",
+                       "short_forecasts", "long_forecasts"])
+TTNCityDatabase = collections.namedtuple("TTNCityDatabase", ["database_version", "timestamp", "cities"])
+TTNWeather = collections.namedtuple("TTNWeather", ["timestamp", "cities"])
+TTNBearerLink = collections.namedtuple("TTNBearerLink", ["station_id", "frequency_selector"])
+TTNBearer = collections.namedtuple("TTNBearer", ["station_id", "fm_links", "am_links"])
+TTNServiceNetwork = collections.namedtuple(
+    "TTNServiceNetwork", ["service_component_id", "service_component_id_raw",
+                           "timestamp", "service_provider_name", "bearers"])
+TTNTEC = collections.namedtuple(
+    "TTNTEC", ["message_id", "version", "expiry_time", "cancel", "effect_code",
+                "cause_code", "warning_level", "location", "country_code",
+                "location_table_number", "direction_positive", "both_directions",
+                "extent", "location_resolved", "resolved_location"])
+HERETFP = collections.namedtuple(
+    "HERETFP", ["message_id", "version", "expiry_time", "cancel", "start_time",
+                "duration", "spatial_resolution", "polygon_index", "level_of_service",
+                "average_speed", "free_flow_travel_time", "delay", "location",
+                "country_code", "location_table_number", "direction_positive",
+                "both_directions", "extent", "location_resolved", "resolved_location"])
+TrafficLocation = collections.namedtuple(
+    "TrafficLocation", ["location", "positive", "negative", "latitude", "longitude", "name"])
 
 class _TimeStruct(ctypes.Structure):
     _fields_ = [
@@ -426,6 +483,150 @@ class _PACKET(ctypes.Structure):
         ("service", ctypes.POINTER(_SIGService)),
         ("component", ctypes.POINTER(_SIGComponent)),
     ]
+
+class _NAVTEQDigitalTrafficEntry(ctypes.Structure):
+    _fields_ = [
+        ("record_type", ctypes.c_uint8),
+        ("country_code", ctypes.c_uint8),
+        ("reserved", ctypes.c_uint8),
+        ("location_table_number", ctypes.c_uint8),
+        ("location", ctypes.c_uint16),
+        ("direction", ctypes.c_uint8),
+        ("extent", ctypes.c_uint8),
+        ("bidirectional", ctypes.c_uint8),
+        ("diversion", ctypes.c_uint8),
+        ("duration_type", ctypes.c_uint8),
+        ("control_code", ctypes.c_uint8),
+        ("event", ctypes.c_uint16),
+        ("quantifier", ctypes.c_uint8),
+    ]
+
+
+class _NAVTEQDigitalTraffic(ctypes.Structure):
+    _fields_ = [
+        ("port", ctypes.c_uint16),
+        ("seq", ctypes.c_uint16),
+        ("generation", ctypes.c_uint8),
+        ("is_terminal", ctypes.c_int),
+        ("count", ctypes.c_uint),
+        ("entries", ctypes.POINTER(_NAVTEQDigitalTrafficEntry)),
+        ("service", ctypes.POINTER(_SIGService)),
+        ("component", ctypes.POINTER(_SIGComponent)),
+    ]
+
+
+class _NAVTEQAlternateFrequencyEntry(ctypes.Structure):
+    _fields_ = [
+        ("index", ctypes.c_uint8),
+        ("frequency_hz", ctypes.c_uint32),
+        ("data", ctypes.c_uint8 * 8),
+    ]
+
+
+class _NAVTEQAlternateFrequencies(ctypes.Structure):
+    _fields_ = [
+        ("port", ctypes.c_uint16),
+        ("seq", ctypes.c_uint16),
+        ("count", ctypes.c_uint),
+        ("entries", ctypes.POINTER(_NAVTEQAlternateFrequencyEntry)),
+        ("service", ctypes.POINTER(_SIGService)),
+        ("component", ctypes.POINTER(_SIGComponent)),
+    ]
+
+
+class _TTNCity(ctypes.Structure):
+    _fields_ = [("city_id", ctypes.c_uint32), ("provider_city_id", ctypes.c_uint32),
+                ("latitude", ctypes.c_double), ("longitude", ctypes.c_double),
+                ("name", ctypes.c_char_p)]
+
+
+class _TTNCityDatabase(ctypes.Structure):
+    _fields_ = [("database_version", ctypes.c_uint), ("timestamp", ctypes.c_uint),
+                ("count", ctypes.c_uint), ("cities", ctypes.POINTER(_TTNCity))]
+
+
+class _TTNShortForecast(ctypes.Structure):
+    _fields_ = [("offset_hours", ctypes.c_uint), ("weather_condition", ctypes.c_uint),
+                ("wind_direction", ctypes.c_uint), ("wind_speed", ctypes.c_uint),
+                ("temperature", ctypes.c_int), ("feels_like_temperature", ctypes.c_int),
+                ("humidity", ctypes.c_uint), ("chance_of_precipitation", ctypes.c_uint)]
+
+
+class _TTNLongForecast(ctypes.Structure):
+    _fields_ = [("offset_days", ctypes.c_uint), ("weather_condition", ctypes.c_uint),
+                ("wind_direction", ctypes.c_uint), ("wind_speed", ctypes.c_uint),
+                ("high_temperature", ctypes.c_int), ("low_temperature", ctypes.c_int),
+                ("chance_of_precipitation", ctypes.c_uint),
+                ("external_feels_like_temperature", ctypes.c_int),
+                ("maximum_humidity", ctypes.c_uint)]
+
+
+class _TTNWeatherCity(ctypes.Structure):
+    _fields_ = [("city", _TTNCity), ("scope", ctypes.c_uint),
+                ("city_database_version", ctypes.c_uint), ("current_day", ctypes.c_uint),
+                ("short_forecast_count", ctypes.c_uint),
+                ("short_forecasts", ctypes.POINTER(_TTNShortForecast)),
+                ("long_forecast_count", ctypes.c_uint),
+                ("long_forecasts", ctypes.POINTER(_TTNLongForecast))]
+
+
+class _TTNWeather(ctypes.Structure):
+    _fields_ = [("timestamp", ctypes.c_uint), ("count", ctypes.c_uint),
+                ("cities", ctypes.POINTER(_TTNWeatherCity))]
+
+
+class _TTNBearerLink(ctypes.Structure):
+    _fields_ = [("station_id", ctypes.c_uint32), ("frequency_selector", ctypes.c_uint)]
+
+
+class _TTNBearer(ctypes.Structure):
+    _fields_ = [("station_id", ctypes.c_uint32), ("fm_link_count", ctypes.c_uint),
+                ("fm_links", ctypes.POINTER(_TTNBearerLink)),
+                ("am_link_count", ctypes.c_uint),
+                ("am_links", ctypes.POINTER(_TTNBearerLink))]
+
+
+class _TTNServiceNetwork(ctypes.Structure):
+    _fields_ = [("service_component_id", ctypes.c_uint),
+                ("service_component_id_raw", ctypes.c_uint32),
+                ("timestamp", ctypes.c_uint), ("service_provider_name", ctypes.c_char_p),
+                ("bearer_count", ctypes.c_uint),
+                 ("bearers", ctypes.POINTER(_TTNBearer))]
+
+class _Location(ctypes.Structure):
+    _fields_ = [
+        ("location", ctypes.c_uint16),
+        ("positive", ctypes.c_uint16),
+        ("negative", ctypes.c_uint16),
+        ("latitude", ctypes.c_double),
+        ("longitude", ctypes.c_double),
+        ("name", ctypes.c_char * 128),
+    ]
+
+class _TTNTEC(ctypes.Structure):
+    _fields_ = [("message_id", ctypes.c_uint32), ("version", ctypes.c_uint),
+                ("expiry_time", ctypes.c_uint32), ("cancel", ctypes.c_int),
+                ("effect_code", ctypes.c_uint), ("cause_code", ctypes.c_uint),
+                ("warning_level", ctypes.c_uint), ("location", ctypes.c_uint16),
+                ("country_code", ctypes.c_uint8), ("location_table_number", ctypes.c_uint8),
+                ("direction_positive", ctypes.c_int), ("both_directions", ctypes.c_int),
+                ("extent", ctypes.c_uint), ("location_resolved", ctypes.c_int),
+                 ("resolved_location", _Location)]
+
+
+class _HERETFP(ctypes.Structure):
+    _fields_ = [("message_id", ctypes.c_uint32), ("version", ctypes.c_uint),
+                ("expiry_time", ctypes.c_uint32), ("cancel", ctypes.c_int),
+                ("start_time", ctypes.c_uint32), ("duration", ctypes.c_int),
+                ("spatial_resolution", ctypes.c_uint), ("polygon_index", ctypes.c_uint),
+                ("level_of_service", ctypes.c_int), ("average_speed", ctypes.c_int),
+                ("free_flow_travel_time", ctypes.c_int), ("delay", ctypes.c_int),
+                ("location", ctypes.c_uint16), ("country_code", ctypes.c_uint8),
+                ("location_table_number", ctypes.c_uint8),
+                ("direction_positive", ctypes.c_int), ("both_directions", ctypes.c_int),
+                ("extent", ctypes.c_uint), ("location_resolved", ctypes.c_int),
+                ("resolved_location", _Location)]
+
 
 class _LOT(ctypes.Structure):
     _fields_ = [
@@ -666,7 +867,14 @@ class _EventUnion(ctypes.Union):
         ("exciter_info", _ExciterInfo),
         ("importer_info", _ImporterInfo),
         ("leap_second_offset", _LeapSecondOffset),
-        ("local_time", _LocalTime)
+        ("local_time", _LocalTime),
+        ("navteq_digital_traffic", _NAVTEQDigitalTraffic),
+        ("navteq_alternate_frequencies", _NAVTEQAlternateFrequencies),
+        ("ttn_city_database", _TTNCityDatabase),
+        ("ttn_weather", _TTNWeather),
+        ("ttn_service_network", _TTNServiceNetwork),
+        ("ttn_tec", _TTNTEC),
+        ("here_tfp", _HERETFP),
     ]
 
 
@@ -948,12 +1156,109 @@ class NRSC5:
         elif evt_type == EventType.LOCAL_TIME:
             local_time = c_evt.u.local_time
             evt = LocalTime(local_time.utc_offset, bool(local_time.dst_regional), bool(local_time.dst_local), local_time.dst_schedule)
+        elif evt_type == EventType.NAVTEQ_DIGITAL_TRAFFIC:
+            traffic = c_evt.u.navteq_digital_traffic
+            service = self.services[traffic.service.contents.number]
+            component = self.components[(traffic.service.contents.number, traffic.component.contents.id)]
+            entries = [
+                NAVTEQDigitalTrafficEntry(
+                    entry.record_type, entry.country_code, entry.reserved,
+                    entry.location_table_number, entry.location, entry.direction,
+                    entry.extent, bool(entry.bidirectional), bool(entry.diversion),
+                    entry.duration_type, entry.control_code, entry.event,
+                    entry.quantifier)
+                for entry in traffic.entries[:traffic.count]
+            ]
+            evt = NAVTEQDigitalTraffic(component.data.port, traffic.seq, traffic.generation,
+                                       bool(traffic.is_terminal), entries, service, component)
+        elif evt_type == EventType.NAVTEQ_ALTERNATE_FREQUENCIES:
+            frequencies = c_evt.u.navteq_alternate_frequencies
+            service = self.services[frequencies.service.contents.number]
+            component = self.components[(frequencies.service.contents.number,
+                                         frequencies.component.contents.id)]
+            entries = [
+                NAVTEQAlternateFrequencyEntry(entry.index, entry.frequency_hz, bytes(entry.data))
+                for entry in frequencies.entries[:frequencies.count]
+            ]
+            evt = NAVTEQAlternateFrequencies(component.data.port, frequencies.seq, entries,
+                                             service, component)
+        elif evt_type == EventType.TTN_CITY_DATABASE:
+            database = c_evt.u.ttn_city_database
+            cities = [
+                TTNCity(city.city_id, city.provider_city_id, city.latitude, city.longitude,
+                        self._decode(city.name))
+                for city in database.cities[:database.count]
+            ]
+            evt = TTNCityDatabase(database.database_version, database.timestamp, cities)
+        elif evt_type == EventType.TTN_WEATHER:
+            weather = c_evt.u.ttn_weather
+            cities = []
+            for city in weather.cities[:weather.count]:
+                short_forecasts = [
+                    TTNShortForecast(f.offset_hours, f.weather_condition, f.wind_direction,
+                                     f.wind_speed, f.temperature, f.feels_like_temperature,
+                                     f.humidity, f.chance_of_precipitation)
+                    for f in city.short_forecasts[:city.short_forecast_count]
+                ]
+                long_forecasts = [
+                    TTNLongForecast(f.offset_days, f.weather_condition, f.wind_direction,
+                                    f.wind_speed, f.high_temperature, f.low_temperature,
+                                    f.chance_of_precipitation, f.external_feels_like_temperature,
+                                    f.maximum_humidity)
+                    for f in city.long_forecasts[:city.long_forecast_count]
+                ]
+                c = city.city
+                cities.append(TTNWeatherCity(
+                    TTNCity(c.city_id, c.provider_city_id, c.latitude, c.longitude,
+                            self._decode(c.name)), city.scope, city.city_database_version,
+                    city.current_day, short_forecasts, long_forecasts))
+            evt = TTNWeather(weather.timestamp, cities)
+        elif evt_type == EventType.TTN_SERVICE_NETWORK:
+            info = c_evt.u.ttn_service_network
+            bearers = []
+            for bearer in info.bearers[:info.bearer_count]:
+                fm_links = [TTNBearerLink(link.station_id, link.frequency_selector)
+                            for link in bearer.fm_links[:bearer.fm_link_count]]
+                am_links = [TTNBearerLink(link.station_id, link.frequency_selector)
+                            for link in bearer.am_links[:bearer.am_link_count]]
+                bearers.append(TTNBearer(bearer.station_id, fm_links, am_links))
+            evt = TTNServiceNetwork(info.service_component_id,
+                                   info.service_component_id_raw, info.timestamp,
+                                    self._decode(info.service_provider_name), bearers)
+        elif evt_type == EventType.TTN_TEC:
+            event = c_evt.u.ttn_tec
+            point = event.resolved_location
+            evt = TTNTEC(event.message_id, event.version, event.expiry_time,
+                         bool(event.cancel), event.effect_code, event.cause_code,
+                         event.warning_level, event.location, event.country_code,
+                         event.location_table_number, bool(event.direction_positive),
+                          bool(event.both_directions), event.extent,
+                          bool(event.location_resolved),
+                         _Location(point.location, point.positive, point.negative,
+                                   point.latitude, point.longitude, point.name))
+        elif evt_type == EventType.HERE_TFP:
+            flow = c_evt.u.here_tfp
+            evt = HERETFP(flow.message_id, flow.version, flow.expiry_time,
+                          bool(flow.cancel), flow.start_time, flow.duration,
+                          flow.spatial_resolution, flow.polygon_index,
+                          flow.level_of_service, flow.average_speed,
+                          flow.free_flow_travel_time, flow.delay, flow.location,
+                          flow.country_code, flow.location_table_number,
+                          bool(flow.direction_positive), bool(flow.both_directions),
+                          flow.extent, bool(flow.location_resolved),
+                          _Location(flow.resolved_location.location,
+                                    flow.resolved_location.positive,
+                                    flow.resolved_location.negative,
+                                    flow.resolved_location.latitude,
+                                    flow.resolved_location.longitude,
+                                    self._decode(flow.resolved_location.name)))
 
         self.callback(evt_type, evt, *self.callback_args)
 
     def __init__(self, callback, callback_args=()):
         self._load_library()
         self.radio = ctypes.c_void_p()
+        self.location_table = ctypes.c_void_p()
         self.callback = callback
         self.callback_args = callback_args
 
@@ -980,6 +1285,56 @@ class NRSC5:
         name = ctypes.c_char_p()
         NRSC5.libnrsc5.nrsc5_alert_category_name(category.value, ctypes.byref(name))
         return name.value.decode()
+
+    @staticmethod
+    def alert_c_event_name(event):
+        name = ctypes.c_char_p()
+        NRSC5.libnrsc5.nrsc5_alert_c_event_name(event, ctypes.byref(name))
+        return name.value.decode()
+
+    @staticmethod
+    def alert_c_event_description(event, quantifier=0):
+        description = ctypes.create_string_buffer(512)
+        NRSC5.libnrsc5.nrsc5_alert_c_event_description(
+            event, quantifier, description, len(description))
+        return description.value.decode()
+
+    @staticmethod
+    def ttn_weather_condition_name(condition):
+        name = ctypes.c_char_p()
+        NRSC5.libnrsc5.nrsc5_ttn_weather_condition_name(condition, ctypes.byref(name))
+        return name.value.decode()
+
+    def open_location_table(self, path):
+        if self.location_table:
+            raise NRSC5Error("A traffic location table is already open.")
+        table = ctypes.c_void_p()
+        result = NRSC5.libnrsc5.nrsc5_location_table_open(
+            ctypes.byref(table), os.fsencode(path))
+        if result != 0:
+            raise NRSC5Error(f"Failed to open traffic location table: {path}")
+        self.location_table = table
+        NRSC5.libnrsc5.nrsc5_set_location_table(self.radio, table)
+
+    def close_location_table(self):
+        if self.location_table:
+            NRSC5.libnrsc5.nrsc5_set_location_table(self.radio, ctypes.c_void_p())
+            NRSC5.libnrsc5.nrsc5_location_table_close(self.location_table)
+            self.location_table = ctypes.c_void_p()
+
+    def location_table_lookup(self, country, ltn, location):
+        if not self.location_table:
+            return None
+        point = _Location()
+        result = NRSC5.libnrsc5.nrsc5_location_table_lookup(
+            self.location_table, country, ltn, location, ctypes.byref(point))
+        if result < 0:
+            raise NRSC5Error("Malformed traffic location-table record.")
+        if result == 0:
+            return None
+        return TrafficLocation(point.location, point.positive, point.negative,
+                               point.latitude, point.longitude,
+                               bytes(point.name).split(b"\0", 1)[0].decode("utf-8"))
 
     def open(self, device_index):
         result = NRSC5.libnrsc5.nrsc5_open(ctypes.byref(self.radio), device_index)

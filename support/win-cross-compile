@@ -32,6 +32,7 @@ cmake \
     -D USE_SYSTEM_RTLSDR=OFF \
     -D USE_SYSTEM_LIBAO=OFF \
     -D USE_SYSTEM_FFTW=OFF \
+    -D USE_SYSTEM_ZLIB=OFF \
     ${CMAKE_ARGS} \
     ..
 

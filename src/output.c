@@ -18,15 +18,20 @@
 #include <assert.h>
 #include <errno.h>
 #include <limits.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include <sys/time.h>
+#include <zlib.h>
 
 #include "defines.h"
 #include "output.h"
 #include "private.h"
 #include "unicode.h"
 #include "here_images.h"
+#include "navteq.h"
+#include "ttn_tpeg.h"
+#include "here_tpeg.h"
 
 void output_align(output_t *st, unsigned int program, unsigned int stream_id, unsigned int offset)
 {
@@ -181,6 +186,28 @@ static void aas_free_lot(aas_file_t *file)
 
 static void aas_reset(output_t *st)
 {
+    for (unsigned int i = 0; i < MAX_SIG_COMPONENTS; i++)
+    {
+        free(st->ttn_buffers[i]);
+        st->ttn_buffers[i] = NULL;
+        st->ttn_buffer_sizes[i] = 0;
+        st->ttn_buffer_ports[i] = 0;
+    }
+    free(st->here_buffer);
+    st->here_buffer = NULL;
+    st->here_buffer_size = 0;
+    for (unsigned int i = 0; i < st->ttn_city_count; i++)
+        free((void *)st->ttn_cities[i].name);
+    free(st->ttn_cities);
+    st->ttn_cities = NULL;
+    st->ttn_city_count = 0;
+    st->ttn_city_database_version = 0;
+    st->ttn_city_database_timestamp = 0;
+    for (unsigned int i = 0; i < st->ttn_weather_city_count; i++)
+        free((void *)st->ttn_weather_cities[i].name);
+    free(st->ttn_weather_cities);
+    st->ttn_weather_cities = NULL;
+    st->ttn_weather_city_count = 0;
     free(st->sig_bytes);
     st->sig_bytes = NULL;
     st->sig_len = 0;
@@ -759,6 +786,347 @@ static aas_file_t *find_free_lot(sig_component_t *component)
     return file;
 }
 
+static void process_navteq(output_t *st, sig_component_t *component, uint16_t seq,
+                           const uint8_t *buf, unsigned int len)
+{
+    unsigned int count = 0;
+    uint8_t generation;
+    int is_terminal;
+
+    if (navteq_decode_digital_traffic(buf, len, &generation, &is_terminal, NULL, &count))
+    {
+        nrsc5_navteq_digital_traffic_entry_t *entries;
+
+        entries = malloc(count * sizeof(*entries));
+        if (entries == NULL)
+        {
+            log_warn("unable to allocate NAVTEQ Digital Traffic entries");
+            return;
+        }
+        if (navteq_decode_digital_traffic(buf, len, &generation, &is_terminal, entries, &count))
+            nrsc5_report_navteq_digital_traffic(st->radio, seq, generation, is_terminal,
+                                                count, entries, component->service_ext,
+                                                component->component_ext);
+        free(entries);
+    }
+    else if (navteq_decode_alternate_frequencies(buf, len, NULL, &count))
+    {
+        nrsc5_navteq_alternate_frequency_entry_t *entries;
+
+        entries = malloc(count * sizeof(*entries));
+        if (entries == NULL)
+        {
+            log_warn("unable to allocate NAVTEQ alternate-frequency entries");
+            return;
+        }
+        if (navteq_decode_alternate_frequencies(buf, len, entries, &count))
+            nrsc5_report_navteq_alternate_frequencies(st->radio, seq, count, entries,
+                                                      component->service_ext,
+                                                      component->component_ext);
+        free(entries);
+    }
+}
+
+static void ttn_city_database_cb(const nrsc5_ttn_city_database_t *database, void *opaque)
+{
+    output_t *st = opaque;
+    nrsc5_ttn_city_t *cities;
+    int unchanged = database->count == st->ttn_city_count
+                 && database->database_version == st->ttn_city_database_version
+                 && database->timestamp == st->ttn_city_database_timestamp;
+
+    if (unchanged)
+        for (unsigned int i = 0; i < database->count; i++)
+        {
+            const nrsc5_ttn_city_t *old = &st->ttn_cities[i];
+            const nrsc5_ttn_city_t *new = &database->cities[i];
+            if (old->city_id != new->city_id
+                || old->provider_city_id != new->provider_city_id
+                || old->latitude != new->latitude
+                || old->longitude != new->longitude
+                || strcmp(old->name ? old->name : "", new->name ? new->name : "") != 0)
+            {
+                unchanged = 0;
+                break;
+            }
+        }
+    if (unchanged)
+        return;
+
+    cities = calloc(database->count, sizeof(*cities));
+    if (database->count && !cities)
+        return;
+    for (unsigned int i = 0; i < database->count; i++)
+    {
+        cities[i] = database->cities[i];
+        cities[i].name = strdup(database->cities[i].name);
+        if (!cities[i].name)
+        {
+            for (unsigned int j = 0; j < i; j++) free((void *)cities[j].name);
+            free(cities);
+            return;
+        }
+    }
+    for (unsigned int i = 0; i < st->ttn_city_count; i++)
+        free((void *)st->ttn_cities[i].name);
+    free(st->ttn_cities);
+    st->ttn_cities = cities;
+    st->ttn_city_count = database->count;
+    st->ttn_city_database_version = database->database_version;
+    st->ttn_city_database_timestamp = database->timestamp;
+    nrsc5_report_ttn_city_database(st->radio, database);
+}
+
+static void ttn_weather_cb(unsigned int timestamp, unsigned int count,
+                            const nrsc5_ttn_weather_city_t *cities, void *opaque)
+{
+    output_t *st = opaque;
+    nrsc5_ttn_weather_city_t *copy = calloc(count, sizeof(*copy));
+    if (count && !copy)
+        return;
+    for (unsigned int i = 0; i < count; i++)
+    {
+        if (cities[i].city.name)
+        {
+            char *name = strdup(cities[i].city.name);
+            unsigned int j;
+            if (!name)
+                continue;
+            for (j = 0; j < st->ttn_weather_city_count; j++)
+                if (st->ttn_weather_cities[j].city_id == cities[i].city.city_id)
+                    break;
+            if (j == st->ttn_weather_city_count)
+            {
+                nrsc5_ttn_city_t *grown = realloc(st->ttn_weather_cities,
+                                                  (j + 1) * sizeof(*grown));
+                if (grown)
+                {
+                    st->ttn_weather_cities = grown;
+                    memset(&st->ttn_weather_cities[j], 0,
+                           sizeof(st->ttn_weather_cities[j]));
+                    st->ttn_weather_city_count++;
+                }
+            }
+            if (j < st->ttn_weather_city_count)
+            {
+                free((void *)st->ttn_weather_cities[j].name);
+                st->ttn_weather_cities[j] = cities[i].city;
+                st->ttn_weather_cities[j].name = name;
+                name = NULL;
+            }
+            free(name);
+        }
+    }
+    for (unsigned int i = 0; i < count; i++)
+    {
+        copy[i] = cities[i];
+        if (!copy[i].city.name)
+        {
+            for (unsigned int j = 0; j < st->ttn_weather_city_count; j++)
+                if (st->ttn_weather_cities[j].city_id == copy[i].city.city_id)
+                {
+                    copy[i].city = st->ttn_weather_cities[j];
+                    break;
+                }
+            if (!copy[i].city.name)
+            for (unsigned int j = 0; j < st->ttn_city_count; j++)
+                if (st->ttn_cities[j].city_id == copy[i].city.city_id)
+                {
+                    copy[i].city = st->ttn_cities[j];
+                    break;
+                }
+        }
+    }
+    nrsc5_report_ttn_weather(st->radio, timestamp, count, copy);
+    free(copy);
+}
+
+static void ttn_service_network_cb(const nrsc5_ttn_service_network_t *info, void *opaque)
+{
+    output_t *st = opaque;
+    nrsc5_report_ttn_service_network(st->radio, info);
+}
+
+static void ttn_tec_cb(const nrsc5_ttn_tec_t *event, void *opaque)
+{
+    nrsc5_report_ttn_tec(((output_t *)opaque)->radio, event);
+}
+
+static void process_ttn_tec(output_t *st, const uint8_t *payload, size_t size);
+
+static void here_tfp_sink(const nrsc5_here_tfp_t *flow, void *opaque)
+{
+    output_t *st = opaque;
+    nrsc5_here_tfp_t resolved = *flow;
+
+    if (st->radio->location_table)
+    {
+        int found = nrsc5_location_table_lookup(st->radio->location_table,
+                                                flow->country_code,
+                                                flow->location_table_number,
+                                                flow->location,
+                                                &resolved.resolved_location);
+        resolved.location_resolved = found == 1;
+    }
+    nrsc5_report_here_tfp(st->radio, &resolved);
+}
+
+/* HERE TPEG arrives as SFW transport frames ('FF 0F', length-prefixed) inside
+ * the stream. Each frame is SID(3) + EncID(1) + zlib stream; inflated bodies
+ * contain the component frames decoded by here_decode_frame(). */
+static uint16_t tpeg_crc(const uint8_t *data, size_t size)
+{
+    uint32_t crc = 0xFFFF;
+    for (size_t i = 0; i < size; i++)
+    {
+        uint32_t tmp = ((crc << 8) & 0xFFFF) | (crc >> 8);
+        crc = (tmp ^ data[i]) & 0xFFFF;
+        crc ^= ((crc & 0x00FF) >> 4);
+        tmp = ((crc & 0x00FF) << 8) | ((crc & 0x00FF) >> 8);
+        crc = ((crc ^ (tmp << 4)) ^ ((crc & 0x00FF) << 5)) & 0xFFFF;
+    }
+    return (uint16_t)(crc ^ 0xFFFF);
+}
+
+static int process_here_frame(output_t *st, const uint8_t *frame)
+{
+    uint16_t frame_len = ((uint16_t) frame[2] << 8) | frame[3];
+    uint16_t stored_crc = ((uint16_t) frame[4] << 8) | frame[5];
+    uint8_t head[19];
+    size_t verify = frame_len < 11 ? frame_len : 11;
+    uint8_t type = frame[6];
+    head[0] = 0xff;
+    head[1] = 0x0f;
+    head[2] = frame[2];
+    head[3] = frame[3];
+    head[4] = type;
+    memcpy(head + 5, frame + 7, verify);
+    if (tpeg_crc(head, 5 + verify) != stored_crc)
+        return 0;
+    if (type != 1 || frame_len < 5)
+        return 1;
+
+    // SID(3) + EncID(1): skip both, inflate remainder
+    {
+        z_stream zs = {0};
+        uint8_t out[70000];
+        if (inflateInit(&zs) != Z_OK)
+            return 1;
+        zs.next_in = (uint8_t *) frame + 11;
+        zs.avail_in = frame_len - 4;
+        zs.next_out = out;
+        zs.avail_out = sizeof(out);
+        if (inflate(&zs, Z_FINISH) == Z_STREAM_END)
+            here_decode_frame(out, sizeof(out) - zs.avail_out, here_tfp_sink, st);
+        inflateEnd(&zs);
+    }
+    return 1;
+}
+
+static void process_here_stream(output_t *st, const uint8_t *data, unsigned int size)
+{
+    uint8_t *grown = realloc(st->here_buffer, st->here_buffer_size + size);
+    if (!grown)
+        return;
+    st->here_buffer = grown;
+    memcpy(st->here_buffer + st->here_buffer_size, data, size);
+    st->here_buffer_size += size;
+
+    while (st->here_buffer_size >= 7)
+    {
+        size_t incomplete = SIZE_MAX;
+        size_t i;
+        int processed = 0;
+
+        for (i = 0; i + 7 <= st->here_buffer_size; i++)
+        {
+            size_t frame_size;
+
+            if (st->here_buffer[i] != 0xff || st->here_buffer[i + 1] != 0x0f)
+                continue;
+            frame_size = 7 + ((size_t) st->here_buffer[i + 2] << 8)
+                         + st->here_buffer[i + 3];
+            if (i + frame_size > st->here_buffer_size)
+            {
+                if (incomplete == SIZE_MAX)
+                    incomplete = i;
+                continue;
+            }
+            if (!process_here_frame(st, st->here_buffer + i))
+                continue;
+
+            st->here_buffer_size -= i + frame_size;
+            memmove(st->here_buffer, st->here_buffer + i + frame_size,
+                    st->here_buffer_size);
+            processed = 1;
+            break;
+        }
+        if (processed)
+            continue;
+        if (incomplete != SIZE_MAX)
+        {
+            st->here_buffer_size -= incomplete;
+            memmove(st->here_buffer, st->here_buffer + incomplete,
+                    st->here_buffer_size);
+        }
+        else
+        {
+            st->here_buffer[0] = st->here_buffer[st->here_buffer_size - 1];
+            st->here_buffer_size = st->here_buffer[0] == 0xff;
+        }
+        return;
+    }
+}
+
+
+static void process_ttn_envelope(output_t *st, const uint8_t *payload, size_t size)
+{
+    if (ttn_tpeg2_decode(payload, size, ttn_city_database_cb, ttn_weather_cb,
+                         ttn_service_network_cb, st) != 0)
+        process_ttn_tec(st, payload, size);
+}
+
+static void process_ttn_tec(output_t *st, const uint8_t *payload, size_t size)
+{
+    if (ttn_tpeg1_decode(payload, size, st->radio->location_table, ttn_tec_cb, st) != 0)
+        log_debug("unable to decode TTN TPEG-1 TEC envelope");
+}
+
+static void process_ttn_stream(output_t *st, uint16_t port, const uint8_t *data, unsigned int size)
+{
+    unsigned int slot;
+    for (slot = 0; slot < MAX_SIG_COMPONENTS; slot++)
+        if (st->ttn_buffer_ports[slot] == port || st->ttn_buffer_ports[slot] == 0)
+            break;
+    if (slot == MAX_SIG_COMPONENTS)
+        return;
+    if (st->ttn_buffer_ports[slot] == 0)
+        st->ttn_buffer_ports[slot] = port;
+    uint8_t *grown = realloc(st->ttn_buffers[slot], st->ttn_buffer_sizes[slot] + size);
+    if (!grown)
+        return;
+    st->ttn_buffers[slot] = grown;
+    memcpy(st->ttn_buffers[slot] + st->ttn_buffer_sizes[slot], data, size);
+    st->ttn_buffer_sizes[slot] += size;
+    while (st->ttn_buffer_sizes[slot] >= 7)
+    {
+        uint16_t frame_size;
+        if (st->ttn_buffers[slot][0] != 0xff || st->ttn_buffers[slot][1] != 0x0f)
+        {
+            memmove(st->ttn_buffers[slot], st->ttn_buffers[slot] + 1,
+                    --st->ttn_buffer_sizes[slot]);
+            continue;
+        }
+        frame_size = ((uint16_t)st->ttn_buffers[slot][2] << 8) | st->ttn_buffers[slot][3];
+        if (st->ttn_buffer_sizes[slot] < (size_t)frame_size + 7)
+            break;
+        process_ttn_envelope(st, st->ttn_buffers[slot] + 7, frame_size);
+        st->ttn_buffer_sizes[slot] -= frame_size + 7;
+        memmove(st->ttn_buffers[slot], st->ttn_buffers[slot] + frame_size + 7,
+                st->ttn_buffer_sizes[slot]);
+    }
+}
+
 static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *buf, unsigned int len)
 {
     sig_component_t *component;
@@ -783,11 +1151,24 @@ static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *
         nrsc5_report_stream(st->radio, seq, len, buf, component->service_ext, component->component_ext);
         if (component->data.mime == NRSC5_MIME_HERE_IMAGE)
             here_images_push(&st->here_images, seq, len, buf);
+        if (component->data.mime == NRSC5_MIME_TTN_TPEG_1
+            || component->data.mime == NRSC5_MIME_TTN_TPEG_2
+            || component->data.mime == NRSC5_MIME_TTN_TPEG_3)
+            process_ttn_stream(st, port_id, buf, len);
+        if (component->data.mime == NRSC5_MIME_HERE_TPEG)
+            process_here_stream(st, buf, len);
         break;
     }
     case NRSC5_AAS_TYPE_PACKET:
     {
         nrsc5_report_packet(st->radio, seq, len, buf, component->service_ext, component->component_ext);
+        if (component->data.mime == NRSC5_MIME_NAVTEQ)
+            process_navteq(st, component, seq, buf, len);
+        if (component->data.mime == NRSC5_MIME_TTN_TPEG_1)
+            process_ttn_tec(st, buf, len);
+        else if (component->data.mime == NRSC5_MIME_TTN_TPEG_2
+                 || component->data.mime == NRSC5_MIME_TTN_TPEG_3)
+            process_ttn_envelope(st, buf, len);
         break;
     }
     case NRSC5_AAS_TYPE_LOT:
@@ -951,6 +1332,11 @@ static void process_port(output_t *st, uint16_t port_id, uint16_t seq, uint8_t *
 
 void output_aas_push(output_t *st, uint8_t *buf, unsigned int len)
 {
+    if (len < 4)
+    {
+        log_warn("AAS packet too short (length %d)", len);
+        return;
+    }
     uint16_t port = buf[0] | (buf[1] << 8);
     uint16_t seq = buf[2] | (buf[3] << 8);
     if (port == 0x5100 || (port >= 0x5201 && port <= 0x5207))

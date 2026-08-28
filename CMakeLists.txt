@@ -5,6 +5,7 @@ include (CheckSymbolExists)
 include (ExternalProject)
 include (FindPkgConfig)
 project (nrsc5 C)
+include (CTest)
 
 execute_process (COMMAND ${CMAKE_C_COMPILER} -dumpmachine OUTPUT_VARIABLE HOST_TRIPLE_DEFAULT OUTPUT_STRIP_TRAILING_WHITESPACE)
 
@@ -16,6 +17,7 @@ option (USE_SYSTEM_FFTW "Use system provided fftw" ON)
 option (USE_SYSTEM_RTLSDR "Use system provided rtl-sdr" ON)
 option (USE_SYSTEM_LIBUSB "Use system provided libusb" ON)
 option (USE_SYSTEM_LIBAO "Use system provided libao" ON)
+option (USE_SYSTEM_ZLIB "Use system provided zlib" ON)
 option (INSTALLED_FAAD_IS_PATCHED "Use patched system-provided FAAD2" OFF)
 option (BUILD_DOC "Build API documentation" OFF)
 option (BUILD_CLI "Build nrsc5 executable" ON)
@@ -80,6 +82,9 @@ if (BUILD_CLI AND USE_SYSTEM_LIBAO)
         message (WARNING "libao not found. Building from source.")
         set (USE_SYSTEM_LIBAO OFF)
     endif ()
+endif ()
+if (USE_SYSTEM_ZLIB)
+    find_package (ZLIB REQUIRED)
 endif ()
 
 if (CMAKE_SYSTEM_PROCESSOR MATCHES "arm.*")
@@ -217,6 +222,37 @@ if (BUILD_CLI AND NOT USE_SYSTEM_LIBAO)
     set (AO_BUILTIN libao)
 endif ()
 
+if (NOT USE_SYSTEM_ZLIB)
+    set (ZLIB_PREFIX "${CMAKE_BINARY_DIR}/zlib-prefix")
+    ExternalProject_Add (
+        zlib_external
+        TIMEOUT 120
+        GIT_REPOSITORY "https://github.com/madler/zlib.git"
+        GIT_TAG v1.3.2
+        PREFIX ${ZLIB_PREFIX}
+
+        UPDATE_COMMAND ""
+        CMAKE_ARGS
+            -DBUILD_SHARED_LIBS:BOOL=OFF
+            -DCMAKE_INSTALL_PREFIX:STRING=${ZLIB_PREFIX}
+            -DCMAKE_C_COMPILER:STRING=${CMAKE_C_COMPILER}
+            -DCMAKE_SYSTEM_NAME:STRING=${CMAKE_SYSTEM_NAME}
+    )
+
+    add_library (zlib_static STATIC IMPORTED)
+    if (WIN32)
+        set (ZLIB_STATIC_LIBRARY "${ZLIB_PREFIX}/lib/libzs.a")
+    else ()
+        set (ZLIB_STATIC_LIBRARY "${ZLIB_PREFIX}/lib/libz.a")
+    endif ()
+    set_property (TARGET zlib_static PROPERTY IMPORTED_LOCATION "${ZLIB_STATIC_LIBRARY}")
+    add_dependencies (zlib_static zlib_external)
+
+    set (ZLIB_INCLUDE_DIRS "${ZLIB_PREFIX}/include")
+    set (ZLIB_LIBRARIES zlib_static)
+    set (ZLIB_BUILTIN zlib_external)
+endif ()
+
 if (USE_FAAD2)
     # use patched faad if installed
     if (INSTALLED_FAAD_IS_PATCHED)
@@ -278,7 +314,7 @@ else ()
     unset (AO_BUILTIN)
 endif()
 
-set (BUILTIN_LIBRARIES ${FFTW3F_BUILTIN} ${RTL_SDR_BUILTIN} ${FAAD2_BUILTIN} ${AO_BUILTIN})
+set (BUILTIN_LIBRARIES ${FFTW3F_BUILTIN} ${RTL_SDR_BUILTIN} ${FAAD2_BUILTIN} ${AO_BUILTIN} ${ZLIB_BUILTIN})
 
 if(EXISTS "${CMAKE_SOURCE_DIR}/.git")
   execute_process(
@@ -293,6 +329,9 @@ endif()
 add_definitions("-DGIT_COMMIT_HASH=\"${GIT_COMMIT_HASH}\"")
 
 add_subdirectory (src)
+if (BUILD_TESTING)
+    add_subdirectory (tests)
+endif ()
 
 # optionally generate documentation via Doxygen
 if (BUILD_DOC)

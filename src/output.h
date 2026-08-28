@@ -128,6 +128,17 @@ typedef struct
     unsigned int sig_len;
     sig_service_t services[MAX_SIG_SERVICES];
     unsigned int lot_lru_counter;
+    uint8_t *ttn_buffers[MAX_SIG_COMPONENTS];
+    size_t ttn_buffer_sizes[MAX_SIG_COMPONENTS];
+    uint16_t ttn_buffer_ports[MAX_SIG_COMPONENTS];
+    uint8_t *here_buffer;
+    size_t here_buffer_size;
+    nrsc5_ttn_city_t *ttn_cities;
+    unsigned int ttn_city_count;
+    unsigned int ttn_city_database_version;
+    unsigned int ttn_city_database_timestamp;
+    nrsc5_ttn_city_t *ttn_weather_cities;
+    unsigned int ttn_weather_city_count;
     here_images_t here_images;
 } output_t;
 

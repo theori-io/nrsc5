@@ -30,6 +30,7 @@ struct nrsc5_t
     nrsc5_callback_t callback;
     void *callback_opaque;
     nrsc5_sig_service_t *sig_table;
+    nrsc5_location_table_t *location_table;
 
     uint8_t leftover_u8[4];
     unsigned int leftover_u8_num;
@@ -57,7 +58,23 @@ void nrsc5_report_audio(nrsc5_t *, unsigned int program, const int16_t *data, si
 void nrsc5_report_stream(nrsc5_t *, uint16_t seq, unsigned int size, const uint8_t *data,
                          nrsc5_sig_service_t *service, nrsc5_sig_component_t *component);
 void nrsc5_report_packet(nrsc5_t *, uint16_t seq, unsigned int size, const uint8_t *data,
-                         nrsc5_sig_service_t *service, nrsc5_sig_component_t *component);
+                          nrsc5_sig_service_t *service, nrsc5_sig_component_t *component);
+void nrsc5_report_navteq_digital_traffic(nrsc5_t *, uint16_t seq, uint8_t generation,
+                                         int is_terminal, unsigned int count,
+                                         const nrsc5_navteq_digital_traffic_entry_t *entries,
+                                         nrsc5_sig_service_t *service,
+                                         nrsc5_sig_component_t *component);
+void nrsc5_report_navteq_alternate_frequencies(nrsc5_t *, uint16_t seq, unsigned int count,
+                                               const nrsc5_navteq_alternate_frequency_entry_t *entries,
+                                                nrsc5_sig_service_t *service,
+                                                nrsc5_sig_component_t *component);
+void nrsc5_report_ttn_city_database(nrsc5_t *, const nrsc5_ttn_city_database_t *database);
+void nrsc5_report_ttn_weather(nrsc5_t *, unsigned int timestamp, unsigned int count,
+                              const nrsc5_ttn_weather_city_t *cities);
+void nrsc5_report_ttn_service_network(nrsc5_t *, const nrsc5_ttn_service_network_t *info);
+void nrsc5_report_ttn_tec(nrsc5_t *, const nrsc5_ttn_tec_t *event);
+void nrsc5_report_here_tfp(nrsc5_t *, const nrsc5_here_tfp_t *flow);
+void nrsc5_report_ttn_service_network(nrsc5_t *, const nrsc5_ttn_service_network_t *info);
 void nrsc5_report_lot(nrsc5_t *, int event, unsigned int lot, unsigned int size, uint32_t mime,
                       const char *name, const uint8_t *data, struct tm *expiry_utc,
                       nrsc5_sig_service_t *service, nrsc5_sig_component_t *component);

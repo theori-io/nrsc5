@@ -197,7 +197,7 @@ class PacketFlags(enum.IntFlag):
 class AudioFlags(enum.IntFlag):
     NONE = 0
     UNAVAILABLE = 1 << 0
-    DECODING_ERROR = 2 << 0
+    DECODING_ERROR = 1 << 1
 
 
 IQ = collections.namedtuple("IQ", ["data"])

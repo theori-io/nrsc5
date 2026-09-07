@@ -366,7 +366,7 @@ enum
 {
     NRSC5_AUDIO_FLAGS_NONE = 0,
     NRSC5_AUDIO_FLAGS_UNAVAILABLE = 1 << 0 /** Digital audio was currently unavailable. */,
-    NRSC5_AUDIO_FLAGS_DECODING_ERROR = 2 << 0, /** Failed audio decoding. */
+    NRSC5_AUDIO_FLAGS_DECODING_ERROR = 1 << 1, /** Failed audio decoding. */
 };
 
 /**  Incoming event from receiver.

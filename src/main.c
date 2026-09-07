@@ -123,13 +123,16 @@ static void reset_audio_buffers(state_t *st)
     st->tail = NULL;
 }
 
-static void push_audio_buffer(state_t *st, unsigned int program, const int16_t *data, size_t count)
+static void push_audio_buffer(state_t *st, unsigned int program, const int16_t *data, size_t count, unsigned int flags)
 {
     audio_buffer_t *b;
 
     pthread_mutex_lock(&st->mutex);
     if (program != st->program)
         goto unlock;
+
+    if (flags & NRSC5_AUDIO_FLAGS_DECODING_ERROR)
+        log_warn("Audio decoding error");
 
     if (st->input_name)
     {
@@ -367,9 +370,7 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
         }
         break;
     case NRSC5_EVENT_AUDIO:
-        if (evt->audio.flags & NRSC5_AUDIO_FLAGS_DECODING_ERROR)
-            log_error("Audio decoding error");
-        push_audio_buffer(st, evt->audio.program, evt->audio.data, evt->audio.count);
+        push_audio_buffer(st, evt->audio.program, evt->audio.data, evt->audio.count, evt->audio.flags);
         break;
     case NRSC5_EVENT_SYNC:
         log_info("Synchronized");

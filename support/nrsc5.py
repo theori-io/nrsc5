@@ -194,13 +194,18 @@ class PacketFlags(enum.IntFlag):
     NONE = 0
     CRC_ERROR = 1 << 0
 
+class AudioFlags(enum.IntFlag):
+    NONE = 0
+    UNAVAILABLE = 1 << 0
+    DECODING_ERROR = 2 << 0
+
 
 IQ = collections.namedtuple("IQ", ["data"])
 Sync = collections.namedtuple("Sync", ["freq_offset", "psmi", "pli", "hppi", "aabi", "rdbi"])
 MER = collections.namedtuple("MER", ["lower", "upper"])
 BER = collections.namedtuple("BER", ["cber"])
 HDC = collections.namedtuple("HDC", ["program", "data", "flags"])
-Audio = collections.namedtuple("Audio", ["program", "data"])
+Audio = collections.namedtuple("Audio", ["program", "data", "flags"])
 Comment = collections.namedtuple("Comment", ["lang", "short_content_desc", "full_text"])
 UFID = collections.namedtuple("UFID", ["owner", "id"])
 XHDR = collections.namedtuple("XHDR", ["mime", "param", "lot"])
@@ -295,6 +300,7 @@ class _Audio(ctypes.Structure):
         ("program", ctypes.c_uint),
         ("data", ctypes.POINTER(ctypes.c_char)),
         ("count", ctypes.c_size_t),
+        ("flags", ctypes.c_uint),
     ]
 
 
@@ -744,7 +750,7 @@ class NRSC5:
             evt = HDC(hdc.program, hdc.data[:hdc.count], PacketFlags(hdc.flags))
         elif evt_type == EventType.AUDIO:
             audio = c_evt.u.audio
-            evt = Audio(audio.program, audio.data[:audio.count * 2])
+            evt = Audio(audio.program, audio.data[:audio.count * 2], audio.flags)
         elif evt_type == EventType.ID3:
             id3 = c_evt.u.id3
 

@@ -362,6 +362,13 @@ enum
     NRSC5_PKT_FLAGS_CRC_ERROR = 1 << 0, /** Failed the CRC check. Could be corrupted packet. */
 };
 
+enum
+{
+    NRSC5_AUDIO_FLAGS_NONE = 0,
+    NRSC5_AUDIO_FLAGS_UNAVAILABLE = 1 << 0 /** Digital audio was currently unavailable. */,
+    NRSC5_AUDIO_FLAGS_DECODING_ERROR = 2 << 0, /** Failed audio decoding. */
+};
+
 /**  Incoming event from receiver.
  *
  * This event structure is passed to your application supplied
@@ -436,6 +443,7 @@ struct nrsc5_event_t
             unsigned int program;
             const int16_t *data;
             size_t count;
+            unsigned int flags; /** The specific status of the audio sample. Example `NRSC5_AUDIO_FLAGS_DECODING_ERROR` **/
         } audio;
         struct {
             unsigned int program;

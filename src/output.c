@@ -114,6 +114,7 @@ void output_advance(output_t *st)
             packet_t* pkt = &elastic->packets[elastic->audio_offset];
 #ifdef USE_FAAD2
             int produced_audio = 0;
+            unsigned int flags = NRSC5_AUDIO_FLAGS_NONE;
 #endif
 
             if (is_complete_pkt(pkt))
@@ -134,11 +135,14 @@ void output_advance(output_t *st)
 
                 buffer = NeAACDecDecode(st->aacdec[program], &info, pkt->data, pkt->size);
                 if (info.error > 0)
-                    log_error("Decode error: %s", NeAACDecGetErrorMessage(info.error));
+                {
+                    log_warn("Decode error: %s", NeAACDecGetErrorMessage(info.error));
+                    flags |= NRSC5_AUDIO_FLAGS_DECODING_ERROR;
+                }
 
                 if (info.error == 0 && info.samples > 0)
                 {
-                    nrsc5_report_audio(st->radio, program, buffer, info.samples);
+                    nrsc5_report_audio(st->radio, program, buffer, info.samples, flags);
                     produced_audio = 1;
                 }
 #endif
@@ -159,7 +163,10 @@ void output_advance(output_t *st)
 
 #ifdef USE_FAAD2
             if (!produced_audio)
-                nrsc5_report_audio(st->radio, program, st->silence, NRSC5_AUDIO_FRAME_SAMPLES * 2);
+            {
+                flags |= NRSC5_AUDIO_FLAGS_UNAVAILABLE;
+                nrsc5_report_audio(st->radio, program, st->silence, NRSC5_AUDIO_FRAME_SAMPLES * 2, flags);
+            }
 #endif
     
             elastic->audio_offset = (elastic->audio_offset + 1) % ELASTIC_BUFFER_LEN;

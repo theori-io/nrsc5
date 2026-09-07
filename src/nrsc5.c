@@ -746,7 +746,7 @@ void nrsc5_report_hdc(nrsc5_t *st, unsigned int program, const packet_t* pkt)
     nrsc5_report(st, &evt);
 }
 
-void nrsc5_report_audio(nrsc5_t *st, unsigned int program, const int16_t *data, size_t count)
+void nrsc5_report_audio(nrsc5_t *st, unsigned int program, const int16_t *data, size_t count, unsigned int flags)
 {
     nrsc5_event_t evt;
 
@@ -754,6 +754,7 @@ void nrsc5_report_audio(nrsc5_t *st, unsigned int program, const int16_t *data, 
     evt.audio.program = program;
     evt.audio.data = data;
     evt.audio.count = count;
+    evt.audio.flags = flags;
     nrsc5_report(st, &evt);
 }
 

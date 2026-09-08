@@ -266,6 +266,8 @@ class NRSC5CLI:
                     self.audio_errors = 0
         elif evt_type == nrsc5.EventType.AUDIO:
             if evt.program == self.args.program:
+                if evt.flags & nrsc5.AudioFlags.DECODING_ERROR:
+                    logging.warning("Audio decoding error")
                 if self.args.o:
                     if self.args.t == "wav":
                         try:

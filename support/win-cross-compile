@@ -30,7 +30,6 @@ cmake \
     -D USE_STATIC=ON \
     -D USE_SYSTEM_LIBUSB=OFF \
     -D USE_SYSTEM_RTLSDR=OFF \
-    -D USE_SYSTEM_LIBAO=OFF \
     -D USE_SYSTEM_FFTW=OFF \
     ${CMAKE_ARGS} \
     ..

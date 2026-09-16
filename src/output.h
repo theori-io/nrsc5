@@ -120,6 +120,8 @@ typedef struct
 {
     nrsc5_t *radio;
     elastic_buffer_t elastic[MAX_PROGRAMS][MAX_STREAMS];
+    uint8_t *last_psd[MAX_PROGRAMS];
+    unsigned int last_psd_len[MAX_PROGRAMS];
 #ifdef HAVE_FAAD2
     NeAACDecHandle aacdec[MAX_PROGRAMS];
     int16_t silence[NRSC5_AUDIO_FRAME_SAMPLES * 2];

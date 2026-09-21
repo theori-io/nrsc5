@@ -4,6 +4,7 @@ include (CheckLibraryExists)
 include (CheckSymbolExists)
 include (ExternalProject)
 include (FindPkgConfig)
+include (CMakePackageConfigHelpers)
 project (nrsc5 C)
 
 execute_process (COMMAND ${CMAKE_C_COMPILER} -dumpmachine OUTPUT_VARIABLE HOST_TRIPLE_DEFAULT OUTPUT_STRIP_TRAILING_WHITESPACE)
@@ -110,14 +111,14 @@ if (NOT USE_SYSTEM_FFTW)
         URL_HASH SHA256=56c932549852cddcfafdab3820b0200c7742675be92179e59e6215b340e26467
         PREFIX ${FFTW_PREFIX}
 
-        CONFIGURE_COMMAND ${FFTW_PREFIX}/src/fftw_external/configure ${HOST_TRIPLE_ARG} --prefix=${FFTW_PREFIX} --enable-float --enable-static --disable-shared --enable-sse2 --enable-avx --enable-avx2 --with-our-malloc
+        CONFIGURE_COMMAND ${FFTW_PREFIX}/src/fftw_external/configure ${HOST_TRIPLE_ARG} --prefix=${CMAKE_INSTALL_PREFIX} --enable-float --enable-static --disable-shared --enable-sse2 --enable-avx --enable-avx2 --with-our-malloc
     )
 
     add_library (fftw3f STATIC IMPORTED)
-    set_property (TARGET fftw3f PROPERTY IMPORTED_LOCATION "${FFTW_PREFIX}/lib/libfftw3f.a")
+    set_property (TARGET fftw3f PROPERTY IMPORTED_LOCATION "${CMAKE_INSTALL_PREFIX}/lib/libfftw3f.a")
     add_dependencies (fftw3f fftw_external)
 
-    set (FFTW3F_INCLUDE_DIRS "${FFTW_PREFIX}/include")
+    set (FFTW3F_INCLUDE_DIRS "${CMAKE_INSTALL_PREFIX}/include")
     set (FFTW3F_LIBRARIES fftw3f)
     set (FFTW3F_BUILTIN fftw3f)
 endif ()
@@ -132,7 +133,7 @@ if (NOT USE_SYSTEM_LIBUSB)
         PREFIX ${LIBUSB_PREFIX}
 
         UPDATE_COMMAND ""
-        CONFIGURE_COMMAND ${LIBUSB_PREFIX}/src/libusb_external/configure ${HOST_TRIPLE_ARG} --prefix=${LIBUSB_PREFIX}
+        CONFIGURE_COMMAND ${LIBUSB_PREFIX}/src/libusb_external/configure ${HOST_TRIPLE_ARG} --prefix=${CMAKE_INSTALL_PREFIX}
     )
     ExternalProject_Add_Step (
         libusb_external
@@ -143,12 +144,12 @@ if (NOT USE_SYSTEM_LIBUSB)
         WORKING_DIRECTORY <SOURCE_DIR>
     )
     add_library (libusb STATIC IMPORTED)
-    set_property (TARGET libusb PROPERTY IMPORTED_LOCATION "${LIBUSB_PREFIX}/lib/libusb-1.0.a")
+    set_property (TARGET libusb PROPERTY IMPORTED_LOCATION "${CMAKE_INSTALL_PREFIX}/lib/libusb-1.0.a")
 
     set (LIBUSB_BUILTIN libusb_external)
     set (LIBUSB_LIBRARIES libusb)
     set (RTLSDR_CMAKE_ARGS
-        -DCMAKE_PREFIX_PATH:STRING=${LIBUSB_PREFIX}
+        -DCMAKE_PREFIX_PATH:STRING=${CMAKE_INSTALL_PREFIX}
     )
 endif ()
 
@@ -164,7 +165,7 @@ if (NOT USE_SYSTEM_RTLSDR)
         UPDATE_COMMAND ""
         CMAKE_ARGS
             -DCMAKE_C_FLAGS:STRING="-std=gnu17"
-            -DCMAKE_INSTALL_PREFIX:STRING=${RTLSDR_PREFIX}
+            -DCMAKE_INSTALL_PREFIX:STRING=${CMAKE_INSTALL_PREFIX}
             -DCMAKE_C_COMPILER:STRING=${CMAKE_C_COMPILER}
             -DCMAKE_SYSTEM_NAME:STRING=${CMAKE_SYSTEM_NAME}
             ${RTLSDR_CMAKE_ARGS}
@@ -175,7 +176,7 @@ if (NOT USE_SYSTEM_RTLSDR)
     endif ()
 
     add_library (rtlsdr STATIC IMPORTED)
-    set_property (TARGET rtlsdr PROPERTY IMPORTED_LOCATION "${RTLSDR_PREFIX}/lib/librtlsdr_static.a")
+    set_property (TARGET rtlsdr PROPERTY IMPORTED_LOCATION "${CMAKE_INSTALL_PREFIX}/lib/librtlsdr_static.a")
     add_dependencies (rtlsdr rtlsdr_external)
 
     set (RTL_SDR_INCLUDE_DIRS "${RTLSDR_PREFIX}/include")

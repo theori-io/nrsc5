@@ -131,8 +131,14 @@ configure_package_config_file(${PROJECT_SOURCE_DIR}/support/config.cmake.in
         "${CMAKE_CURRENT_BINARY_DIR}/nrsc5Config.cmake"
         INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/nrsc5
 )
+write_basic_package_version_file(
+        "${CMAKE_CURRENT_BINARY_DIR}/nrsc5ConfigVersion.cmake"
+        VERSION "${PROJECT_VERSION}"
+        COMPATIBILITY AnyNewerVersion
+)
 install(FILES
         "${CMAKE_CURRENT_BINARY_DIR}/nrsc5Config.cmake"
+        "${CMAKE_CURRENT_BINARY_DIR}/nrsc5ConfigVersion.cmake"
         DESTINATION lib/cmake/nrsc5
 )
 install(EXPORT nrsc5Targets

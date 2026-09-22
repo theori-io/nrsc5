@@ -5,7 +5,7 @@ include (CheckSymbolExists)
 include (ExternalProject)
 include (FindPkgConfig)
 include (CMakePackageConfigHelpers)
-project (nrsc5 C)
+project (nrsc5 LANGUAGES C VERSION 3.3.0)
 
 execute_process (COMMAND ${CMAKE_C_COMPILER} -dumpmachine OUTPUT_VARIABLE HOST_TRIPLE_DEFAULT OUTPUT_STRIP_TRAILING_WHITESPACE)
 

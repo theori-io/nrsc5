@@ -52,7 +52,7 @@ void input_push(input_t *st, const float complex* buf, const uint32_t length)
     }
 }
 
-unsigned int decimate_samples(input_t *st, const uint8_t* in, const uint32_t len, float complex *out)
+static unsigned int decimate_samples(input_t *st, const uint8_t* in, const uint32_t len, float complex *out)
 {
     unsigned int avail = 0;
 

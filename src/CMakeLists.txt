@@ -45,6 +45,7 @@ set (LIBRARY_FILES
     sync.c
 
     firdecim_cf32.c
+    halfband_cf32.c
 
     conv_dec.c
 

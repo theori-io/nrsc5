@@ -23,24 +23,6 @@
 #include "input.h"
 #include "private.h"
 
-/*
- * GNU Radio Filter Design Tool
- * FIR, Low Pass, Kaiser Window
- * Sample rate: 1488375
- * End of pass band: 372094
- * Start of stop band: 530000
- * Stop band attenuation: 40
- */
-static float decim_taps[] = {
-    0.6062333583831787,
-    0,
-    -0.13481467962265015,
-    0,
-    0.032919470220804214,
-    0,
-    -0.00410953676328063
-};
-
 void input_push(input_t *st, const float complex* buf, const uint32_t length)
 {
     unsigned int consumed = 0;
@@ -150,7 +132,7 @@ void input_reset(input_t *st)
 
     input_set_sync_state(st, SYNC_STATE_NONE);
     for (int i = 0; i < AM_DECIM_STAGES; i++)
-        firdecim_cf32_reset(st->decim[i]);
+        halfband_cf32_reset(st->decim[i]);
     acquire_reset(&st->acq);
     decode_reset(&st->decode);
     frame_reset(&st->frame);
@@ -164,7 +146,7 @@ void input_init(input_t *st, nrsc5_t *radio, output_t *output)
     st->sync_state = SYNC_STATE_NONE;
 
     for (int i = 0; i < AM_DECIM_STAGES; i++)
-        st->decim[i] = firdecim_cf32_create(decim_taps, sizeof(decim_taps) / sizeof(decim_taps[0]));
+        st->decim[i] = halfband_cf32_create();
 
     acquire_init(&st->acq, st);
     decode_init(&st->decode, st);
@@ -186,7 +168,7 @@ void input_free(input_t *st)
     frame_free(&st->frame);
 
     for (int i = 0; i < AM_DECIM_STAGES; i++)
-        firdecim_cf32_free(st->decim[i]);
+        halfband_cf32_free(st->decim[i]);
 }
 
 void input_set_sync_state(input_t *st, unsigned int new_state)

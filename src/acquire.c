@@ -309,8 +309,8 @@ void acquire_init(acquire_t *st, input_t *input)
 
     st->input = input;
 
-    st->filter_fm = firdecim_cf32_create(filter_taps_fm, sizeof(filter_taps_fm) / sizeof(filter_taps_fm[0]));
-    st->filter_am = firdecim_cf32_create(filter_taps_am, sizeof(filter_taps_am) / sizeof(filter_taps_am[0]));
+    st->filter_fm = firdecim_cf32_create(filter_taps_fm);
+    st->filter_am = firdecim_cf32_create(filter_taps_am);
 
     pthread_mutex_lock(&fftw_mutex);
     st->fftin = fftwf_alloc_complex(FFT_FM);

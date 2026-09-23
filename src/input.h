@@ -9,7 +9,7 @@
 #include "decode.h"
 #include "defines.h"
 #include "frame.h"
-#include "firdecim_cf32.h"
+#include "halfband_cf32.h"
 #include "output.h"
 #include "sync.h"
 
@@ -22,7 +22,7 @@ typedef struct input_t
     nrsc5_t *radio;
     output_t *output;
 
-    firdecim_cf32 decim[AM_DECIM_STAGES];
+    halfband_cf32 decim[AM_DECIM_STAGES];
     float complex stages[AM_DECIM_STAGES][2];
     unsigned int resample_input_size;
     unsigned int offset;

@@ -23,6 +23,8 @@
 #include "private.h"
 #include "sync.h"
 
+#define FLOAT_PI ((float)M_PI)
+
 #define MAX_PARTITIONS 14
 #define MIDDLE_REF_SC 30 // midpoint of Table 11-3 in 1011s.pdf
 
@@ -90,7 +92,7 @@ static uint8_t qam64(complex float cf)
 static void adjust_ref(sync_t *st, unsigned int ref, int cfo)
 {
     unsigned int n;
-    float cfo_freq = 2 * M_PI * cfo * CP_FM / FFT_FM;
+    float cfo_freq = 2 * FLOAT_PI * cfo * CP_FM / FFT_FM;
 
     // differentially-encoded sync & parity bits
     static const signed char sync[] = {
@@ -100,17 +102,17 @@ static void adjust_ref(sync_t *st, unsigned int ref, int cfo)
 
     for (n = 0; n < BLKSZ; n++)
     {
-        float error = cargf(st->buffer[ref][n] * st->buffer[ref][n] * cexpf(-I * 2 * st->costas_phase[ref])) * 0.5;
+        float error = cargf(st->buffer[ref][n] * st->buffer[ref][n] * cexpf(-I * 2 * st->costas_phase[ref])) * 0.5f;
 
         st->phases[ref][n] = st->costas_phase[ref];
         st->buffer[ref][n] *= cexpf(-I * st->costas_phase[ref]);
 
         st->costas_freq[ref] += st->beta * error;
-        if (st->costas_freq[ref] > 0.5) st->costas_freq[ref] = 0.5;
-        if (st->costas_freq[ref] < -0.5) st->costas_freq[ref] = -0.5;
+        if (st->costas_freq[ref] > 0.5f) st->costas_freq[ref] = 0.5f;
+        if (st->costas_freq[ref] < -0.5f) st->costas_freq[ref] = -0.5f;
         st->costas_phase[ref] += st->costas_freq[ref] + cfo_freq + (st->alpha * error);
-        if (st->costas_phase[ref] > M_PI) st->costas_phase[ref] -= 2 * M_PI;
-        if (st->costas_phase[ref] < -M_PI) st->costas_phase[ref] += 2 * M_PI;
+        if (st->costas_phase[ref] > FLOAT_PI) st->costas_phase[ref] -= 2 * FLOAT_PI;
+        if (st->costas_phase[ref] < -FLOAT_PI) st->costas_phase[ref] += 2 * FLOAT_PI;
     }
 
     // compare to sync & parity bits
@@ -122,10 +124,10 @@ static void adjust_ref(sync_t *st, unsigned int ref, int cfo)
         // adjust phase by pi to compensate
         for (n = 0; n < BLKSZ; n++)
         {
-            st->phases[ref][n] += M_PI;
+            st->phases[ref][n] += FLOAT_PI;
             st->buffer[ref][n] *= -1;
         }
-        st->costas_phase[ref] += M_PI;
+        st->costas_phase[ref] += FLOAT_PI;
     }
 }
 
@@ -284,8 +286,8 @@ static void adjust_data(sync_t *st, unsigned int lower, unsigned int upper)
 static float phase_diff(float a, float b)
 {
     float diff = a - b;
-    while (diff > M_PI / 2) diff -= M_PI;
-    while (diff < -M_PI / 2) diff += M_PI;
+    while (diff > (float)M_PI_2) diff -= FLOAT_PI;
+    while (diff < (float)-M_PI_2) diff += FLOAT_PI;
     return diff;
 }
 
@@ -433,7 +435,7 @@ void sync_process_fm(sync_t *st)
             samperr += phase_diff(st->phases[LB_START + i][0], st->phases[LB_START + i + PARTITION_WIDTH_FM][0]);
             samperr += phase_diff(st->phases[UB_END - i - PARTITION_WIDTH_FM][0], st->phases[UB_END - i][0]);
         }
-        samperr = samperr / (partitions_per_band * 2) * FFT_FM / PARTITION_WIDTH_FM / (2 * M_PI);
+        samperr = samperr / (partitions_per_band * 2) * FFT_FM / PARTITION_WIDTH_FM / (2 * FLOAT_PI);
 
         for (i = 0; i < partitions_per_band * PARTITION_WIDTH_FM + 1; i += PARTITION_WIDTH_FM)
         {
@@ -451,7 +453,7 @@ void sync_process_fm(sync_t *st)
             sum_xy += x * y;
             sum_x2 += x * x;
         }
-        samperr -= (sum_xy / sum_x2) * FFT_FM / (2 * M_PI) * ACQUIRE_SYMBOLS;
+        samperr -= (sum_xy / sum_x2) * FFT_FM / (2 * FLOAT_PI) * ACQUIRE_SYMBOLS;
         st->samperr = roundf(samperr);
 
         angle /= (partitions_per_band + 1) * 2;
@@ -720,7 +722,7 @@ void sync_process_am(sync_t *st)
                 samperr += phase_diff(cargf(pu_mult[col]), cargf(pu_mult[col-1]));
             }
         }
-        samperr = samperr / (2 * (PARTITION_WIDTH_AM-1)) * FFT_AM / (2 * M_PI);
+        samperr = samperr / (2 * (PARTITION_WIDTH_AM-1)) * FFT_AM / (2 * FLOAT_PI);
         st->samperr = roundf(samperr);
 
         uint8_t pl[BLKSZ * PARTITION_WIDTH_AM];
@@ -771,8 +773,8 @@ void sync_adjust(sync_t *st, int sample_adj)
     int i;
     for (i = 0; i < MAX_PARTITIONS * PARTITION_WIDTH_FM + 1; i++)
     {
-        st->costas_phase[LB_START + i] -= sample_adj * (LB_START + i - (FFT_FM / 2)) * 2 * M_PI / FFT_FM;
-        st->costas_phase[UB_END - i] -= sample_adj * (UB_END - i - (FFT_FM / 2)) * 2 * M_PI / FFT_FM;
+        st->costas_phase[LB_START + i] -= sample_adj * (LB_START + i - (FFT_FM / 2)) * (2 * FLOAT_PI / FFT_FM);
+        st->costas_phase[UB_END - i] -= sample_adj * (UB_END - i - (FFT_FM / 2)) * (2 * FLOAT_PI / FFT_FM);
     }
 }
 

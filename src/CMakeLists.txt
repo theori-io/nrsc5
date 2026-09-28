@@ -1,4 +1,4 @@
-add_compile_options (--std=gnu11 -O3 -Wall -Wextra)
+add_compile_options (--std=gnu11 -O3 -Wall -Wextra -Wdouble-promotion)
 
 add_definitions (-D_GNU_SOURCE)
 set (THREAD_LIBRARY pthread)
@@ -99,6 +99,9 @@ if (BUILD_CLI)
         main.c
         log.c
     )
+    # main.c passes floats to printf-style log functions; C promotes those
+    # to double by definition, so -Wdouble-promotion is just noise here.
+    set_source_files_properties (main.c PROPERTIES COMPILE_OPTIONS -Wno-double-promotion)
     set_property (TARGET app PROPERTY OUTPUT_NAME nrsc5)
     set_target_properties(app PROPERTIES LINK_FLAGS "${STATIC_LINKER_FLAGS}")
     target_link_libraries (

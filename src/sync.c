@@ -281,7 +281,7 @@ static void adjust_data(sync_t *st, unsigned int lower, unsigned int upper)
     }
 }
 
-float phase_diff(float a, float b)
+static float phase_diff(float a, float b)
 {
     float diff = a - b;
     while (diff > M_PI / 2) diff -= M_PI;
@@ -289,7 +289,7 @@ float phase_diff(float a, float b)
     return diff;
 }
 
-void detect_cfo(sync_t *st)
+static void detect_cfo(sync_t *st)
 {
     for (int cfo = -2 * PARTITION_WIDTH_FM; cfo < 2 * PARTITION_WIDTH_FM; cfo++)
     {

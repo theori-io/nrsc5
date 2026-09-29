@@ -116,8 +116,33 @@ endif ()
 
 install (
     TARGETS nrsc5 nrsc5_static
+    EXPORT nrsc5Targets
     RUNTIME DESTINATION bin
     LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
     PUBLIC_HEADER DESTINATION include
+)
+install(
+        FILES "$<TARGET_FILE:faad2>"
+        DESTINATION lib
+)
+
+configure_package_config_file(${PROJECT_SOURCE_DIR}/support/config.cmake.in
+        "${CMAKE_CURRENT_BINARY_DIR}/nrsc5Config.cmake"
+        INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/nrsc5
+)
+write_basic_package_version_file(
+        "${CMAKE_CURRENT_BINARY_DIR}/nrsc5ConfigVersion.cmake"
+        VERSION "${PROJECT_VERSION}"
+        COMPATIBILITY AnyNewerVersion
+)
+install(FILES
+        "${CMAKE_CURRENT_BINARY_DIR}/nrsc5Config.cmake"
+        "${CMAKE_CURRENT_BINARY_DIR}/nrsc5ConfigVersion.cmake"
+        DESTINATION lib/cmake/nrsc5
+)
+install(EXPORT nrsc5Targets
+        FILE nrsc5Targets.cmake
+        NAMESPACE nrsc5::
+        DESTINATION lib/cmake/nrsc5
 )

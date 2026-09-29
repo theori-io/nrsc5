@@ -4,7 +4,7 @@ This program receives NRSC-5 digital radio stations using an RTL-SDR dongle, or 
 
 ## Building on Ubuntu, Debian or Raspbian
 
-    sudo apt install git build-essential cmake autoconf libtool libao-dev libfftw3-dev librtlsdr-dev
+    sudo apt install git build-essential cmake autoconf libtool libfftw3-dev librtlsdr-dev
     git clone https://github.com/theori-io/nrsc5.git
     cd nrsc5
     mkdir build
@@ -30,14 +30,14 @@ You can test the program using the included sample capture:
 
 Follow the Ubuntu instructions above, but replace the first command with the following:
 
-    sudo dnf install git make patch cmake autoconf libtool libao-devel fftw-devel rtl-sdr-devel libusb1-devel
+    sudo dnf install git make patch cmake autoconf libtool fftw-devel rtl-sdr-devel libusb1-devel
 
 ## Building on openSUSE
 
 Follow the Ubuntu instructions above, but replace the first command with the following:
 
     zypper install -t pattern devel_C_C++
-    zypper install git cmake libao-devel fftw3-devel rtl-sdr-devel libusb-1_0-devel
+    zypper install git cmake fftw3-devel rtl-sdr-devel libusb-1_0-devel
 
 ## Building on macOS using [Homebrew](https://brew.sh)
 

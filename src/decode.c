@@ -468,10 +468,13 @@ void decode_process_pids(decode_t *st, const unsigned int bc)
 
     nrsc5_conv_decode_pids(st->viterbi_pids, st->scrambler_pids);
     descramble(st->scrambler_pids, PIDS_FRAME_LEN);
-    pids_frame_push(&st->pids, st->scrambler_pids);
+    pids_frame_push(&st->pids, st->scrambler_pids, bc);
+
+    if (bc == 15)
+        pids_complete_fm(&st->pids);
 }
 
-void decode_process_pids_am(decode_t *st, const uint8_t* sbit)
+void decode_process_pids_am(decode_t *st, const uint8_t* sbit, const unsigned int bc)
 {
     uint8_t il[120], iu[120];
 
@@ -501,7 +504,10 @@ void decode_process_pids_am(decode_t *st, const uint8_t* sbit)
 
     nrsc5_conv_decode_e2_e3(st->viterbi_pids, st->scrambler_pids, PIDS_FRAME_LEN);
     descramble(st->scrambler_pids, PIDS_FRAME_LEN);
-    pids_frame_push(&st->pids, st->scrambler_pids);
+    pids_frame_push(&st->pids, st->scrambler_pids, bc);
+
+    if (bc == 7)
+        pids_complete_am(&st->pids);
 }
 
 void decode_process_p1_p3_am(decode_t *st, const unsigned int bc)

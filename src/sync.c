@@ -684,7 +684,7 @@ void sync_process_am(sync_t *st)
             pids[pids_out++] = qam16(st->buffer[CENTER_AM + pids2_index][n]);
         }
 
-        decode_process_pids_am(&st->input->decode, pids);
+        decode_process_pids_am(&st->input->decode, pids, st->bc);
 
         float complex pl_mult[PARTITION_WIDTH_AM];
         float complex pu_mult[PARTITION_WIDTH_AM];

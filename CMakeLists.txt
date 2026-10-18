@@ -15,7 +15,6 @@ option (USE_STATIC "Link with static libraries")
 option (USE_SYSTEM_FFTW "Use system provided fftw" ON)
 option (USE_SYSTEM_RTLSDR "Use system provided rtl-sdr" ON)
 option (USE_SYSTEM_LIBUSB "Use system provided libusb" ON)
-option (USE_SYSTEM_LIBAO "Use system provided libao" ON)
 option (INSTALLED_FAAD_IS_PATCHED "Use patched system-provided FAAD2" OFF)
 option (BUILD_DOC "Build API documentation" OFF)
 option (BUILD_CLI "Build nrsc5 executable" ON)
@@ -71,14 +70,6 @@ if (USE_SYSTEM_LIBUSB)
     if (NOT LIBUSB_LIBRARIES)
         message (WARNING "libusb-1.0 not found. Building from source.")
         set (USE_SYSTEM_LIBUSB OFF)
-    endif ()
-endif ()
-if (BUILD_CLI AND USE_SYSTEM_LIBAO)
-    find_library (AO_LIBRARIES ao)
-    pkg_search_module(AO ao)
-    if (NOT AO_LIBRARIES)
-        message (WARNING "libao not found. Building from source.")
-        set (USE_SYSTEM_LIBAO OFF)
     endif ()
 endif ()
 
@@ -183,40 +174,6 @@ if (NOT USE_SYSTEM_RTLSDR)
     set (RTL_SDR_BUILTIN rtlsdr)
 endif ()
 
-if (BUILD_CLI AND NOT USE_SYSTEM_LIBAO)
-    if (NOT WIN32)
-        message (FATAL_ERROR "Built-in libao only supported on Windows.")
-    endif ()
-
-    set (LIBAO_PREFIX "${CMAKE_BINARY_DIR}/libao-prefix")
-    ExternalProject_Add (
-        libao_external
-        TIMEOUT 120
-        GIT_REPOSITORY "https://github.com/xiph/libao.git"
-        GIT_TAG cafce902a73c1050474a62feff83e428bbbee5f4
-        PREFIX ${LIBAO_PREFIX}
-
-        UPDATE_COMMAND ""
-        CONFIGURE_COMMAND ${LIBAO_PREFIX}/src/libao_external/configure ${HOST_TRIPLE_ARG} --prefix=${LIBAO_PREFIX} --enable-static --disable-shared --disable-pulse
-    )
-    ExternalProject_Add_Step (
-        libao_external
-        bootstrap
-        COMMAND sh ./autogen.sh
-        DEPENDEES patch
-        DEPENDERS configure
-        WORKING_DIRECTORY <SOURCE_DIR>
-    )
-
-    add_library (libao STATIC IMPORTED)
-    set_property (TARGET libao PROPERTY IMPORTED_LOCATION "${LIBAO_PREFIX}/lib/libao.a")
-    add_dependencies (libao libao_external)
-
-    set (AO_INCLUDE_DIRS "${LIBAO_PREFIX}/include")
-    set (AO_LIBRARIES libao ksuser winmm)
-    set (AO_BUILTIN libao)
-endif ()
-
 if (USE_FAAD2)
     # use patched faad if installed
     if (INSTALLED_FAAD_IS_PATCHED)
@@ -271,14 +228,9 @@ if (USE_FAAD2)
     if (FAAD2_FOUND)
         add_definitions (-DHAVE_FAAD2)
     endif()
-else ()
-    # we only use libao with faad2
-    unset (AO_INCLUDE_DIRS)
-    unset (AO_LIBRARIES)
-    unset (AO_BUILTIN)
-endif()
+endif ()
 
-set (BUILTIN_LIBRARIES ${FFTW3F_BUILTIN} ${RTL_SDR_BUILTIN} ${FAAD2_BUILTIN} ${AO_BUILTIN})
+set (BUILTIN_LIBRARIES ${FFTW3F_BUILTIN} ${RTL_SDR_BUILTIN} ${FAAD2_BUILTIN})
 
 if(EXISTS "${CMAKE_SOURCE_DIR}/.git")
   execute_process(

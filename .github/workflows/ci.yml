@@ -11,7 +11,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - name: Install dependencies
-        run: sudo apt-get update -qq && sudo apt-get install -y libao-dev libfftw3-dev librtlsdr-dev python3-pyaudio
+        run: sudo apt-get update -qq && sudo apt-get install -y libfftw3-dev librtlsdr-dev python3-pyaudio
       - name: Checkout code
         uses: actions/checkout@v7
       - name: Configure
@@ -54,7 +54,7 @@ jobs:
     steps:
       - name: Install dependencies
         run: |
-          brew install autoconf automake libtool libao fftw librtlsdr portaudio
+          brew install autoconf automake libtool fftw librtlsdr portaudio
           python3 -m venv ${{ runner.temp }}/venv
           source ${{ runner.temp }}/venv/bin/activate
           pip3 install pyaudio

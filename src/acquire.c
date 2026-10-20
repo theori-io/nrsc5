@@ -161,7 +161,7 @@ void acquire_process(acquire_t *st)
         st->buffer[i] = (st->mode == NRSC5_MODE_FM) ? conjf(st->in_buffer[i]) : st->in_buffer[i];
 
     sync_adjust(&st->input->sync, st->fftcp / 2 - samperr);
-    angle -= 2 * M_PI * st->cfo;
+    angle -= 2 * (float)M_PI * st->cfo;
 
     st->phase *= cexpf(-(st->fftcp / 2 - samperr) * angle / st->fft * I);
 
@@ -231,7 +231,7 @@ void acquire_process(acquire_t *st)
 
         phase_increment *= cexpf(-sum_xy / sum_x2 * I);
         // TODO: Investigate why 0.06 is needed below
-        st->phase *= cexpf((-sum_y / ACQUIRE_SYMBOLS + (sum_xy / sum_x2)*(ACQUIRE_SYMBOLS)*st->fftcp/2 - 0.06) * I);
+        st->phase *= cexpf((-sum_y / ACQUIRE_SYMBOLS + (sum_xy / sum_x2)*(ACQUIRE_SYMBOLS)*st->fftcp/2 - 0.06f) * I);
     }
 
     for (i = 0; i < ACQUIRE_SYMBOLS; ++i)
@@ -323,22 +323,22 @@ void acquire_init(acquire_t *st, input_t *input)
     {
         // Pulse shaping window function for FM
         if (i < CP_FM)
-            st->shape_fm[i] = sinf(M_PI / 2 * i / CP_FM);
+            st->shape_fm[i] = sinf((float)M_PI_2 * i / CP_FM);
         else if (i < FFT_FM)
             st->shape_fm[i] = 1;
         else
-            st->shape_fm[i] = cosf(M_PI / 2 * (i - FFT_FM) / CP_FM);
+            st->shape_fm[i] = cosf((float)M_PI_2 * (i - FFT_FM) / CP_FM);
     }
 
     for (i = 0; i < FFTCP_AM; ++i)
     {
         // Pulse shaping window function for AM
         if (i < CP_AM)
-            st->shape_am[i] = sinf(M_PI / 2 * i / CP_AM);
+            st->shape_am[i] = sinf((float)M_PI_2 * i / CP_AM);
         else if (i < FFT_AM)
             st->shape_am[i] = 1;
         else
-            st->shape_am[i] = cosf(M_PI / 2 * (i - FFT_AM) / CP_AM);
+            st->shape_am[i] = cosf((float)M_PI_2 * (i - FFT_AM) / CP_AM);
     }
 
     st->shape = st->shape_fm;

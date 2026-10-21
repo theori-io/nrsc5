@@ -903,4 +903,24 @@ NRSC5_API int nrsc5_pipe_samples_cf32(nrsc5_t *st, const float *samples, unsigne
  */
 NRSC5_API int nrsc5_reset(nrsc5_t *st);
 
+/**
+ * Retrieves a string corresponding to a known mime type.
+ * @param[in]  type  a 32-bit mime type.
+ * @param[out] name  character pointer to a string naming the mime name
+ *
+ * This name will be quite short, e.g. "Station Logo" or "PNG". If the type is
+ * not recognized, it will be NULL.
+ */
+NRSC5_API void nrsc5_mime_type_name(uint32_t type, const char **name);
+
+/**
+ * Retrieves a string corresponding to the aas type.
+ * @param[in]  type  an 8-bit aas type.
+ * @param[out] name  character pointer to a string naming the mime name
+ *
+ * This name will be quite short, e.g. "STREAM" or "LOT". If the type is
+* not recognized, it will be the string "Unknown".
+ */
+NRSC5_API void nrsc5_aas_type_name(uint8_t type, const char **name);
+
 #endif /* NRSC5_H_ */

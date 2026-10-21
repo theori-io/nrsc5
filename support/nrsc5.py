@@ -1098,3 +1098,18 @@ class NRSC5:
         result = NRSC5.libnrsc5.nrsc5_reset(self.radio)
         if result != 0:
             raise NRSC5Error("Failed to reset session.")
+
+    @staticmethod
+    def nrsc5_mime_type_name(mime_type):
+        name = ctypes.c_char_p()
+        NRSC5.libnrsc5.nrsc5_mime_type_name(mime_type.value, ctypes.byref(name))
+        if name.value:
+            return name.value.decode()
+        else:
+            return None
+
+    @staticmethod
+    def nrsc5_aas_type_name(aas_type):
+        name = ctypes.c_char_p()
+        NRSC5.libnrsc5.nrsc5_aas_type_name(aas_type.value, ctypes.byref(name))
+        return name.value.decode()

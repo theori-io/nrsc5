@@ -322,6 +322,40 @@ void nrsc5_alert_category_name(unsigned int type, const char **name)
     }
 }
 
+void nrsc5_mime_type_name(const uint32_t type, const char **name)
+{
+    switch (type)
+    {
+    case NRSC5_MIME_PRIMARY_IMAGE: *name = "Primary Image"; break;
+    case NRSC5_MIME_STATION_LOGO: *name = "Station Logo"; break;
+    case NRSC5_MIME_NAVTEQ: *name = "NAVTEQ"; break;
+    case NRSC5_MIME_HERE_IMAGE: *name = "HERE IMAGE"; break;
+    case NRSC5_MIME_HERE_TPEG: *name = "HERE TPEG"; break;
+    case NRSC5_MIME_HD_TMC: *name = "HD TMC"; break;
+    case NRSC5_MIME_HDC: *name = "HDC"; break;
+    case NRSC5_MIME_TEXT: *name = "Text"; break;
+    case NRSC5_MIME_JPEG: *name = "JPEG"; break;
+    case NRSC5_MIME_PNG: *name = "PNG"; break;
+    case NRSC5_MIME_TTN_TPEG_1: *name = "TTN TPEG 1"; break;
+    case NRSC5_MIME_TTN_TPEG_2: *name = "TTN TPEG 2"; break;
+    case NRSC5_MIME_TTN_TPEG_3: *name = "TTN TPEG 3"; break;
+    case NRSC5_MIME_TTN_STM_TRAFFIC: *name = "TTN STM Traffic"; break;
+    case NRSC5_MIME_TTN_STM_WEATHER: *name = "TTN STM Weather"; break;
+    default: *name = NULL; break;
+    }
+}
+
+void nrsc5_aas_type_name(const uint8_t type, const char **name)
+{
+    switch (type)
+    {
+    case NRSC5_AAS_TYPE_STREAM: *name = "STREAM"; break;
+    case NRSC5_AAS_TYPE_PACKET: *name = "PACKET"; break;
+    case NRSC5_AAS_TYPE_LOT: *name = "LOT"; break;
+    default: *name = "Unknown"; break;
+    }
+}
+
 static nrsc5_t *nrsc5_alloc(void)
 {
     nrsc5_t *st = calloc(1, sizeof(*st));

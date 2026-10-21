@@ -309,6 +309,21 @@ static void change_program(state_t *st, unsigned int program)
     pthread_mutex_unlock(&st->mutex);
 }
 
+static void mime_description(const uint32_t type, char buffer[64])
+{
+    const char* name;
+    nrsc5_mime_type_name(type, &name);
+
+    if (name)
+    {
+        snprintf(buffer, 64, "%s", name);
+    }
+    else
+    {
+        snprintf(buffer, 64, "%08X", type);
+    }
+}
+
 static void callback(const nrsc5_event_t *evt, void *opaque)
 {
     state_t *st = opaque;
@@ -316,7 +331,9 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
     nrsc5_sig_component_t *sig_component;
     nrsc5_id3_comment_t *comment;
     const char *name;
+    const char* type;
     char time_str[64];
+    char mime[64];
 
     switch (evt->event)
     {
@@ -411,8 +428,9 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
                 log_info("Comment: lang=%s %s %s", comment->lang, comment->short_content_desc, comment->full_text);
             if (evt->id3.ufid.owner)
                 log_info("Unique file identifier: %s %s", evt->id3.ufid.owner, evt->id3.ufid.id);
+            mime_description(evt->id3.xhdr.mime, mime);
             if (evt->id3.xhdr.param >= 0)
-                log_info("XHDR: %d %08X %d", evt->id3.xhdr.param, evt->id3.xhdr.mime, evt->id3.xhdr.lot);
+                log_info("XHDR: %d %s %d", evt->id3.xhdr.param, mime, evt->id3.xhdr.lot);
             strftime(time_str, sizeof(time_str), "%Y-%m-%d", evt->id3.commercial.valid_until);
             if (evt->id3.commercial.price)
                 log_info("Commercial: price=%s until=%s url=\"%s\" seller=\"%s\" desc=\"%s\" received_as=%d",
@@ -431,34 +449,45 @@ static void callback(const nrsc5_event_t *evt, void *opaque)
             {
                 if (sig_component->type == NRSC5_SIG_SERVICE_AUDIO)
                 {
-                    log_info("  Audio component: id=%d port=%04X type=%d mime=%08X", sig_component->id,
-                             sig_component->audio.port, sig_component->audio.type, sig_component->audio.mime);
+                    nrsc5_program_type_name(sig_component->audio.type, &name);
+                    mime_description(sig_component->audio.mime, mime);
+
+                    log_info("  Audio component: id=%d port=%04X type=%s mime=%s", sig_component->id,
+                             sig_component->audio.port, name, mime);
                 }
                 else if (sig_component->type == NRSC5_SIG_SERVICE_DATA)
                 {
-                    log_info("  Data component: id=%d port=%04X service_data_type=%d type=%d mime=%08X",
-                             sig_component->id, sig_component->data.port, sig_component->data.service_data_type,
-                             sig_component->data.type, sig_component->data.mime);
+                    nrsc5_service_data_type_name(sig_component->data.service_data_type, &name);
+                    nrsc5_aas_type_name(sig_component->data.type, &type);
+                    mime_description(sig_component->data.mime, mime);
+
+                    log_info("  Data component: id=%d port=%04X service_data_type=%s type=%s mime=%s",
+                             sig_component->id, sig_component->data.port, name,
+                             type, mime);
                 }
             }
         }
         break;
     case NRSC5_EVENT_STREAM:
-        log_debug("Stream data: port=%04X seq=%04X mime=%08X size=%d", evt->stream.component->data.port, evt->stream.seq, evt->stream.component->data.mime, evt->stream.size);
+        mime_description(evt->stream.component->data.mime, mime);
+        log_debug("Stream data: port=%04X seq=%04X mime=%s size=%d", evt->stream.component->data.port, evt->stream.seq, mime, evt->stream.size);
         break;
     case NRSC5_EVENT_PACKET:
-        log_debug("Packet data: port=%04X seq=%04X mime=%08X size=%d", evt->packet.component->data.port, evt->packet.seq, evt->packet.component->data.mime, evt->packet.size);
+        mime_description(evt->packet.component->data.mime, mime);
+        log_debug("Packet data: port=%04X seq=%04X mime=%s size=%d", evt->packet.component->data.port, evt->packet.seq, mime, evt->packet.size);
         break;
     case NRSC5_EVENT_LOT:
         if (st->aas_files_path)
             dump_aas_file(st, evt);
         strftime(time_str, sizeof(time_str), "%Y-%m-%dT%H:%M:%SZ", evt->lot.expiry_utc);
-        log_info("LOT file: port=%04X lot=%d name=%s size=%d mime=%08X expiry=%s", evt->lot.component->data.port, evt->lot.lot, evt->lot.name, evt->lot.size, evt->lot.mime, time_str);
+        mime_description(evt->lot.mime, mime);
+        log_info("LOT file: port=%04X lot=%d name=%s size=%d mime=%s expiry=%s", evt->lot.component->data.port, evt->lot.lot, evt->lot.name, evt->lot.size, mime, time_str);
         break;
     case NRSC5_EVENT_LOT_HEADER:
         strftime(time_str, sizeof(time_str), "%Y-%m-%dT%H:%M:%SZ", evt->lot.expiry_utc);
-        log_debug("LOT header: port=%04X lot=%d name=%s size=%d mime=%08X expiry=%s",
-                  evt->lot.component->data.port, evt->lot.lot, evt->lot.name, evt->lot.size, evt->lot.mime, time_str);
+        mime_description(evt->lot.mime, mime);
+        log_debug("LOT header: port=%04X lot=%d name=%s size=%d mime=%s expiry=%s",
+                  evt->lot.component->data.port, evt->lot.lot, evt->lot.name, evt->lot.size, mime, time_str);
         break;
     case NRSC5_EVENT_LOT_FRAGMENT:
         if (!evt->lot_fragment.is_duplicate)

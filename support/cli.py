@@ -216,6 +216,12 @@ class NRSC5CLI:
             parts.append(f'PIDS power: {"high" if evt.hppi else "low"}')
         return ", ".join(parts)
 
+    def mime_description(self, mime_type):
+        name = self.radio.nrsc5_mime_type_name(mime_type)
+        if name:
+            return name
+        return f"{mime_type.value:08x}"
+
     def callback(self, evt_type, evt):
         if evt_type == nrsc5.EventType.LOST_DEVICE:
             logging.info("Lost device")
@@ -296,7 +302,7 @@ class NRSC5CLI:
                     logging.info("Unique file identifier: %s %s", evt.ufid.owner, evt.ufid.id)
                 if evt.xhdr:
                     logging.info("XHDR: param=%s mime=%s lot=%s",
-                                 evt.xhdr.param, evt.xhdr.mime.name, evt.xhdr.lot)
+                                 evt.xhdr.param, self.mime_description(evt.xhdr.mime), evt.xhdr.lot)
                 if evt.commercial:
                     date_str = evt.commercial.valid_until.strftime("%Y-%m-%d")
                     logging.info("Commercial: price=%s until=%s url=\"%s\" seller=\"%s\" desc=\"%s\" received_as=%d",
@@ -310,18 +316,20 @@ class NRSC5CLI:
                     if component.type == nrsc5.ComponentType.AUDIO:
                         logging.info("  Audio component: id=%s port=%04X type=%s mime=%s",
                                      component.id, component.audio.port,
-                                     component.audio.type.name, component.audio.mime.name)
+                                     self.radio.program_type_name(component.audio.type),
+                                     self.mime_description(component.audio.mime))
                     elif component.type == nrsc5.ComponentType.DATA:
                         logging.info("  Data component: id=%s port=%04X service_data_type=%s type=%s mime=%s",
                                      component.id, component.data.port,
-                                     component.data.service_data_type.name,
-                                     component.data.type.name, component.data.mime.name)
+                                     self.radio.service_data_type_name(component.data.service_data_type),
+                                     self.radio.nrsc5_aas_type_name(component.data.type),
+                                     self.mime_description(component.data.mime))
         elif evt_type == nrsc5.EventType.STREAM:
             logging.debug("Stream data: port=%04X seq=%04X mime=%s size=%s",
-                          evt.component.data.port, evt.seq, evt.component.data.mime.name, len(evt.data))
+                          evt.component.data.port, evt.seq, self.mime_description(evt.component.data.mime), len(evt.data))
         elif evt_type == nrsc5.EventType.PACKET:
             logging.debug("Packet data: port=%04X seq=%04X mime=%s size=%s",
-                          evt.component.data.port, evt.seq, evt.component.data.mime.name, len(evt.data))
+                          evt.component.data.port, evt.seq, self.mime_description(evt.component.data.mime), len(evt.data))
         elif evt_type == nrsc5.EventType.LOT:
             if self.args.dump_aas_files:
                 path = os.path.join(self.args.dump_aas_files, evt.name)
@@ -332,11 +340,11 @@ class NRSC5CLI:
                     logging.warning(f"Failed to write AAS file: {e}")
             time_str = evt.expiry_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
             logging.info("LOT file: port=%04X lot=%s name=%s size=%s mime=%s expiry=%s",
-                         evt.component.data.port, evt.lot, evt.name, len(evt.data), evt.mime.name, time_str)
+                         evt.component.data.port, evt.lot, evt.name, len(evt.data), self.mime_description(evt.mime), time_str)
         elif evt_type == nrsc5.EventType.LOT_HEADER:
             time_str = evt.expiry_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
             logging.debug("LOT header: port=%04X lot=%s name=%s size=%s mime=%s expiry=%s",
-                          evt.component.data.port, evt.lot, evt.name, evt.size, evt.mime.name, time_str)
+                          evt.component.data.port, evt.lot, evt.name, evt.size, self.mime_description(evt.mime), time_str)
         elif evt_type == nrsc5.EventType.LOT_FRAGMENT:
             if not evt.is_duplicate:
                 logging.debug("LOT fragment: port=%04X lot=%d seq=%d repeat=%d size=%d bytes_so_far=%d",

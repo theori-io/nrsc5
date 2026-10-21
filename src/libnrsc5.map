@@ -25,6 +25,8 @@ LIBNRSC5_1.0 {
         nrsc5_pipe_samples_cs16;
         nrsc5_pipe_samples_cf32;
         nrsc5_reset;
+        nrsc5_mime_type_name;
+        nrsc5_aas_type_name;
 
     local:
         *;
